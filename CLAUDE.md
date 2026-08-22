@@ -1,7 +1,8 @@
 # wilson
 
 Clinician-facing tool for voluntary FDA adverse-drug-reaction reporting
-(Form FDA 3500) — peer to lucy (patient-facing, Form 3500B), MurmurPV org.
+(Form FDA 3500) — peer to lucy (murmurpv/lucy, patient-facing, Form
+3500B). wilson itself lives in the `warblersafety` org, not `murmurpv`.
 
 Charter: [docs/charter.md](docs/charter.md) — read it first; it states this
 project's intended use and its own conclusion on review depth, which governs

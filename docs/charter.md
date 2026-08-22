@@ -2,9 +2,11 @@
 
 ## What this is, and why
 
-wilson is a peer to [lucy](https://github.com/murmurpv/lucy) in the
-MurmurPV org. Both submit adverse drug reaction reports to the FDA; lucy is
-conversational patient intake, wilson is the equivalent for clinicians.
+wilson is a peer to [lucy](https://github.com/murmurpv/lucy), which lives
+in the MurmurPV org — wilson itself lives in `warblersafety`, a deliberate
+separation, not an oversight. Both submit adverse drug reaction reports to
+the FDA; lucy is conversational patient intake, wilson is the equivalent
+for clinicians.
 Where lucy produces a MedWatch 3500B-style patient record, wilson targets
 **Form FDA 3500** — the healthcare-professional voluntary MedWatch report.
 
