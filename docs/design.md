@@ -113,20 +113,27 @@ suggestion layer writing through.
   section-level structure itself, which the original draft of this
   document got wrong (see Data shape above) — not just under-specified
   below the section level, as assumed here previously.
-- **Resolved, 2026-08-22 (Issue #24).** Corrects this document's prior
-  framing here, which assumed the only real coding source was MedDRA and
-  that MedDRA was blocked on procurement — both true individually, but the
-  conclusion drawn from them wasn't: MedDRA is one source among several,
-  not the source. Research found eight of the nine sources wilson's field
-  manifest could use are free (public domain or a no-cost registration),
-  six of those eight fully self-hostable with no runtime dependency on any
-  external service, covering every codeable field the form actually has
+- **Partially resolved, 2026-08-22 (Issue #24).** Corrects this document's
+  prior framing here, which assumed the only real coding source was MedDRA
+  and that MedDRA was blocked on procurement — both true individually, but
+  the conclusion drawn from them wasn't: MedDRA is one source among
+  several, not the source. Research found eight of the nine sources
+  wilson's field manifest could use are free (public domain or a no-cost
+  registration), covering every codeable field the form actually has
   (product identity, diagnosis/indication, lab data, device identity).
   MedDRA itself is excluded from wilson's scope entirely, not deferred —
   see `docs/coding-databases.md` for the source-by-source detail and the
   reasoning. Whether/when to actually build the Suggestion layer is now a
   real product-scope choice rather than a blocked default; nothing about
-  the record's correctness depends on it existing either way.
+  the record's correctness depends on it existing either way. **Not fully
+  resolved — one real open item, not yet owned by anyone:** six of the
+  eight free sources are unconditionally free and self-hostable, but
+  SNOMED CT and UMLS specifically are free only under an annual UTS
+  license report; a lapsed report doesn't just risk a fee, it puts
+  continued use of that data for *new* suggestions outside the license's
+  terms. Whoever builds a Suggestion layer using either source needs to
+  name an owner for that renewal, the same way the PHI data-handling risk
+  below is explicitly named to Steve rather than left unowned.
 - **Keeping "advisory, not authoritative" honest in the actual UX**, not
   just in this document — the charter's review-depth conclusion weights
   this heavily. Addressed above (no pre-selected candidates, acceptance is
