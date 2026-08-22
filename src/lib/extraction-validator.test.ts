@@ -25,7 +25,7 @@ describe("validateCandidates", () => {
       fieldId: TEXT_FIELD.id,
       kind: "value",
       value: "42",
-      quotes: [{ turnIndex: 1, text: "I'm 42 years old" }],
+      quote: { turnIndex: 1, text: "I'm 42 years old" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.accepted).toEqual([
@@ -34,12 +34,29 @@ describe("validateCandidates", () => {
     expect(result.rejected).toEqual([]);
   });
 
+  it("accepts a referentially-mapped value that never literally appears in its quote — design.md's own motivating case", () => {
+    // docs/design.md names exactly this: a clinician says "the water
+    // pill," the extractor maps it to the actual drug name. Neither
+    // string contains the other; the quote alone is what's checked.
+    const transcript = transcriptWith("I'm on the water pill for my blood pressure");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "furosemide",
+      quote: { turnIndex: 1, text: "the water pill" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "furosemide" },
+    ]);
+  });
+
   it("accepts an unknown candidate grounded in a clinician turn expressing uncertainty", () => {
     const transcript = transcriptWith("I don't know, honestly");
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
       kind: "unknown",
-      quotes: [{ turnIndex: 1, text: "I don't know" }],
+      quote: { turnIndex: 1, text: "I don't know" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "mark_unknown" }]);
@@ -50,7 +67,7 @@ describe("validateCandidates", () => {
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
       kind: "declined",
-      quotes: [{ turnIndex: 1, text: "rather not say" }],
+      quote: { turnIndex: 1, text: "rather not say" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "decline" }]);
@@ -59,9 +76,9 @@ describe("validateCandidates", () => {
   it("accepts a batch of mixed candidates, all in one call, in order", () => {
     const transcript = transcriptWith("42", "no idea", "skip that one");
     const candidates: ExtractionCandidate[] = [
-      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quotes: [{ turnIndex: 1, text: "42" }] },
-      { fieldId: DATE_FIELD.id, kind: "unknown", quotes: [{ turnIndex: 3, text: "no idea" }] },
-      { fieldId: DATE_FIELD.id, kind: "declined", quotes: [{ turnIndex: 5, text: "skip that one" }] },
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } },
+      { fieldId: DATE_FIELD.id, kind: "unknown", quote: { turnIndex: 3, text: "no idea" } },
+      { fieldId: DATE_FIELD.id, kind: "declined", quote: { turnIndex: 5, text: "skip that one" } },
     ];
     const result = validateCandidates(transcript, candidates, FIELDS);
     expect(result.accepted).toEqual([
@@ -75,8 +92,8 @@ describe("validateCandidates", () => {
   it("accepts two candidates for the same field in one batch, both surfaced in order", () => {
     const transcript = transcriptWith("42, actually wait, 45");
     const candidates: ExtractionCandidate[] = [
-      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quotes: [{ turnIndex: 1, text: "42" }] },
-      { fieldId: TEXT_FIELD.id, kind: "value", value: "45", quotes: [{ turnIndex: 1, text: "45" }] },
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } },
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "45", quote: { turnIndex: 1, text: "45" } },
     ];
     const result = validateCandidates(transcript, candidates, FIELDS);
     expect(result.accepted).toEqual([
@@ -96,7 +113,7 @@ describe("validateCandidates", () => {
       fieldId: "not-a-real-field",
       kind: "value",
       value: "42",
-      quotes: [{ turnIndex: 1, text: "42" }],
+      quote: { turnIndex: 1, text: "42" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.accepted).toEqual([]);
@@ -109,7 +126,7 @@ describe("validateCandidates", () => {
       fieldId: ENUM_FIELD.id,
       kind: "value",
       value: "BID",
-      quotes: [{ turnIndex: 1, text: "twice a day" }],
+      quote: { turnIndex: 1, text: "twice a day" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.rejected).toEqual([{ candidate, reason: "not_extractable_field_type" }]);
@@ -121,21 +138,10 @@ describe("validateCandidates", () => {
       fieldId: CHECKBOX_FIELD.id,
       kind: "value",
       value: "true",
-      quotes: [{ turnIndex: 1, text: "yes" }],
+      quote: { turnIndex: 1, text: "yes" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.rejected).toEqual([{ candidate, reason: "not_extractable_field_type" }]);
-  });
-
-  it("rejects a candidate with zero quotes", () => {
-    const candidate: ExtractionCandidate = {
-      fieldId: TEXT_FIELD.id,
-      kind: "value",
-      value: "42",
-      quotes: [],
-    };
-    const result = validateCandidates(transcriptWith("42"), [candidate], FIELDS);
-    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
   });
 
   it("rejects a quote whose turn index doesn't exist in the transcript", () => {
@@ -143,7 +149,7 @@ describe("validateCandidates", () => {
       fieldId: TEXT_FIELD.id,
       kind: "value",
       value: "42",
-      quotes: [{ turnIndex: 99, text: "42" }],
+      quote: { turnIndex: 99, text: "42" },
     };
     const result = validateCandidates(transcriptWith("42"), [candidate], FIELDS);
     expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
@@ -156,7 +162,7 @@ describe("validateCandidates", () => {
       kind: "value",
       value: "42",
       // index 0 is the talker's "(question)" turn, not the clinician's
-      quotes: [{ turnIndex: 0, text: "(question)" }],
+      quote: { turnIndex: 0, text: "(question)" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
@@ -168,60 +174,69 @@ describe("validateCandidates", () => {
       fieldId: TEXT_FIELD.id,
       kind: "value",
       value: "42",
-      quotes: [{ turnIndex: 1, text: "I'm 50 years old" }],
+      quote: { turnIndex: 1, text: "I'm 50 years old" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
   });
 
-  it("matches a quote after normalizing case, whitespace, and punctuation", () => {
-    const transcript = transcriptWith("I'm  42   YEARS old!!");
+  it("rejects a quote that normalizes to an empty string — a punctuation-only quote must not vacuously match everything", () => {
+    // Without an explicit empty-string guard, "...".normalize() -> "" and
+    // "".includes("") -> true for JS strings, which would make ANY real
+    // clinician turn "ground" a candidate that quotes nothing at all.
+    const transcript = transcriptWith("42");
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
       kind: "value",
       value: "42",
-      quotes: [{ turnIndex: 1, text: "i'm 42 years old" }],
+      quote: { turnIndex: 1, text: "..." },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
-    expect(result.accepted).toHaveLength(1);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
   });
 
-  it("rejects a value not grounded in its own quote, even if the quote itself is real", () => {
-    // The clinician deflected; the quote is a real substring of what they
-    // said, but "45" never appears in it — this is the deflection-as-value
-    // case the grounding check exists to catch.
-    const transcript = transcriptWith("can we talk about something else");
+  it("rejects a value that normalizes to an empty string, even with a real grounded quote", () => {
+    const transcript = transcriptWith("I'm 42 years old");
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
       kind: "value",
-      value: "45",
-      quotes: [{ turnIndex: 1, text: "can we talk about something else" }],
+      value: "...",
+      quote: { turnIndex: 1, text: "I'm 42 years old" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
-    expect(result.accepted).toEqual([]);
     expect(result.rejected).toEqual([{ candidate, reason: "value_not_grounded" }]);
   });
 
-  it("accepts a value grounded across normalization even if punctuation/case differ", () => {
-    const transcript = transcriptWith("It's the WATER PILL, 40mg.");
+  it("matches a quote after normalizing case, whitespace, and straight-vs-curly punctuation", () => {
+    const transcript = transcriptWith("I don’t know…");
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
-      kind: "value",
-      value: "water pill",
-      quotes: [{ turnIndex: 1, text: "the water pill" }],
+      kind: "unknown",
+      quote: { turnIndex: 1, text: "I don't know" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
     expect(result.accepted).toHaveLength(1);
   });
 
-  it("does not require value grounding for unknown/declined candidates — only the reason itself needs a quote", () => {
-    const transcript = transcriptWith("I have no idea about that one");
+  it("a value grounded by a real but topically-unrelated quote is accepted — a documented, accepted limitation, not an oversight", () => {
+    // This validator can only confirm a quote is REAL, never that it's
+    // topically related to the value it's cited for — that correlation
+    // is a semantic judgment, not something string matching can verify
+    // without also rejecting every legitimate referential mapping
+    // design.md asks for (see the file header). lucy accepts the exact
+    // same tradeoff for its own mapped-value fields. The clinician's
+    // review before submission, not this check, is what catches a
+    // genuinely wrong mapping.
+    const transcript = transcriptWith("I take metoprolol for my heart");
     const candidate: ExtractionCandidate = {
       fieldId: TEXT_FIELD.id,
-      kind: "unknown",
-      quotes: [{ turnIndex: 1, text: "no idea" }],
+      kind: "value",
+      value: "unrelated made-up answer",
+      quote: { turnIndex: 1, text: "metoprolol" },
     };
     const result = validateCandidates(transcript, [candidate], FIELDS);
-    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "mark_unknown" }]);
+    expect(result.accepted).toEqual([
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "unrelated made-up answer" },
+    ]);
   });
 });
