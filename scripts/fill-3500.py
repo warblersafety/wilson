@@ -59,6 +59,13 @@ def load_manifest(path=MANIFEST_PATH):
         return json.load(handle)
 
 
+def _entry_for(record, field_id):
+    """The record's entry for a field, defaulting to `unasked` when the
+    field is missing from the record entirely — the same tolerance
+    src/lib/agenda.ts's `nextField` extends a not-yet-reached field."""
+    return record.get(field_id, {"state": "unasked"})
+
+
 def check_export_ready(manifest, record):
     """Refuse if any required field is still `unasked`. Today no field in
     form-3500-fields.ts is required=true (the FDA 3500 is voluntary), so
@@ -67,8 +74,7 @@ def check_export_ready(manifest, record):
     missing = [
         field["id"]
         for field in manifest
-        if field["required"]
-        and record.get(field["id"], {"state": "unasked"}).get("state") == "unasked"
+        if field["required"] and _entry_for(record, field["id"]).get("state") == "unasked"
     ]
     if missing:
         raise FillError(
@@ -89,6 +95,18 @@ def render_value(field, entry):
 
     if state == "answered":
         value = entry.get("value")
+        # A record claiming `answered` with no real value would otherwise
+        # write `None`/"" straight to the widget — pymupdf accepts it
+        # silently, round-tripping as an empty field with no error signal,
+        # so "answered but blank" would be indistinguishable from
+        # `unasked`. src/lib/agenda.ts's applyAction() already refuses
+        # this at the record layer; refused here too since this script
+        # doesn't get to assume its input came through that path.
+        if not isinstance(value, str) or not value.strip():
+            raise FillError(
+                f"{field['id']}: answered field must carry a non-empty "
+                f"string value, got {value!r}"
+            )
         if field["type"] == "enum":
             options = field.get("options") or []
             disallowed = DISALLOWED_ENUM_VALUES.get(field["id"], set())
@@ -98,6 +116,11 @@ def render_value(field, entry):
                 )
             return ("text", value)
         if is_checkbox:
+            # "true"/"false" is this script's own contract, not something
+            # src/lib/agenda.ts enforces — AgendaEntry.value is typed as a
+            # plain string for every field type, same as enum's options[]
+            # membership above. Whatever eventually writes a checkbox
+            # answer (Extractor, or a UI) needs to honor this string shape.
             if value not in ("true", "false"):
                 raise FillError(
                     f"{field['id']}: checkbox answered value must be "
@@ -138,7 +161,7 @@ def render_fields(manifest, record):
     PDF widget — validation is fully separate from writing, not
     interleaved with it."""
     return {
-        field["id"]: render_value(field, record.get(field["id"], {"state": "unasked"}))
+        field["id"]: render_value(field, _entry_for(record, field["id"]))
         for field in manifest
     }
 

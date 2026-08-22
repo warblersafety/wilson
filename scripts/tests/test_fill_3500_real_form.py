@@ -46,10 +46,13 @@ def widget_values(pdf_bytes):
 
 
 class TestTheFormItself:
-    def test_the_form_opens_and_still_has_its_manifest_widgets(self, real_manifest):
+    def test_the_form_opens_and_still_has_its_manifest_widgets(self, fill, real_manifest):
         doc = fitz.open(FORM_PATH)
         assert not doc.needs_pass
-        real_names = {w.field_name for page in doc for w in page.widgets()}
+        # Exercises the real _widget_names() helper fill() itself relies on
+        # for check_widgets_present(), not a reimplementation of it — a
+        # regression there should show up here too.
+        real_names = fill._widget_names(doc)
         missing = [
             f["pdfFieldName"] for f in real_manifest if f["pdfFieldName"] not in real_names
         ]
@@ -85,6 +88,23 @@ class TestFillFormAgainstTheRealPdf:
         assert record[declined_id]["state"] == "declined"
         field = next(f for f in fill.load_manifest() if f["id"] == declined_id)
         assert values[field["pdfFieldName"]] == fill.DECLINED_SENTINEL
+
+    def test_unknown_enum_field_gets_the_sentinel_on_the_real_combobox_widget(
+        self, fill, load_fixture
+    ):
+        # pymupdf's ComboBox widgets normally offer only their declared
+        # choice_values; this proves the sentinel — which is never one of
+        # those choices — still writes and survives a save/reopen round
+        # trip, not just against the FakeWidget stand-ins.
+        record = load_fixture("checkbox-enum-exercise.json")
+        unknown_id = "Page4.Prod1.Prod1DoseUnit"
+        assert record[unknown_id]["state"] == "unknown"
+
+        pdf_bytes = fill.fill_form(record, form_path=FORM_PATH)
+        values = widget_values(pdf_bytes)
+        field = next(f for f in fill.load_manifest() if f["id"] == unknown_id)
+        assert field["type"] == "enum"
+        assert values[field["pdfFieldName"]] == fill.UNKNOWN_SENTINEL
 
     def test_answered_checkbox_is_actually_checked_on_the_real_widget(
         self, fill, load_fixture

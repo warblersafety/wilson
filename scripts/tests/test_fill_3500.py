@@ -85,8 +85,33 @@ class TestRenderValueText:
             fill.UNKNOWN_SENTINEL,
         )
 
+    def test_answered_with_missing_value_key_is_rejected(self, fill):
+        # Without this guard, `None` would be written straight to the
+        # widget: pymupdf accepts it silently and round-trips it as an
+        # empty string, so "answered" with no real value would be
+        # indistinguishable on the PDF from `unasked` — no error, no
+        # visible sign the record's claim of "answered" was hollow.
+        with pytest.raises(fill.FillError):
+            fill.render_value(text_field(), {"state": "answered"})
+
+    def test_answered_with_none_value_is_rejected(self, fill):
+        with pytest.raises(fill.FillError):
+            fill.render_value(text_field(), {"state": "answered", "value": None})
+
+    def test_answered_with_empty_string_value_is_rejected(self, fill):
+        with pytest.raises(fill.FillError):
+            fill.render_value(text_field(), {"state": "answered", "value": ""})
+
+    def test_answered_with_whitespace_only_value_is_rejected(self, fill):
+        with pytest.raises(fill.FillError):
+            fill.render_value(text_field(), {"state": "answered", "value": "   "})
+
 
 class TestRenderValueCheckbox:
+    def test_answered_with_missing_value_is_rejected(self, fill):
+        with pytest.raises(fill.FillError):
+            fill.render_value(checkbox_field(), {"state": "answered"})
+
     def test_answered_true(self, fill):
         assert fill.render_value(checkbox_field(), {"state": "answered", "value": "true"}) == (
             "check",
@@ -116,6 +141,10 @@ class TestRenderValueCheckbox:
 
 
 class TestRenderValueEnum:
+    def test_answered_with_missing_value_is_rejected(self, fill):
+        with pytest.raises(fill.FillError):
+            fill.render_value(enum_field(), {"state": "answered"})
+
     def test_answered_with_valid_option(self, fill):
         assert fill.render_value(enum_field(), {"state": "answered", "value": "A"}) == (
             "text",
@@ -308,9 +337,22 @@ class TestRealManifest:
 
     def test_disallowed_override_fields_are_all_present_and_enum_typed(self, fill, real_manifest):
         by_id = {f["id"]: f for f in real_manifest}
-        for field_id in fill.DISALLOWED_ENUM_VALUES:
+        for field_id, disallowed_values in fill.DISALLOWED_ENUM_VALUES.items():
             assert field_id in by_id, f"{field_id} missing from the manifest"
             assert by_id[field_id]["type"] == "enum"
+            # The override only matters while the manifest still reproduces
+            # the source PDF's defect — if a disallowed value is ever
+            # dropped from options[] here, the override is dead code the
+            # test suite should flag, not silently keep rejecting a value
+            # that was never offered in the first place.
+            options = by_id[field_id]["options"]
+            for value in disallowed_values:
+                assert value in options, (
+                    f"{field_id}: override value {value!r} is no longer in "
+                    f"options[] — the manifest quirk this override guards "
+                    f"against may have been fixed; the override may now be "
+                    f"unnecessary"
+                )
 
 
 # ---------------------------------------------------------------------------
