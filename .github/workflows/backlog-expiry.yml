@@ -1,0 +1,36 @@
+# Copied into every workload repo at bootstrap — the machinery behind the
+# CLAUDE.md promise that unlabeled issues auto-expire after 14 days.
+# GitHub auto-disables scheduled workflows in public repos after 60 days
+# without commit activity; the issues trigger keeps expiry firing anyway.
+name: backlog-expiry
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  issues:
+    types: [opened]
+
+jobs:
+  expire:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-issue-stale: 10
+          days-before-issue-close: 4
+          stale-issue-label: expiring
+          stale-issue-message: >-
+            No activity for 10 days. Closes in 4 more unless touched — expiry
+            of unlabeled issues is the system working. Label it `keep` if it
+            must persist.
+          close-issue-message: >-
+            Expired unworked; closed, not deleted — this record stays
+            searchable. If it genuinely matters it will bleed again and can
+            be refiled (or reopened) with that evidence.
+          exempt-issue-labels: "urgent,keep,standing"
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          operations-per-run: 100

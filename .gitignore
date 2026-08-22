@@ -1,0 +1,22 @@
+# Copied to the workload repo's .gitignore at bootstrap. Kept minimal and
+# extended per stack — the point is that a repo is never one `git add -A`
+# away from committing build output. Compiled Python bytecode is the case
+# that bit us: it constant-folds split string literals, so a secret-shaped
+# test fixture that was never committed as source can land in history
+# inside a .pyc.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+dist/
+build/
+.next/
+.vercel/
+*.egg-info/
+.coverage
+htmlcov/
+.env
+.env.*
+!.env.example
+.DS_Store
