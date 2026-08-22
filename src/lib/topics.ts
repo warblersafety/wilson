@@ -39,6 +39,7 @@
 // here: that's real interpretation work for the not-yet-built Extractor,
 // the same boundary Issue #13 already drew for checkbox/enum fields.
 import { type AgendaRecord } from "./agenda";
+import { isResolved } from "./field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
 export type RepeatGroup = "suspect-product" | "concomitant-medication";
@@ -601,6 +602,12 @@ function maxInstance(group: RepeatGroup, topics: Topic[]): number {
   const instances = topics
     .filter((t) => t.repeatGroup === group)
     .map((t) => t.repeatInstance!);
+  if (instances.length === 0) {
+    // Without this guard, Math.max(...[]) is -Infinity, and every count
+    // (including legitimate ones) would fail the range check below with
+    // a nonsensical "must be between 1 and -Infinity" message.
+    throw new Error(`${group}: no topics in the given topics list belong to this group`);
+  }
   return Math.max(...instances);
 }
 
@@ -611,10 +618,29 @@ export function setRepeatCount(
   topics: Topic[] = TOPICS,
 ): RepeatCounts {
   const max = maxInstance(group, topics);
-  if (count < 1 || count > max) {
-    throw new Error(`${group}: count must be between 1 and ${max}, got ${count}`);
+  if (!Number.isInteger(count) || count < 1 || count > max) {
+    throw new Error(`${group}: count must be an integer between 1 and ${max}, got ${count}`);
   }
   return { ...counts, [group]: count };
+}
+
+// Reads and validates a repeat group's decided count. Defense in depth:
+// RepeatCounts is a plain object type, so nothing stops a caller from
+// constructing one directly instead of going through setRepeatCount()'s
+// validation (e.g. `{ "suspect-product": 0 }` or `{ "suspect-product":
+// NaN }`) — either would otherwise corrupt nextStep()'s walk: a NaN
+// decision compares false against every `>` check, so no later instance
+// is ever skipped despite `decided !== undefined` being true, and a
+// count below 1 would skip instance 1 itself, contradicting the
+// "instance 1 is always asked unconditionally" invariant documented
+// below.
+function decidedCount(repeatCounts: RepeatCounts, group: RepeatGroup): number | undefined {
+  const decided = repeatCounts[group];
+  if (decided === undefined) return undefined;
+  if (!Number.isInteger(decided) || decided < 1) {
+    throw new Error(`nextStep: invalid repeat count for ${group}: ${decided}`);
+  }
+  return decided;
 }
 
 export type NextStep =
@@ -639,7 +665,7 @@ export function nextStep(
 
   for (const topic of topics) {
     if (topic.repeatGroup !== null && topic.repeatInstance !== null) {
-      const decided = repeatCounts[topic.repeatGroup];
+      const decided = decidedCount(repeatCounts, topic.repeatGroup);
       if (decided !== undefined && topic.repeatInstance > decided) {
         continue; // this instance was confirmed not to exist — skip it
       }
@@ -656,8 +682,20 @@ export function nextStep(
 
     const unresolvedFieldIds = topic.fieldIds.filter((fieldId) => {
       const field = fieldsById.get(fieldId);
-      const isTextOrDate = field?.type === "text" || field?.type === "date";
-      return isTextOrDate && record[fieldId]?.state === "unasked";
+      if (!field) {
+        throw new Error(`nextStep: no such field in the given fields list: ${fieldId}`);
+      }
+      // Object.hasOwn, not a stale-looks-like-resolved fallback: a
+      // mismatched topics/fields/record combination (talk.ts's Deps lets
+      // a caller override any of the three independently) should fail
+      // loud, the same way agenda.ts's applyAction() and the removed
+      // nextField() always have — not silently treat a real unresolved
+      // field as if it were already answered.
+      if (!Object.hasOwn(record, fieldId)) {
+        throw new Error(`nextStep: record missing field id: ${fieldId}`);
+      }
+      const isTextOrDate = field.type === "text" || field.type === "date";
+      return isTextOrDate && !isResolved(record[fieldId].state);
     });
     if (unresolvedFieldIds.length > 0) {
       return { kind: "topic", topic, fieldIds: unresolvedFieldIds };

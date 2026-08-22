@@ -144,6 +144,22 @@ describe("setRepeatCount", () => {
     const counts = setRepeatCount(initRepeatCounts(), "concomitant-medication", 10);
     expect(counts).toEqual({ "concomitant-medication": 10 });
   });
+
+  it("rejects NaN — without this check it would silently bypass both range comparisons", () => {
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", NaN)).toThrow();
+  });
+
+  it("rejects a non-integer count", () => {
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", 1.5)).toThrow();
+  });
+
+  it("throws a clear error, not a -Infinity range, when given a topics list with none of the group's topics", () => {
+    expect(() =>
+      setRepeatCount(initRepeatCounts(), "suspect-product", 1, [
+        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+      ]),
+    ).toThrow(/no topics/);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -282,6 +298,29 @@ describe("nextStep", () => {
     const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 2);
     const step = nextStep(record, counts, topics, fields);
     expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["f2"] });
+  });
+
+  it("throws, rather than silently treating it as resolved, when a topic references a field id missing from the record", () => {
+    const fields = [field("x", "text")];
+    const topics = [topic("only", ["x"])];
+    // record deliberately has no entry for "x" at all — a mismatched
+    // topics/fields/record combination, which talk.ts's Deps allows a
+    // caller to construct.
+    expect(() => nextStep({}, initRepeatCounts(), topics, fields)).toThrow();
+  });
+
+  it("throws when a topic references a field id missing from the given fields list", () => {
+    const topics = [topic("only", ["x"])];
+    const record = recordOf({ x: { state: "unasked" } });
+    expect(() => nextStep(record, initRepeatCounts(), topics, [])).toThrow();
+  });
+
+  it("throws on a directly-constructed invalid repeat count (bypassing setRepeatCount) instead of silently skipping instance 1", () => {
+    const fields = [field("f1", "text")];
+    const topics = [topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    const record = recordOf({ f1: { state: "unasked" } });
+    expect(() => nextStep(record, { "suspect-product": 0 }, topics, fields)).toThrow();
+    expect(() => nextStep(record, { "suspect-product": NaN }, topics, fields)).toThrow();
   });
 
   it("against the real manifest: the very first step of a fresh session is patient-basics's text/date fields", () => {
