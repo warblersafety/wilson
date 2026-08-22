@@ -79,14 +79,21 @@ artifact.
 
 ## Data shape
 
-The record groups fields by form section: **Reporter**, **Patient**,
-**Event/Problem**, **Suspect Product**. Confirmed against FDA's own
-instructions: Section A is Patient Information, Section B is Adverse Event
-or Product Problem, Section C is Suspect Products (drugs/biologics), plus
-a Reporter Information section — full letter-by-letter field enumeration
-beyond that is *not* asserted here (search-derived, inconsistent across the
-3500/3500A/3500B variants) and is deferred to the first unit, where it gets
-pinned against the actual current FDA PDF rather than guessed.
+The record groups fields by the form's own section structure, pinned
+against the actual current FDA 3500 PDF
+(`fda.gov/media/76299/download`, confirmed current — filename
+`FDA_3500_Stat_Sec_Ext_09-15-2025.pdf`). This supersedes the
+search-derived list originally stated here, which was wrong, not just
+incomplete: it named four groups (Reporter/Patient/Event-Problem/Suspect
+Product) and misidentified Section C as Suspect Products. The form
+actually has seven sections: **A. Patient Information**, **B. Adverse
+Event, Product Problem (or Product Use Error)**, **C. Product
+Availability**, **D. Suspect Products**, **E. Suspect Medical Device**,
+**F. Other (Concomitant) Medical Products**, **G. Reporter**. Full
+field-level enumeration lives in `src/lib/form-3500-fields.ts`, built and
+structurally tested against this same PDF. How these seven sections group
+into the Talker's conversation flow is a later unit's decision, not this
+one's.
 
 Every field carries a **state**, not just a value — `answered` / `unknown`
 / `declined` — directly supporting the Agenda's tolerance for incomplete
@@ -100,10 +107,12 @@ suggestion layer writing through.
 - **PDF field-mapping correctness** — same top risk lucy identified for
   its own Assembly/Export. Needs a fixture corpus and tests proving the
   mapping, per the charter's test floor.
-- **The exact Form 3500 field list isn't pinned yet.** What's confirmed
-  here is the section-level structure, not every field. The first unit
-  needs to ground this against the authoritative current PDF, not
-  continue from search-derived understanding.
+- **Resolved.** The Form 3500 field list (227 fields) is pinned in
+  `src/lib/form-3500-fields.ts`, built and structurally tested against
+  the current, authoritative FDA PDF. That work also corrected the
+  section-level structure itself, which the original draft of this
+  document got wrong (see Data shape above) — not just under-specified
+  below the section level, as assumed here previously.
 - **The coding database doesn't exist yet.** v1 either ships without the
   suggestion layer or stubs it; either way, nothing about the record's
   correctness should depend on it existing.
