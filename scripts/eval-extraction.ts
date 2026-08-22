@@ -102,7 +102,15 @@ function looselyMatches(actual: ExtractionFixture["expected"]["actions"], fixtur
     const match = actual.find((a) => a.fieldId === expected.fieldId && a.type === expected.type);
     if (!match) return false;
     if (expected.type === "answer" && match.type === "answer") {
-      return match.value.toLowerCase().includes(expected.value.toLowerCase().split(" ")[0]);
+      // A live model's exact wording isn't the safety property under test
+      // (extraction-validator.ts's grounding check is) — this is a loose
+      // coverage check, not exact-match. Substring in either direction
+      // covers both a terser model answer ("42" for expected "42 years
+      // old") and a more verbose one, without being fooled by a match on
+      // just the expected value's first word.
+      const actualValue = match.value.toLowerCase();
+      const expectedValue = expected.value.toLowerCase();
+      return actualValue.includes(expectedValue) || expectedValue.includes(actualValue);
     }
     return true;
   });
@@ -112,9 +120,12 @@ async function runLive(): Promise<void> {
   const client = new Anthropic();
   let totalCostUsd = 0;
 
-  // Wrapped once, outside the loop — wrapping fresh on every fixture would
-  // bind to the previous iteration's already-wrapped parse, double-billing
-  // every call after the first.
+  // Cost tracking wraps the instance method directly — the same technique
+  // vi.spyOn uses in src/lib/extract.test.ts, just without a test
+  // framework driving it, since this is a manually-triggered script, not
+  // shipped/production code. Wrapped once, outside the loop: wrapping
+  // fresh on every fixture would bind to the previous iteration's
+  // already-wrapped parse, double-billing every call after the first.
   const originalParse = client.messages.parse.bind(client.messages);
   client.messages.parse = (async (...args: Parameters<typeof originalParse>) => {
     const response = await originalParse(...args);

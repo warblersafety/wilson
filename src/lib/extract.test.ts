@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractionResponse } from "../prompts/extractor";
 import { createExtractFn } from "./extract";
 import type { FormFieldSpec } from "./form-3500-fields";
-import { initAgenda, type AgendaRecord } from "./agenda";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { initRepeatCounts, setRepeatCount, type Topic } from "./topics";
 import type { TalkSession } from "./talk";
 
@@ -63,6 +63,21 @@ function fakeParsedResponse(parsed_output: ExtractionResponse | null) {
   return { parsed_output } as Awaited<ReturnType<Anthropic["messages"]["parse"]>>;
 }
 
+// REPEAT_TOPIC_1's field resolved (declined) and REPEAT_TOPIC_2 not yet
+// decided — nextStep() over [REPEAT_TOPIC_1, REPEAT_TOPIC_2] resolves to
+// an actual {kind: "repeat-decision"} step here, not a "topic" step. A
+// repeatDecision-carrying fixture must be exercised against a session that
+// really reaches this step, or the test would pass for the wrong reason —
+// exactly the gap the CONFIRMED review finding on this PR was about.
+function repeatDecisionSession(): TalkSession {
+  const record = applyAction(unaskedRecordFor(["a", "b"]), "a", { type: "decline" });
+  return {
+    transcript: [{ role: "talker", text: "Was there another suspect product?" }],
+    record,
+    repeatCounts: initRepeatCounts(),
+  };
+}
+
 describe("createExtractFn", () => {
   let client: Anthropic;
 
@@ -114,7 +129,7 @@ describe("createExtractFn", () => {
     expect(result.actions).toEqual([]);
   });
 
-  it("returns a repeatDecision when the model proposes one grounded in a real quote", async () => {
+  it("returns a repeatDecision when the model proposes one grounded in a real quote, during an actual repeat-decision step", async () => {
     vi.spyOn(client.messages, "parse").mockResolvedValue(
       fakeParsedResponse({
         candidates: [],
@@ -125,16 +140,15 @@ describe("createExtractFn", () => {
         },
       }),
     );
-    const session = sessionWith({ record: unaskedRecordFor(["a"]) });
     const extract = createExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_A, FIELD_B]);
-    const result = await extract(session, "yes, a second one");
+    const result = await extract(repeatDecisionSession(), "yes, a second one");
     expect(result.repeatDecision).toEqual({ repeatGroup: "suspect-product", count: 2 });
   });
 
-  it("drops a repeatDecision whose quote is not real, without dropping accompanying field actions", async () => {
+  it("drops a repeatDecision whose quote is not real, during an actual repeat-decision step", async () => {
     vi.spyOn(client.messages, "parse").mockResolvedValue(
       fakeParsedResponse({
-        candidates: [{ fieldId: "a", kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } }],
+        candidates: [],
         repeatDecision: {
           repeatGroup: "suspect-product",
           count: 2,
@@ -142,9 +156,44 @@ describe("createExtractFn", () => {
         },
       }),
     );
+    const extract = createExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_A, FIELD_B]);
+    const result = await extract(repeatDecisionSession(), "no, that's the only one");
+    expect(result.repeatDecision).toBeUndefined();
+  });
+
+  it("drops a repeatDecision proposed during an ordinary topic step, even with a real quote — the model cannot commit a repeat count outside a repeat-decision turn", async () => {
+    vi.spyOn(client.messages, "parse").mockResolvedValue(
+      fakeParsedResponse({
+        candidates: [{ fieldId: "a", kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } }],
+        repeatDecision: {
+          repeatGroup: "suspect-product",
+          count: 2,
+          quote: { turnIndex: 1, text: "42" },
+        },
+      }),
+    );
+    // TOPIC is an ordinary (non-repeat) ["a", "b"] topic — the step this
+    // extract() call is actually answering is {kind: "topic"}, never
+    // {kind: "repeat-decision"}.
     const extract = createExtractFn(client, [TOPIC], FIELDS);
     const result = await extract(sessionWith(), "42");
     expect(result.actions).toEqual([{ fieldId: "a", type: "answer", value: "42" }]);
+    expect(result.repeatDecision).toBeUndefined();
+  });
+
+  it("drops a repeatDecision naming a different repeat group than the one actually open", async () => {
+    vi.spyOn(client.messages, "parse").mockResolvedValue(
+      fakeParsedResponse({
+        candidates: [],
+        repeatDecision: {
+          repeatGroup: "concomitant-medication",
+          count: 2,
+          quote: { turnIndex: 1, text: "yes, a second one" },
+        },
+      }),
+    );
+    const extract = createExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_A, FIELD_B]);
+    const result = await extract(repeatDecisionSession(), "yes, a second one");
     expect(result.repeatDecision).toBeUndefined();
   });
 

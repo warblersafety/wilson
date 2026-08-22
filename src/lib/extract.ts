@@ -26,6 +26,14 @@ import { TOPICS, nextStep, type Topic } from "./topics";
 // is exactly the state nextStep() saw when it produced the step the
 // clinician's message is now answering (processTurn calls extract() before
 // applying this turn's writes, so nothing has changed in between).
+//
+// `topics`/`fields` must be the SAME arrays a caller passes as
+// processTurn's own `Deps.topics`/`Deps.fields` — nextStep() is only
+// guaranteed to recompute the step processTurn's respond() already saw
+// when both calls agree on what the topic map and field manifest are.
+// There is currently exactly one production call site and it takes both
+// defaults, so this can't diverge today; a future caller overriding one
+// set without the other would silently extract against the wrong step.
 export function createExtractFn(
   client: Anthropic = new Anthropic(),
   topics: Topic[] = TOPICS,
@@ -62,9 +70,17 @@ export function createExtractFn(
 
     const { accepted } = validateCandidates(transcript, parsed.candidates, fields);
 
+    // Only ever considered when the step actually open right now is a
+    // repeat-decision — never on an ordinary topic turn. Without this
+    // gate, a model mis-fire during a normal field-answering turn could
+    // silently commit a repeat-group count (e.g. fabricating or
+    // foreclosing a second suspect product on this FDA adverse-event
+    // report) with nothing deterministic standing in the way but prompt
+    // wording. validateRepeatCandidate() independently re-checks the
+    // group match too, as defense in depth.
     let repeatDecision: ExtractResult["repeatDecision"];
-    if (parsed.repeatDecision) {
-      const grounded = validateRepeatCandidate(transcript, parsed.repeatDecision);
+    if (parsed.repeatDecision && step.kind === "repeat-decision") {
+      const grounded = validateRepeatCandidate(transcript, parsed.repeatDecision, step.repeatGroup);
       if (grounded.accepted) {
         repeatDecision = {
           repeatGroup: parsed.repeatDecision.repeatGroup,

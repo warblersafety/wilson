@@ -13,8 +13,17 @@
 // own prompt.
 import { z } from "zod";
 import type { FormFieldSpec } from "../lib/form-3500-fields";
-import type { NextStep } from "../lib/topics";
+import { TOPICS, type NextStep, type RepeatGroup } from "../lib/topics";
 import type { TalkTurn } from "../lib/talk";
+
+// Derived from TOPICS' actual data, not hand-listed — topics.ts is the
+// single source of truth for which repeat groups exist (RepeatGroup is a
+// type only, with no runtime values of its own to import). A third repeat
+// group added there is picked up here automatically; a hand-typed
+// z.enum([...]) would otherwise silently under-enumerate.
+const REPEAT_GROUPS = Array.from(
+  new Set(TOPICS.map((t) => t.repeatGroup).filter((g): g is RepeatGroup => g !== null)),
+) as [RepeatGroup, ...RepeatGroup[]];
 
 // lucy's docs/SECRETS-AND-COSTS.md (dated 2026-07-27) named Sonnet 4.6;
 // Sonnet 5 has since superseded it as the current Sonnet-tier model
@@ -75,7 +84,7 @@ const FieldCandidateSchema = z.discriminatedUnion("kind", [
 ]);
 
 const RepeatDecisionSchema = z.object({
-  repeatGroup: z.enum(["suspect-product", "concomitant-medication"]),
+  repeatGroup: z.enum(REPEAT_GROUPS),
   count: z.number().int(),
   quote: QuoteSchema,
 });

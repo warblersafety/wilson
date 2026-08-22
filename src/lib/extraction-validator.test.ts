@@ -254,7 +254,7 @@ describe("validateRepeatCandidate", () => {
       count: 2,
       quote: { turnIndex: 1, text: "yes, there was a second one" },
     };
-    expect(validateRepeatCandidate(transcript, candidate)).toEqual({ accepted: true });
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({ accepted: true });
   });
 
   it("rejects a repeat-group decision whose quote isn't a real substring of the cited turn", () => {
@@ -264,7 +264,7 @@ describe("validateRepeatCandidate", () => {
       count: 2,
       quote: { turnIndex: 1, text: "yes there was another" },
     };
-    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
       accepted: false,
       reason: "quote_not_found",
     });
@@ -278,7 +278,7 @@ describe("validateRepeatCandidate", () => {
       // index 0 is the talker's "(question)" turn, not the clinician's
       quote: { turnIndex: 0, text: "(question)" },
     };
-    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
       accepted: false,
       reason: "quote_not_found",
     });
@@ -291,9 +291,39 @@ describe("validateRepeatCandidate", () => {
       count: 2,
       quote: { turnIndex: 1, text: "..." },
     };
-    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
       accepted: false,
       reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a candidate naming a different repeat group than the one actually open, even with a real quote", () => {
+    // The step actually open is what's authoritative here, not the
+    // candidate's own claim — a candidate naming the wrong group is
+    // exactly what a model mis-firing during an unrelated turn would
+    // produce, and quote-grounding alone can't catch it.
+    const transcript = transcriptWith("yes, there was a second one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "concomitant-medication",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes, there was a second one" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "wrong_repeat_group",
+    });
+  });
+
+  it("checks the repeat-group match before the quote — a wrong group is rejected even with a bogus quote too", () => {
+    const transcript = transcriptWith("yes, there was a second one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "concomitant-medication",
+      count: 2,
+      quote: { turnIndex: 1, text: "a sentence never said" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "wrong_repeat_group",
     });
   });
 });

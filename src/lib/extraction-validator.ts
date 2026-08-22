@@ -111,6 +111,23 @@ function normalize(text: string): string {
     .trim();
 }
 
+function clinicianTurnText(transcript: TalkTurn[], turnIndex: number): string | null {
+  const turn = transcript[turnIndex];
+  return turn && turn.role === "clinician" ? normalize(turn.text) : null;
+}
+
+// Shared by validateCandidates() and validateRepeatCandidate(): a quote is
+// grounded only if it's a real (normalized) substring of the clinician
+// turn it cites. An empty normalized quote (e.g. punctuation-only source
+// text like "...") would otherwise satisfy `includes("")` against any
+// turn — vacuously "found" regardless of content — so it's rejected
+// explicitly rather than left to String.prototype.includes's empty-string
+// identity to silently defeat the whole check.
+function quoteIsGrounded(turnText: string | null, quote: Quote): boolean {
+  const normalizedQuote = normalize(quote.text);
+  return normalizedQuote.length > 0 && turnText !== null && turnText.includes(normalizedQuote);
+}
+
 function toProposedAction(candidate: ExtractionCandidate): ProposedAction {
   switch (candidate.kind) {
     case "value":
@@ -136,21 +153,31 @@ export interface RepeatCandidate {
   quote: Quote;
 }
 
-export type RepeatRejectionReason = "quote_not_found";
+export type RepeatRejectionReason = "wrong_repeat_group" | "quote_not_found";
 
 export interface RepeatValidationResult {
   accepted: boolean;
   reason?: RepeatRejectionReason;
 }
 
+// `expectedGroup` is the repeat-decision step actually open right now
+// (topics.ts's NextStep, kind "repeat-decision"). This is checked here,
+// not left to the caller, so a candidate proposed against the wrong step
+// — e.g. a model mis-fire during an ordinary field-answering turn — is
+// rejected the same deterministic way a mis-scoped field candidate
+// already is in validateCandidates() ("unknown_field" /
+// "not_extractable_field_type"), rather than trusted on quote-grounding
+// alone.
 export function validateRepeatCandidate(
   transcript: TalkTurn[],
   candidate: RepeatCandidate,
+  expectedGroup: RepeatGroup,
 ): RepeatValidationResult {
-  const turn = transcript[candidate.quote.turnIndex];
-  const turnText = turn && turn.role === "clinician" ? normalize(turn.text) : null;
-  const quoteText = normalize(candidate.quote.text);
-  if (quoteText.length === 0 || turnText === null || !turnText.includes(quoteText)) {
+  if (candidate.repeatGroup !== expectedGroup) {
+    return { accepted: false, reason: "wrong_repeat_group" };
+  }
+  const turnText = clinicianTurnText(transcript, candidate.quote.turnIndex);
+  if (!quoteIsGrounded(turnText, candidate.quote)) {
     return { accepted: false, reason: "quote_not_found" };
   }
   return { accepted: true };
@@ -166,13 +193,9 @@ export function validateCandidates(
   // field extractions in one batch, and re-running NFKC/lowercase/strip
   // on the same turn text for each of them would be pure waste.
   const normalizedTurns = new Map<number, string | null>();
-  const normalizedTurnText = (turnIndex: number): string | null => {
+  const memoizedTurnText = (turnIndex: number): string | null => {
     if (!normalizedTurns.has(turnIndex)) {
-      const turn = transcript[turnIndex];
-      normalizedTurns.set(
-        turnIndex,
-        turn && turn.role === "clinician" ? normalize(turn.text) : null,
-      );
+      normalizedTurns.set(turnIndex, clinicianTurnText(transcript, turnIndex));
     }
     return normalizedTurns.get(turnIndex) ?? null;
   };
@@ -190,14 +213,7 @@ export function validateCandidates(
       rejected.push({ candidate, reason: "not_extractable_field_type" });
       continue;
     }
-    const normalizedQuoteText = normalize(candidate.quote.text);
-    const turnText = normalizedTurnText(candidate.quote.turnIndex);
-    // An empty normalized quote (e.g. punctuation-only source text like
-    // "...") would otherwise satisfy `includes("")` against any turn —
-    // vacuously "found" regardless of content. Reject it explicitly
-    // rather than let String.prototype.includes's empty-string identity
-    // silently defeat the whole check.
-    if (normalizedQuoteText.length === 0 || turnText === null || !turnText.includes(normalizedQuoteText)) {
+    if (!quoteIsGrounded(memoizedTurnText(candidate.quote.turnIndex), candidate.quote)) {
       rejected.push({ candidate, reason: "quote_not_found" });
       continue;
     }
