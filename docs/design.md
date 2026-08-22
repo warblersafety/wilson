@@ -107,12 +107,12 @@ suggestion layer writing through.
 - **PDF field-mapping correctness** — same top risk lucy identified for
   its own Assembly/Export. Needs a fixture corpus and tests proving the
   mapping, per the charter's test floor.
-- **In progress, on Issue #3.** The Form 3500 field list is being pinned
-  in `src/lib/form-3500-fields.ts` against the current, authoritative FDA
-  PDF; not yet in the tree as of this commit. The section-level structure
-  is corrected already (see Data shape above) — the original draft of
-  this document got it wrong, not just under-specified below the section
-  level, as assumed here previously.
+- **Resolved.** The Form 3500 field list (227 fields) is pinned in
+  `src/lib/form-3500-fields.ts`, built and structurally tested against
+  the current, authoritative FDA PDF. That work also corrected the
+  section-level structure itself, which the original draft of this
+  document got wrong (see Data shape above) — not just under-specified
+  below the section level, as assumed here previously.
 - **The coding database doesn't exist yet.** v1 either ships without the
   suggestion layer or stubs it; either way, nothing about the record's
   correctness should depend on it existing.
