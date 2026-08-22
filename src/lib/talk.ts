@@ -1,11 +1,13 @@
 // Per docs/design.md's Architecture table: the Talker converses, guides
 // one topic at a time, and never writes the record itself. src/lib/agenda.ts
-// already owns "what's next" (nextField) and "write the record"
-// (applyAction) — this module is the caller that turns a clinician's
-// message into Agenda writes and a reply.
+// owns "write the record" (applyAction); src/lib/topics.ts's nextStep()
+// owns "what's next" — this module is the caller that turns a
+// clinician's message into Agenda writes and a reply, working topic by
+// topic (bundled fields per turn) rather than field by field, per the
+// 2026-08-22 design conversation (Issue #18).
 //
 // Extraction (turning raw text into proposed field actions) and phrasing
-// (turning a field into a plain-language question) are both injected as
+// (turning a NextStep into a plain-language message) are both injected as
 // typed function parameters ("ports") rather than implemented here. Real
 // implementations — a real Extractor, real model-backed phrasing — are
 // later units' jobs; this module ships the control-flow loop and the
@@ -14,9 +16,17 @@
 // are inherently async — typing them synchronous now would force a
 // breaking signature change (and a rework of every caller) the moment
 // either lands, for no benefit today.
-import { type AgendaRecord, applyAction, initAgenda, nextField } from "./agenda";
+import { type AgendaRecord, applyAction, initAgenda } from "./agenda";
 import type { FieldAction } from "./field-state";
-import type { FormFieldSpec } from "./form-3500-fields";
+import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import {
+  TOPICS,
+  initRepeatCounts,
+  nextStep,
+  type NextStep,
+  type RepeatCounts,
+  type Topic,
+} from "./topics";
 
 export type TalkRole = "clinician" | "talker";
 
@@ -28,10 +38,11 @@ export interface TalkTurn {
 export interface TalkSession {
   transcript: TalkTurn[];
   record: AgendaRecord;
+  repeatCounts: RepeatCounts;
 }
 
 export function initTalkSession(): TalkSession {
-  return { transcript: [], record: initAgenda() };
+  return { transcript: [], record: initAgenda(), repeatCounts: initRepeatCounts() };
 }
 
 // `value` is only meaningful — and only accepted — for "answer", mirroring
@@ -48,51 +59,54 @@ export type ProposedAction =
 
 export type ExtractFn = (session: TalkSession, message: string) => Promise<ProposedAction[]>;
 
-// Receives the whole session (transcript + record), not just the record —
-// matching ExtractFn's shape, and avoiding a second breaking signature
-// change once a real, transcript-aware phraser lands (e.g. one that
-// phrases a re-ask differently from a first ask). `field` is passed
-// separately since it's the orchestrator's own nextField() computation,
-// not part of the session itself.
-export type AskFn = (field: FormFieldSpec | null, session: TalkSession) => Promise<string>;
+// Receives the whole session (transcript + record + repeatCounts), not
+// just the fields being asked about — matching ExtractFn's shape, and
+// avoiding a second breaking signature change once a real, transcript-
+// aware phraser lands (e.g. one that phrases a re-ask differently from a
+// first ask). `step` carries what's actually being asked: a topic's still-
+// unresolved fields, a repeat-group "is there another?" decision, or done.
+export type AskFn = (step: NextStep, session: TalkSession) => Promise<string>;
 
 export interface TalkStep {
   session: TalkSession;
   reply: string;
-  done: boolean;
+  nextStep: NextStep;
 }
 
-// The shared tail of both startTalk() and processTurn(): given the record
+interface Deps {
+  ask: AskFn;
+  topics?: Topic[];
+  fields?: FormFieldSpec[];
+}
+
+// The shared tail of both startTalk() and processTurn(): given the state
 // as it stands *after* any writes this turn, decide what's next and ask
-// about it. Taking only `record` (never the pre-turn session) is what
-// makes "ask always sees this turn's writes" a structural guarantee, not
-// just something the current code happens to get right — there is no
-// stale record variable in scope here to reach for by mistake.
+// about it. Taking only the post-write state (never the pre-turn
+// session) is what makes "ask always sees this turn's writes" a
+// structural guarantee, not just something the current code happens to
+// get right — there is no stale record variable in scope here to reach
+// for by mistake.
 async function respond(
-  record: AgendaRecord,
-  transcript: TalkTurn[],
-  ask: AskFn,
+  next: { record: AgendaRecord; transcript: TalkTurn[]; repeatCounts: RepeatCounts },
+  deps: Deps,
 ): Promise<TalkStep> {
-  const field = nextField(record);
-  const reply = await ask(field, { record, transcript });
+  const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
+  const reply = await deps.ask(step, next);
   return {
-    session: { record, transcript: [...transcript, { role: "talker", text: reply }] },
+    session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
     reply,
-    done: field === null,
+    nextStep: step,
   };
 }
 
-export async function startTalk(
-  session: TalkSession,
-  deps: { ask: AskFn },
-): Promise<TalkStep> {
-  return respond(session.record, session.transcript, deps.ask);
+export async function startTalk(session: TalkSession, deps: Deps): Promise<TalkStep> {
+  return respond(session, deps);
 }
 
 export async function processTurn(
   session: TalkSession,
   message: string,
-  deps: { extract: ExtractFn; ask: AskFn },
+  deps: Deps & { extract: ExtractFn },
 ): Promise<TalkStep> {
   const proposals = await deps.extract(session, message);
   // applyAction() is pure — it never mutates its input and throws before
@@ -115,5 +129,12 @@ export async function processTurn(
     }
     return applyAction(rec, proposal.fieldId, { type: proposal.type });
   }, session.record);
-  return respond(record, [...session.transcript, { role: "clinician", text: message }], deps.ask);
+  return respond(
+    {
+      record,
+      transcript: [...session.transcript, { role: "clinician", text: message }],
+      repeatCounts: session.repeatCounts,
+    },
+    deps,
+  );
 }

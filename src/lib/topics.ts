@@ -32,11 +32,14 @@
 // fields assigned to exactly one topic, no gaps, no duplicates — see
 // topics.test.ts for the same checks kept live against the manifest.
 //
-// This file ships the topic MAP only. Wiring the Talker orchestrator
-// (src/lib/talk.ts) to actually ask topic-by-topic instead of
-// field-by-field, and the "is there another?" conversational logic for
-// the two repeating groups, are separate, later units.
-import type { FormSection } from "./form-3500-fields";
+// nextStep()/RepeatCounts (below TOPICS) are what src/lib/talk.ts's
+// orchestrator actually calls to decide what's next — see Issue #18.
+// Resolving a repeat-decision from a clinician's actual answer (turning
+// "yeah, there was a second one" into a count) is still out of scope
+// here: that's real interpretation work for the not-yet-built Extractor,
+// the same boundary Issue #13 already drew for checkbox/enum fields.
+import { type AgendaRecord } from "./agenda";
+import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
 export type RepeatGroup = "suspect-product" | "concomitant-medication";
 
@@ -583,3 +586,83 @@ export const TOPICS: Topic[] = [
     repeatGroup: null,
     repeatInstance: null,
   },];
+
+// How many instances of a repeating group the clinician has confirmed
+// exist. Absent from AgendaRecord entirely on purpose: "is there
+// another suspect product?" isn't one of the 227 real PDF fields, so it
+// has nowhere to live in the record itself.
+export type RepeatCounts = Partial<Record<RepeatGroup, number>>;
+
+export function initRepeatCounts(): RepeatCounts {
+  return {};
+}
+
+function maxInstance(group: RepeatGroup, topics: Topic[]): number {
+  const instances = topics
+    .filter((t) => t.repeatGroup === group)
+    .map((t) => t.repeatInstance!);
+  return Math.max(...instances);
+}
+
+export function setRepeatCount(
+  counts: RepeatCounts,
+  group: RepeatGroup,
+  count: number,
+  topics: Topic[] = TOPICS,
+): RepeatCounts {
+  const max = maxInstance(group, topics);
+  if (count < 1 || count > max) {
+    throw new Error(`${group}: count must be between 1 and ${max}, got ${count}`);
+  }
+  return { ...counts, [group]: count };
+}
+
+export type NextStep =
+  | { kind: "topic"; topic: Topic; fieldIds: string[] }
+  | { kind: "repeat-decision"; repeatGroup: RepeatGroup; afterInstance: number }
+  | { kind: "done" };
+
+// Decides what the Talker asks about next, walking topics in their
+// existing array order (already section-by-section, A through G, and
+// instance-1-before-instance-2 within a repeating group — see
+// topics.test.ts). Only text/date fields are ever surfaced: checkbox/enum
+// fields resolve via direct UI selection (Issue #13's scoping), so a
+// topic that's entirely checkbox/enum needs no conversational step at
+// all and is skipped outright.
+export function nextStep(
+  record: AgendaRecord,
+  repeatCounts: RepeatCounts,
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): NextStep {
+  const fieldsById = new Map(fields.map((f) => [f.id, f]));
+
+  for (const topic of topics) {
+    if (topic.repeatGroup !== null && topic.repeatInstance !== null) {
+      const decided = repeatCounts[topic.repeatGroup];
+      if (decided !== undefined && topic.repeatInstance > decided) {
+        continue; // this instance was confirmed not to exist — skip it
+      }
+      if (decided === undefined && topic.repeatInstance > 1) {
+        // Instance 1 is always asked unconditionally; instance 2+ is
+        // gated on an explicit "is there another?" decision first.
+        return {
+          kind: "repeat-decision",
+          repeatGroup: topic.repeatGroup,
+          afterInstance: topic.repeatInstance - 1,
+        };
+      }
+    }
+
+    const unresolvedFieldIds = topic.fieldIds.filter((fieldId) => {
+      const field = fieldsById.get(fieldId);
+      const isTextOrDate = field?.type === "text" || field?.type === "date";
+      return isTextOrDate && record[fieldId]?.state === "unasked";
+    });
+    if (unresolvedFieldIds.length > 0) {
+      return { kind: "topic", topic, fieldIds: unresolvedFieldIds };
+    }
+  }
+
+  return { kind: "done" };
+}
