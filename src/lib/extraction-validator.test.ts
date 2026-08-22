@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { TalkTurn } from "./talk";
-import { validateCandidates, type ExtractionCandidate } from "./extraction-validator";
+import {
+  validateCandidates,
+  validateRepeatCandidate,
+  type ExtractionCandidate,
+  type RepeatCandidate,
+} from "./extraction-validator";
 
 const TEXT_FIELD = FORM_3500_FIELDS.find((f) => f.type === "text")!;
 const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
@@ -238,5 +243,57 @@ describe("validateCandidates", () => {
     expect(result.accepted).toEqual([
       { fieldId: TEXT_FIELD.id, type: "answer", value: "unrelated made-up answer" },
     ]);
+  });
+});
+
+describe("validateRepeatCandidate", () => {
+  it("accepts a repeat-group decision whose quote is a real clinician turn", () => {
+    const transcript = transcriptWith("yes, there was a second one, lisinopril");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes, there was a second one" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate)).toEqual({ accepted: true });
+  });
+
+  it("rejects a repeat-group decision whose quote isn't a real substring of the cited turn", () => {
+    const transcript = transcriptWith("no, that's the only one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes there was another" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a repeat-group decision quoting a talker turn instead of a clinician turn", () => {
+    const transcript = transcriptWith("yes");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      // index 0 is the talker's "(question)" turn, not the clinician's
+      quote: { turnIndex: 0, text: "(question)" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a punctuation-only quote — the same vacuous-match guard as validateCandidates", () => {
+    const transcript = transcriptWith("yes");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "..." },
+    };
+    expect(validateRepeatCandidate(transcript, candidate)).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
   });
 });

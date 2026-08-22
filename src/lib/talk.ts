@@ -23,8 +23,10 @@ import {
   TOPICS,
   initRepeatCounts,
   nextStep,
+  setRepeatCount,
   type NextStep,
   type RepeatCounts,
+  type RepeatGroup,
   type Topic,
 } from "./topics";
 
@@ -57,7 +59,18 @@ export type ProposedAction =
   | { fieldId: string; type: "answer"; value: string }
   | { fieldId: string; type: Exclude<FieldAction["type"], "answer"> };
 
-export type ExtractFn = (session: TalkSession, message: string) => Promise<ProposedAction[]>;
+// `actions` is field-level, matching ProposedAction's own {fieldId, type}
+// shape. `repeatDecision` is separate, not folded into `actions`, because a
+// repeat-group decision isn't about any field — topics.ts's RepeatCounts is
+// deliberately kept outside AgendaRecord (Issue #18), so there's no fieldId
+// for it to attach to. Optional: most turns answer field-level questions,
+// not the "is there another one?" question.
+export interface ExtractResult {
+  actions: ProposedAction[];
+  repeatDecision?: { repeatGroup: RepeatGroup; count: number };
+}
+
+export type ExtractFn = (session: TalkSession, message: string) => Promise<ExtractResult>;
 
 // Receives the whole session (transcript + record + repeatCounts), not
 // just the fields being asked about — matching ExtractFn's shape, and
@@ -108,7 +121,7 @@ export async function processTurn(
   message: string,
   deps: Deps & { extract: ExtractFn },
 ): Promise<TalkStep> {
-  const proposals = await deps.extract(session, message);
+  const { actions, repeatDecision } = await deps.extract(session, message);
   // applyAction() is pure — it never mutates its input and throws before
   // returning anything on an invalid proposal — so a reduce that throws
   // partway through never lets a partially-applied record escape this
@@ -123,17 +136,29 @@ export async function processTurn(
   // whether a proposal is actually correct is the Extractor's job
   // (design.md), not this orchestrator's — it trusts what `extract`
   // returns, same as it trusts `applyAction`'s existing validation.
-  const record = proposals.reduce((rec, proposal) => {
+  const record = actions.reduce((rec, proposal) => {
     if (proposal.type === "answer") {
       return applyAction(rec, proposal.fieldId, { type: "answer" }, proposal.value);
     }
     return applyAction(rec, proposal.fieldId, { type: proposal.type });
   }, session.record);
+  // setRepeatCount() throws on an out-of-range count, same as applyAction()
+  // throws on an invalid field action — an invalid repeatDecision fails the
+  // whole turn rather than writing a bad count, matching the "never
+  // partially applied" guarantee above.
+  const repeatCounts = repeatDecision
+    ? setRepeatCount(
+        session.repeatCounts,
+        repeatDecision.repeatGroup,
+        repeatDecision.count,
+        deps.topics ?? TOPICS,
+      )
+    : session.repeatCounts;
   return respond(
     {
       record,
       transcript: [...session.transcript, { role: "clinician", text: message }],
-      repeatCounts: session.repeatCounts,
+      repeatCounts,
     },
     deps,
   );

@@ -46,6 +46,7 @@
 // is that inner check, not a drop-in ExtractFn itself.
 import type { FormFieldSpec } from "./form-3500-fields";
 import type { ProposedAction, TalkTurn } from "./talk";
+import type { RepeatGroup } from "./topics";
 
 export interface Quote {
   turnIndex: number;
@@ -119,6 +120,40 @@ function toProposedAction(candidate: ExtractionCandidate): ProposedAction {
     case "declined":
       return { fieldId: candidate.fieldId, type: "decline" };
   }
+}
+
+// A repeat-group "is there another one?" decision, grounded the same way
+// a field-value candidate is: the quote must be real. Unlike
+// ExtractionCandidate, there's no field type or field id to check —
+// `count` isn't validated here (topics.ts's setRepeatCount() already
+// throws on an out-of-range count; processTurn applies it the same way
+// it already applies applyAction(), so an invalid count fails the whole
+// turn instead of writing a bad count, matching how an invalid field
+// action already behaves).
+export interface RepeatCandidate {
+  repeatGroup: RepeatGroup;
+  count: number;
+  quote: Quote;
+}
+
+export type RepeatRejectionReason = "quote_not_found";
+
+export interface RepeatValidationResult {
+  accepted: boolean;
+  reason?: RepeatRejectionReason;
+}
+
+export function validateRepeatCandidate(
+  transcript: TalkTurn[],
+  candidate: RepeatCandidate,
+): RepeatValidationResult {
+  const turn = transcript[candidate.quote.turnIndex];
+  const turnText = turn && turn.role === "clinician" ? normalize(turn.text) : null;
+  const quoteText = normalize(candidate.quote.text);
+  if (quoteText.length === 0 || turnText === null || !turnText.includes(quoteText)) {
+    return { accepted: false, reason: "quote_not_found" };
+  }
+  return { accepted: true };
 }
 
 export function validateCandidates(
