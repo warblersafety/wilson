@@ -132,10 +132,11 @@ describe("askDeterministic", () => {
     );
   });
 
-  it("covers exactly the nine fields identified as needing an override (six at filing, three more found by spot-checking real output before commit)", () => {
+  it("covers exactly the eleven fields identified as needing an override (six at filing, five more found by actually running the output before and after review)", () => {
     expect(Object.keys(PHRASING_OVERRIDES).sort()).toEqual(
       [
         "Page2.SecB_Adverse.DescEvent",
+        "Page3.Sec6Data.OtherHistory",
         "Page3.TestDataTable.ReturnDate",
         "Page4.Prod1.Prod1FreqOther",
         "Page4.Prod1.Prod1RouteOther",
@@ -143,12 +144,19 @@ describe("askDeterministic", () => {
         "Page5.Prod2.Prod2RouteOther",
         "Page6.SecE_Device.ExplantDate",
         "Page6.SecE_Device.ImplantDate",
+        "Page6.SecE_Device.ManuName",
         "Page6.SecE_Device.ReprocInfo",
       ].sort(),
     );
   });
 
-  it("smoke test: every real text/date field across all 34 topics phrases without throwing or producing empty text", async () => {
+  it("smoke test: every real text/date field across all 34 topics phrases without throwing, without empty text, and without an embedded comma", async () => {
+    // Asked alone (a single-field topic), a comma in the reply can only
+    // have come from the field's own phrase — never from joinPhrases()'s
+    // list-separator logic, which never runs for a single item. This is
+    // what actually caught the generic-fallback comma bug a fresh-context
+    // review found: the override-only check above didn't cover a field
+    // with no override and a comma in its raw label (no ":" to split on).
     const fieldsById = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
     for (const topic of TOPICS) {
       const textOrDateIds = topic.fieldIds.filter((id) => {
@@ -157,8 +165,15 @@ describe("askDeterministic", () => {
       });
       for (const fieldId of textOrDateIds) {
         const reply = await askDeterministic(topicStep(topic, [fieldId]), STUB_SESSION);
-        expect(reply.length).toBeGreaterThan(0);
+        expect(reply.length, fieldId).toBeGreaterThan(0);
+        expect(reply, fieldId).not.toContain(",");
       }
     }
+  });
+
+  it("throws rather than producing a broken 'What's , and undefined?' message for a topic step with no fieldIds", async () => {
+    await expect(
+      askDeterministic(topicStep(PATIENT_BASICS, []), STUB_SESSION),
+    ).rejects.toThrow();
   });
 });

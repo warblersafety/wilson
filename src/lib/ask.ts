@@ -32,17 +32,28 @@ const REPEAT_GROUP_LABELS = {
 // file header. More can be added later as discovered work if a specific
 // phrase reads badly in practice; this isn't meant to be exhaustive.
 //
-// No override may contain a comma (enforced in ask.test.ts): an override
-// is joined into a multi-field question the same way a generic phrase
-// is (joinPhrases()), and a comma inside one item is indistinguishable
-// from the join's own separators once several items are strung together
-// — found by actually running askDeterministic against every real topic
-// before committing, not just by inspection: the original "Other
-// Frequency"/"Other Route" overrides each carried an explanatory clause
-// after a comma, which produced an unreadable run-on the moment either
-// was bundled with "Dose or Amount" in the same question.
+// No field's phrase — override OR generic — may contain a comma
+// (enforced in ask.test.ts across the whole real manifest, not just the
+// override table): a phrase is joined into a multi-field question the
+// same way every other phrase is (joinPhrases()), and a comma inside one
+// item is indistinguishable from the join's own separators once several
+// items are strung together — found twice by actually running
+// askDeterministic against every real topic before committing, not just
+// by inspection. First against the override table itself (the original
+// "Other Frequency"/"Other Route" overrides each carried an explanatory
+// clause after a comma); a fresh-context review then found the same
+// class of bug in the generic fallback path, which had no comma guard
+// at all — a field with a comma in its label and no override (e.g.
+// "Manufacturer Name, City and State", no ":" to split on) sailed
+// straight through. Two fields needed overrides purely to satisfy this:
+// ManuName (exploitable today — its topic bundles other fields) and
+// OtherHistory (not exploitable today, since its topic has no other
+// field to bundle it with — but a future manifest change could make it
+// so, and the mechanical test now catches that regardless of whether
+// today's topic map happens to expose it).
 export const PHRASING_OVERRIDES: Record<string, string> = {
   "Page2.SecB_Adverse.DescEvent": "a description of what happened",
+  "Page3.Sec6Data.OtherHistory": "any other relevant medical history",
   "Page3.TestDataTable.ReturnDate": "the date it was returned to the manufacturer",
   "Page4.Prod1.Prod1FreqOther": "the other frequency you had in mind",
   "Page4.Prod1.Prod1RouteOther": "the other route you had in mind",
@@ -50,6 +61,7 @@ export const PHRASING_OVERRIDES: Record<string, string> = {
   "Page5.Prod2.Prod2RouteOther": "the other route you had in mind",
   "Page6.SecE_Device.ExplantDate": "the date it was explanted",
   "Page6.SecE_Device.ImplantDate": "the date it was implanted",
+  "Page6.SecE_Device.ManuName": "the manufacturer's name and location",
   "Page6.SecE_Device.ReprocInfo": "the name and address of whoever reprocessed it",
 };
 
@@ -81,6 +93,15 @@ function fieldPhrase(field: FormFieldSpec): string {
 }
 
 function joinPhrases(phrases: string[]): string {
+  if (phrases.length === 0) {
+    // Unreachable via today's nextStep() (it only ever returns a "topic"
+    // step with a non-empty fieldIds), but NextStep's type doesn't
+    // enforce that, and nothing stops a caller from constructing one
+    // directly — found by review, which pointed out this file's own
+    // test helper does exactly that with no guard. Fail loud rather
+    // than hand a clinician a broken "What's , and undefined?" message.
+    throw new Error("askDeterministic: a 'topic' step must have at least one fieldId");
+  }
   if (phrases.length === 1) return phrases[0];
   if (phrases.length === 2) return `${phrases[0]} and ${phrases[1]}`;
   return `${phrases.slice(0, -1).join(", ")}, and ${phrases[phrases.length - 1]}`;
