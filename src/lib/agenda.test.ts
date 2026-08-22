@@ -52,6 +52,19 @@ describe("applyAction", () => {
       applyAction(record, "not-a-real-id", { type: "answer" }, "x"),
     ).toThrow();
   });
+
+  it("throws for a field id that only resolves via the prototype chain", () => {
+    const record = initAgenda();
+    expect(() =>
+      applyAction(record, "constructor", { type: "answer" }, "x"),
+    ).toThrow();
+  });
+
+  it("throws when answering without a non-empty value", () => {
+    const record = initAgenda();
+    expect(() => applyAction(record, id, { type: "answer" })).toThrow();
+    expect(() => applyAction(record, id, { type: "answer" }, "")).toThrow();
+  });
 });
 
 describe("nextField", () => {
@@ -85,5 +98,11 @@ describe("nextField", () => {
     const field = nextField(record);
     expect(field).not.toBeNull();
     expect(field?.section).not.toBe("A");
+  });
+
+  it("throws if the record is missing a real manifest field", () => {
+    const record = initAgenda();
+    delete record[FORM_3500_FIELDS[0].id];
+    expect(() => nextField(record)).toThrow();
   });
 });
