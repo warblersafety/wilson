@@ -3,9 +3,14 @@
 Research from the 2026-08-22 design conversation on Issue #24, correcting
 `docs/design.md`'s prior framing that the Suggestion layer's data source
 "doesn't exist yet." It does — eight of the nine sources below are free,
-and six of those eight need no runtime dependency on any external service
-once downloaded. This doc is the source-by-source detail; `docs/design.md`
-links here rather than duplicating it.
+and all eight are fully self-hostable with zero runtime dependency on any
+external service once downloaded (nothing calls out to an external API at
+request time, for any of them). Three of the eight — RxNorm, SNOMED CT,
+and UMLS — carry a different kind of obligation instead: a free UMLS/UTS
+license that must be renewed annually to keep using the data for *new*
+records, a compliance task rather than a technical dependency. This doc is
+the source-by-source detail; `docs/design.md` links here rather than
+duplicating it.
 
 ## Why this matters for wilson specifically
 
@@ -78,7 +83,8 @@ Not a commitment — a starting point for whoever scopes that unit:
    would have been, so a suggestion here is "a broadly relevant clinical
    term," not precise regulatory phrasing. Still legitimate and free, just
    the one worth being explicit with the clinician about being the least
-   precise of the five.
+   precise of the six other free sources above (excluding UMLS, which
+   isn't itself a suggestion source — see item 5).
 5. **UMLS as the integration layer**, once more than one of RxNorm/SNOMED
    CT/LOINC/ICD-10-CM is in play — one registration and one client
    instead of four separate one-off integrations.

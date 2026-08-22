@@ -126,14 +126,16 @@ suggestion layer writing through.
   reasoning. Whether/when to actually build the Suggestion layer is now a
   real product-scope choice rather than a blocked default; nothing about
   the record's correctness depends on it existing either way. **Not fully
-  resolved — one real open item, not yet owned by anyone:** six of the
-  eight free sources are unconditionally free and self-hostable, but
-  SNOMED CT and UMLS specifically are free only under an annual UTS
-  license report; a lapsed report doesn't just risk a fee, it puts
-  continued use of that data for *new* suggestions outside the license's
-  terms. Whoever builds a Suggestion layer using either source needs to
-  name an owner for that renewal, the same way the PHI data-handling risk
-  below is explicitly named to Steve rather than left unowned.
+  resolved — one real open item, not yet owned by anyone:** five of the
+  eight free sources (NDC Directory, ICD-10-CM, LOINC, FDA Device
+  Classification DB, GUDID) are unconditionally free with no ongoing
+  obligation at all, but RxNorm, SNOMED CT, and UMLS are free only under
+  an annual UTS license report; a lapsed report doesn't just risk a fee,
+  it puts continued use of that data for *new* suggestions outside the
+  license's terms. Whoever builds a Suggestion layer using any of those
+  three sources needs to name an owner for that renewal, the same way the
+  PHI data-handling risk below is explicitly named to Steve rather than
+  left unowned.
 - **Keeping "advisory, not authoritative" honest in the actual UX**, not
   just in this document — the charter's review-depth conclusion weights
   this heavily. Addressed above (no pre-selected candidates, acceptance is
