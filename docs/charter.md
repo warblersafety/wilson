@@ -31,11 +31,16 @@ wilson is positioned as an aid, not a diagnostic or classification
 authority. The clinician is expected to review and sign off before
 anything is submitted — that review is the actual safety boundary, the
 same trust boundary lucy uses (models produce proposals, code/humans own
-writes). We do not have access to a medical coding database yet (e.g. for
-MedDRA-style reaction coding likely asked on the form); once available,
-wilson may surface a handful of suggested candidates to speed the
-clinician up, but it must never assert or imply an authoritative
-classification.
+writes). wilson may surface a handful of suggested product/diagnosis/lab/
+device candidates to speed the clinician up, but any such suggestion must
+never assert or imply an authoritative classification. Sourced from a free
+data stack (`docs/coding-databases.md`), not MedDRA: MedDRA is explicitly
+excluded from wilson's scope, not deferred pending procurement — it has no
+discounted licensing tier for a vendor building a product around it, and
+Form 3500 has no field that accepts a code anywhere for it to fill even if
+licensed. This is a scope decision, not a temporary gap; reopening MedDRA
+procurement would need a new charter conversation, not just a design.md
+update.
 
 **Review-depth conclusion:** this isn't throwaway — it's real clinical
 adverse-event data headed toward an FDA submission — but the clinician
