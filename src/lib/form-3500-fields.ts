@@ -28,6 +28,19 @@ export interface FormFieldSpec {
   options?: string[];
 }
 
+const UNIT_OPTIONS: string[] = [" ", "AS NECESSARY - AN", "BECQUEREL(S) - BQ", "CURIE(S) - CI", "CYCLICAL - CYC", "DOSAGE FORM - DF", "DROP(S) - GTT", "GIGABECQUEREL(S) - GBQ", "GRAM(S) - GM", "INTERNATIONAL UNIT(S) - IU", "IU(1,000,000S) - MIU", "IU(1000S) - KIU", "IU/KILOGRAM - IU/KG", "KILOBECQUEREL(S) - KBQ", "KILOGRAM(S) - KG", "LITRE(S) - L", "MEGABECQUEREL(S) - MBQ", "MICROCURIE(S) - UCI", "MICROGRAM(S) - UGM", "MICROGRAM(S)/KILOGRAM(S) -UGM/KG", "MICROGRAM(S)/MICROGRAM(S) - UGM/UGM", "MICROGRAM(S)/SQ. METERS - UGM/SQ M", "MICROGRAMS/HOUR - UGM/HR", "MICROLITRE(S) - UL", "MICROMOLE(S) - UMOLE", "MILLICURIE(S) - MCI", "MILLIEQUIVALENT(S) - MEQ", "MILLIGRAM(S) - MG", "MILLIGRAM(S)/KILOGRAM(S) - MG/KG", "MILLIGRAM(S)/SQ. METERS - MG/SQ M", "MILLIGRAMS/MILLIGRAMS - MG/MG", "MILLIGRAMS/MILLILITRES - MG/ML", "MILLILITRE(S) - ML", "MILLIMOLE(S) - MMOLE", "MOLE(S) - MOLE", "NANOCURIE(S) - NCI", "NANOGRAM(S) - NGM", "PERCENT - %", "PICOGRAM(S) - PGM", "TOTAL - TOT", "TRIMESTER - TRI", "UNKNOWN - UNK"];
+
+const FREQUENCY_OPTIONS: string[] = [" ", "BID", "Daily", "HS", "PRN", "QID", "TID", "Other"];
+
+const ROUTE_OPTIONS: string[] = [" ", "Auricular (otic)", "Buccal", "Cutaneous", "Dental", "Endocervical", "Endosinusial", "Endotracheal", "Epidural", "Extra-amniotic", "Hemodialysis", "Intra corpus cavernosum", "Intra-amniotic", "Intra-arterial", "Intra-articular", "Intra-uterine", "Intracardiac", "Intracavernous", "Intracerebral", "Intracervical", "Intracisternal", "Intracorneal", "Intracoronary", "Intradermal", "Intradiscal (intraspinal)", "Intrahepatic", "Intralesional", "Intralymphatic", "Intramedullar (bone marrow)", "Intrameningeal", "Intramuscular", "Intraocular", "Intrapericardial", "Intraperitoneal", "Intrapleural", "Intrasynovial", "Intrathecal", "Intrathoracic", "Intratracheal", "Intratumor", "Intravenous (not otherwise specified)", "Intravenous bolus", "Intravenous drip", "Intravesical", "Iontophoresis", "Nasal", "Occlusive dressing technique", "Ophthalmic", "Oral", "Oropharingeal", "Parenteral", "Periarticular", "Perineural", "Rectal", "Respiratory (inhalation)", "Retrobulbar", "Subcutaneous", "Subdermal", "Sublingual", "Sunconjunctival", "Topical", "Transdermal", "Transmammary", "Transplacental", "Unknown", "Urethral", "Vaginal", "Other"];
+
+const DURATION_UNIT_OPTIONS: string[] = [" ", "Minute(s)", "Hour(s)", "Day(s)", "Week(s)", "Month(s)", "Year(s)"];
+
+const COUNTRY_OPTIONS: string[] = [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIRI", "ALBANIA", "ALGERIA", "AMERICAN SAMOA", "ANDORRA", "ANGOLA", "ANGUILLA", "ANTARCTICA", "ANTIGUA AND BARBUDA", "ARGENTINA", "ARMENIA", "ARUBA", "ASHMORE AND CARTIER ISLANDS", "AUSTRALIA", "AUSTRIA", "AZERBAIJAN", "BAHAMAS, THE", "BAHRAIN", "BAKER ISLAND", "BANGLADESH", "BARBADOS", "BASSAS DA INDIA", "BELARUS", "BELGIUM", "BELIZE", "BENIN", "BERMUDA", "BHUTAN", "BOLIVIA", "BONAIRE, SINT EUSTATIUS, AND SABA", "BOSNIA AND HERZEGOVINA", "BOTSWANA", "BOUVET ISLAND", "BRAZIL", "BRITISH INDIAN OCEAN TERRITORY", "BRUNEI", "BULGARIA", "BURKINA FASO", "BURMA", "BURUNDI", "CABO VERDE", "CAMBODIA", "CAMEROON", "CANADA", "CAYMAN ISLANDS", "CENTRAL AFRICAN REPUBLIC", "CHAD", "CHILE", "CHINA", "CHRISTMAS ISLAND", "CLIPPERTON ISLAND", "COCOS (KEELING) ISLANDS", "COLOMBIA", "COMOROS", "CONGO (BRAZZAVILLE)", "CONGO (KINSHASA)", "COOK ISLANDS", "CORAL SEA ISLANDS", "COSTA RICA", "CROATIA", "CUBA", "CURAÇAO", "CYPRUS", "CZECH REPUBLIC", "CÔTE D’IVOIRE", "DENMARK", "DHEKELIA", "DIEGO GARCIA", "DJIBOUTI", "DOMINICA", "DOMINICAN REPUBLIC", "ECUADOR", "EGYPT", "EL SALVADOR", "EQUATORIAL GUINEA", "ERITREA", "ESTONIA", "ETHIOPIA", "EUROPA ISLAND", "FALKLAND ISLANDS (ISLAS MALVINAS)", "FAROE ISLANDS", "FIJI", "FINLAND", "FRANCE", "FRENCH GUIANA", "FRENCH POLYNESIA", "FRENCH SOUTHERN AND ANTARCTIC LANDS", "GABON", "GAMBIA, THE", "GAZA STRIP", "GEORGIA", "GERMANY", "GHANA", "GIBRALTAR", "GLORIOSO ISLANDS", "GREECE", "GREENLAND", "GRENADA", "GUADELOUPE", "GUAM", "GUANTANAMO BAY NAVAL BASE", "GUATEMALA", "GUERNSEY", "GUINEA", "GUINEA-BISSAU", "GUYANA", "HAITI", "HEARD ISLAND AND MCDONALD ISLANDS", "HONDURAS", "HONG KONG", "HOWLAND ISLAND", "HUNGARY", "ICELAND", "INDIA", "INDONESIA", "IRAN", "IRAQ", "IRELAND", "ISLE OF MAN", "ISRAEL", "ITALY", "JAMAICA", "JAN MAYEN", "JAPAN", "JARVIS ISLAND", "JERSEY", "JOHNSTON ATOLL", "JORDAN", "JUAN DE NOVA ISLAND", "KAZAKHSTAN", "KENYA", "KINGMAN REEF", "KIRIBATI", "KOREA, NORTH", "KOREA, SOUTH", "KOSOVO", "KUWAIT", "KYRGYZSTAN", "LAOS", "LATVIA", "LEBANON", "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIA", "LUXEMBOURG", "MACAU", "MACEDONIA", "MADAGASCAR", "MALAWI", "MALAYSIA", "MALDIVES", "MALI", "MALTA", "MARSHALL ISLANDS", "MARTINIQUE", "MAURITANIA", "MAURITIUS", "MAYOTTE", "MEXICO", "MICRONESIA, FEDERATED STATES OF", "MIDWAY ISLANDS", "MOLDOVA", "MONACO", "MONGOLIA", "MONTENEGRO", "MONTSERRAT", "MOROCCO", "MOZAMBIQUE", "NAMIBIA", "NAURU", "NAVASSA ISLAND", "NEPAL", "NETHERLANDS", "NEW CALEDONIA", "NEW ZEALAND", "NICARAGUA", "NIGER", "NIGERIA", "NIUE", "NORFOLK ISLAND", "NORTHERN MARIANA ISLANDS", "NORWAY", "OMAN", "PAKISTAN", "PALAU", "PALMYRA ATOLL", "PANAMA", "PAPUA NEW GUINEA", "PARACEL ISLANDS", "PARAGUAY", "PERU", "PHILIPPINES", "PITCAIRN ISLANDS", "POLAND", "PORTUGAL", "PUERTO RICO", "QATAR", "REUNION", "ROMANIA", "RUSSIA", "RWANDA", "SAINT BARTHELEMY", "SAINT HELENA, ASCENSION, AND TRISTAN DA CUNHA", "SAINT KITTS AND NEVIS", "SAINT LUCIA", "SAINT MARTIN", "SAINT PIERRE AND MIQUELON", "SAINT VINCENT AND THE GRENADINES", "SAMOA", "SAN MARINO", "SAO TOME AND PRINCIPE", "SAUDI ARABIA", "SENEGAL", "SERBIA", "SEYCHELLES", "SIERRA LEONE", "SINGAPORE", "SINT MAARTEN", "SLOVAKIA", "SLOVENIA", "SOLOMON ISLANDS", "SOMALIA", "SOUTH AFRICA", "SOUTH GEORGIA AND SOUTH SANDWICH ISLANDS", "SOUTH SUDAN", "SPAIN", "SPRATLY ISLANDS", "SRI LANKA", "SUDAN", "SURINAME", "SVALBARD", "SWAZILAND", "SWEDEN", "SWITZERLAND", "SYRIA", "TAIWAN", "TAJIKISTAN", "TANZANIA", "THAILAND", "TIMOR-LESTE", "TOGO", "TOKELAU", "TONGA", "TRINIDAD AND TOBAGO", "TROMELIN ISLAND", "TUNISIA", "TURKEY", "TURKMENISTAN", "TURKS AND CAICOS ISLANDS", "TUVALU", "UGANDA", "UKRAINE", "UNITED ARAB EMIRATES", "UNITED KINGDOM", "UNKNOWN", "URUGUAY", "UZBEKISTAN", "VANUATU", "VATICAN CITY", "VENEZUELA", "VIETNAM", "VIRGIN ISLANDS, BRITISH", "VIRGIN ISLANDS, U.S.", "WAKE ISLAND", "WALLIS AND FUTUNA", "WEST BANK", "WESTERN SAHARA", "YEMEN", "ZAMBIA", "ZIMBABWE"];
+
+const OCCUPATION_OPTIONS: string[] = [" ", "Administrator/Supervisor", "Biomedical Engineer", "Dentist", "Non-Health Professional", "Nurse", "Nurse Practitioner", "Other Health Professional", "Pharmacist", "Physician", "Physician Assistant", "Risk Manager", "Third Party Servicer"];
+
+
 // Prod1StrengthUnit/Prod1DoseUnit (and their Prod2 counterparts) carry a real
 // defect from the source PDF itself: the second /Opt entry pairs the display
 // text "AS NECESSARY - AN" (a Frequency value) with an unrelated Strength/Dose
@@ -430,7 +443,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row5.TestData5",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row5[0].TestData5[0]",
-    label: "Relevant Test/Laboratory Data: Row 6 — Test/Lab Data",
+    label: "Relevant Test/Laboratory Data: Row 5 — Test/Lab Data",
     type: "text",
     required: false,
   },
@@ -454,7 +467,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row6.TestData6",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row6[0].TestData6[0]",
-    label: "Relevant Test/Laboratory Data: Row 7 — Test/Lab Data",
+    label: "Relevant Test/Laboratory Data: Row 6 — Test/Lab Data",
     type: "text",
     required: false,
   },
@@ -462,7 +475,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row6.TLowRange6",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row6[0].TLowRange6[0]",
-    label: "Relevant Test/Laboratory Data: Row 7 — Low Test Range",
+    label: "Relevant Test/Laboratory Data: Row 6 — Low Test Range",
     type: "text",
     required: false,
   },
@@ -470,7 +483,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row6.THighRange6",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row6[0].THighRange6[0]",
-    label: "Relevant Test/Laboratory Data: Row 7 — High Test Range",
+    label: "Relevant Test/Laboratory Data: Row 6 — High Test Range",
     type: "text",
     required: false,
   },
@@ -478,7 +491,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row7.TestData7",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row7[0].TestData7[0]",
-    label: "Relevant Test/Laboratory Data: Row 8 — Test/Lab Data",
+    label: "Relevant Test/Laboratory Data: Row 7 — Test/Lab Data",
     type: "text",
     required: false,
   },
@@ -486,7 +499,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row7.TLowRange7",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row7[0].TLowRange7[0]",
-    label: "Relevant Test/Laboratory Data: Row 8 — Low Test Range",
+    label: "Relevant Test/Laboratory Data: Row 7 — Low Test Range",
     type: "text",
     required: false,
   },
@@ -494,7 +507,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.TestData8",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].TestData8[0]",
-    label: "Relevant Test/Laboratory Data: Row 5 — Test/Lab Data",
+    label: "Relevant Test/Laboratory Data: Row 8 — Test/Lab Data",
     type: "text",
     required: false,
   },
@@ -502,7 +515,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.TLowRange8",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].TLowRange8[0]",
-    label: "Relevant Test/Laboratory Data: Row 6 — Low Test Range",
+    label: "Relevant Test/Laboratory Data: Row 8 — Low Test Range",
     type: "text",
     required: false,
   },
@@ -510,7 +523,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.THighRange8",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].THighRange8[0]",
-    label: "Relevant Test/Laboratory Data: Row 6 — High Test Range",
+    label: "Relevant Test/Laboratory Data: Row 8 — High Test Range",
     type: "text",
     required: false,
   },
@@ -518,7 +531,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.TDate8",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].TDate8[0]",
-    label: "Relevant Test/Laboratory Data: Row 6 — Date",
+    label: "Relevant Test/Laboratory Data: Row 8 — Date",
     type: "date",
     required: false,
   },
@@ -526,7 +539,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.THighRange7",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].THighRange7[0]",
-    label: "Relevant Test/Laboratory Data: Row 8 — High Test Range",
+    label: "Relevant Test/Laboratory Data: Row 7 — High Test Range",
     type: "text",
     required: false,
   },
@@ -558,7 +571,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.TDate6",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].TDate6[0]",
-    label: "Relevant Test/Laboratory Data: Row 7 — Date",
+    label: "Relevant Test/Laboratory Data: Row 6 — Date",
     type: "date",
     required: false,
   },
@@ -566,7 +579,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.Row8.TDate7",
     section: "B",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].Row8[0].TDate7[0]",
-    label: "Relevant Test/Laboratory Data: Row 8 — Date",
+    label: "Relevant Test/Laboratory Data: Row 7 — Date",
     type: "date",
     required: false,
   },
@@ -598,7 +611,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     id: "Page3.TestDataTable.EvalRetd",
     section: "C",
     pdfFieldName: "topmostSubform[0].Page3[0].TestDataTable[0].EvalRetd[0]",
-    label: "Product Available for Evaluation?: Returned to Manufacturer on",
+    label: "Product Available for Evaluation?: Returned to Manufacturer",
     type: "checkbox",
     required: false,
   },
@@ -641,7 +654,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Name, Strength, Manufacturer/Compounder: Unit",
     type: "enum",
     required: false,
-    options: [" ", "AS NECESSARY - AN", "BECQUEREL(S) - BQ", "CURIE(S) - CI", "CYCLICAL - CYC", "DOSAGE FORM - DF", "DROP(S) - GTT", "GIGABECQUEREL(S) - GBQ", "GRAM(S) - GM", "INTERNATIONAL UNIT(S) - IU", "IU(1,000,000S) - MIU", "IU(1000S) - KIU", "IU/KILOGRAM - IU/KG", "KILOBECQUEREL(S) - KBQ", "KILOGRAM(S) - KG", "LITRE(S) - L", "MEGABECQUEREL(S) - MBQ", "MICROCURIE(S) - UCI", "MICROGRAM(S) - UGM", "MICROGRAM(S)/KILOGRAM(S) -UGM/KG", "MICROGRAM(S)/MICROGRAM(S) - UGM/UGM", "MICROGRAM(S)/SQ. METERS - UGM/SQ M", "MICROGRAMS/HOUR - UGM/HR", "MICROLITRE(S) - UL", "MICROMOLE(S) - UMOLE", "MILLICURIE(S) - MCI", "MILLIEQUIVALENT(S) - MEQ", "MILLIGRAM(S) - MG", "MILLIGRAM(S)/KILOGRAM(S) - MG/KG", "MILLIGRAM(S)/SQ. METERS - MG/SQ M", "MILLIGRAMS/MILLIGRAMS - MG/MG", "MILLIGRAMS/MILLILITRES - MG/ML", "MILLILITRE(S) - ML", "MILLIMOLE(S) - MMOLE", "MOLE(S) - MOLE", "NANOCURIE(S) - NCI", "NANOGRAM(S) - NGM", "PERCENT - %", "PICOGRAM(S) - PGM", "TOTAL - TOT", "TRIMESTER - TRI", "UNKNOWN - UNK"],
+    options: UNIT_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1NDC_ID",
@@ -682,7 +695,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Dose or Amount: Unit",
     type: "enum",
     required: false,
-    options: [" ", "AS NECESSARY - AN", "BECQUEREL(S) - BQ", "CURIE(S) - CI", "CYCLICAL - CYC", "DOSAGE FORM - DF", "DROP(S) - GTT", "GIGABECQUEREL(S) - GBQ", "GRAM(S) - GM", "INTERNATIONAL UNIT(S) - IU", "IU(1,000,000S) - MIU", "IU(1000S) - KIU", "IU/KILOGRAM - IU/KG", "KILOBECQUEREL(S) - KBQ", "KILOGRAM(S) - KG", "LITRE(S) - L", "MEGABECQUEREL(S) - MBQ", "MICROCURIE(S) - UCI", "MICROGRAM(S) - UGM", "MICROGRAM(S)/KILOGRAM(S) -UGM/KG", "MICROGRAM(S)/MICROGRAM(S) - UGM/UGM", "MICROGRAM(S)/SQ. METERS - UGM/SQ M", "MICROGRAMS/HOUR - UGM/HR", "MICROLITRE(S) - UL", "MICROMOLE(S) - UMOLE", "MILLICURIE(S) - MCI", "MILLIEQUIVALENT(S) - MEQ", "MILLIGRAM(S) - MG", "MILLIGRAM(S)/KILOGRAM(S) - MG/KG", "MILLIGRAM(S)/SQ. METERS - MG/SQ M", "MILLIGRAMS/MILLIGRAMS - MG/MG", "MILLIGRAMS/MILLILITRES - MG/ML", "MILLILITRE(S) - ML", "MILLIMOLE(S) - MMOLE", "MOLE(S) - MOLE", "NANOCURIE(S) - NCI", "NANOGRAM(S) - NGM", "PERCENT - %", "PICOGRAM(S) - PGM", "TOTAL - TOT", "TRIMESTER - TRI", "UNKNOWN - UNK"],
+    options: UNIT_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1Freq",
@@ -691,7 +704,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Dose or Amount: Frequency",
     type: "enum",
     required: false,
-    options: [" ", "BID", "Daily", "HS", "PRN", "QID", "TID", "Other"],
+    options: FREQUENCY_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1FreqOther",
@@ -708,7 +721,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Dose or Amount: Route",
     type: "enum",
     required: false,
-    options: [" ", "Auricular (otic)", "Buccal", "Cutaneous", "Dental", "Endocervical", "Endosinusial", "Endotracheal", "Epidural", "Extra-amniotic", "Hemodialysis", "Intra corpus cavernosum", "Intra-amniotic", "Intra-arterial", "Intra-articular", "Intra-uterine", "Intracardiac", "Intracavernous", "Intracerebral", "Intracervical", "Intracisternal", "Intracorneal", "Intracoronary", "Intradermal", "Intradiscal (intraspinal)", "Intrahepatic", "Intralesional", "Intralymphatic", "Intramedullar (bone marrow)", "Intrameningeal", "Intramuscular", "Intraocular", "Intrapericardial", "Intraperitoneal", "Intrapleural", "Intrasynovial", "Intrathecal", "Intrathoracic", "Intratracheal", "Intratumor", "Intravenous (not otherwise specified)", "Intravenous bolus", "Intravenous drip", "Intravesical", "Iontophoresis", "Nasal", "Occlusive dressing technique", "Ophthalmic", "Oral", "Oropharingeal", "Parenteral", "Periarticular", "Perineural", "Rectal", "Respiratory (inhalation)", "Retrobulbar", "Subcutaneous", "Subdermal", "Sublingual", "Sunconjunctival", "Topical", "Transdermal", "Transmammary", "Transplacental", "Unknown", "Urethral", "Vaginal", "Other"],
+    options: ROUTE_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1RouteOther",
@@ -757,7 +770,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Treatment/Therapy/Usage Dates: Duration Unit",
     type: "enum",
     required: false,
-    options: [" ", "Minute(s)", "Hour(s)", "Day(s)", "Week(s)", "Month(s)", "Year(s)"],
+    options: DURATION_UNIT_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1TherapyOngoingYes",
@@ -878,7 +891,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #1: Place and Date of Purchase: Country",
     type: "enum",
     required: false,
-    options: [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIRI", "ALBANIA", "ALGERIA", "AMERICAN SAMOA", "ANDORRA", "ANGOLA", "ANGUILLA", "ANTARCTICA", "ANTIGUA AND BARBUDA", "ARGENTINA", "ARMENIA", "ARUBA", "ASHMORE AND CARTIER ISLANDS", "AUSTRALIA", "AUSTRIA", "AZERBAIJAN", "BAHAMAS, THE", "BAHRAIN", "BAKER ISLAND", "BANGLADESH", "BARBADOS", "BASSAS DA INDIA", "BELARUS", "BELGIUM", "BELIZE", "BENIN", "BERMUDA", "BHUTAN", "BOLIVIA", "BONAIRE, SINT EUSTATIUS, AND SABA", "BOSNIA AND HERZEGOVINA", "BOTSWANA", "BOUVET ISLAND", "BRAZIL", "BRITISH INDIAN OCEAN TERRITORY", "BRUNEI", "BULGARIA", "BURKINA FASO", "BURMA", "BURUNDI", "CABO VERDE", "CAMBODIA", "CAMEROON", "CANADA", "CAYMAN ISLANDS", "CENTRAL AFRICAN REPUBLIC", "CHAD", "CHILE", "CHINA", "CHRISTMAS ISLAND", "CLIPPERTON ISLAND", "COCOS (KEELING) ISLANDS", "COLOMBIA", "COMOROS", "CONGO (BRAZZAVILLE)", "CONGO (KINSHASA)", "COOK ISLANDS", "CORAL SEA ISLANDS", "COSTA RICA", "CROATIA", "CUBA", "CURAÇAO", "CYPRUS", "CZECH REPUBLIC", "CÔTE D’IVOIRE", "DENMARK", "DHEKELIA", "DIEGO GARCIA", "DJIBOUTI", "DOMINICA", "DOMINICAN REPUBLIC", "ECUADOR", "EGYPT", "EL SALVADOR", "EQUATORIAL GUINEA", "ERITREA", "ESTONIA", "ETHIOPIA", "EUROPA ISLAND", "FALKLAND ISLANDS (ISLAS MALVINAS)", "FAROE ISLANDS", "FIJI", "FINLAND", "FRANCE", "FRENCH GUIANA", "FRENCH POLYNESIA", "FRENCH SOUTHERN AND ANTARCTIC LANDS", "GABON", "GAMBIA, THE", "GAZA STRIP", "GEORGIA", "GERMANY", "GHANA", "GIBRALTAR", "GLORIOSO ISLANDS", "GREECE", "GREENLAND", "GRENADA", "GUADELOUPE", "GUAM", "GUANTANAMO BAY NAVAL BASE", "GUATEMALA", "GUERNSEY", "GUINEA", "GUINEA-BISSAU", "GUYANA", "HAITI", "HEARD ISLAND AND MCDONALD ISLANDS", "HONDURAS", "HONG KONG", "HOWLAND ISLAND", "HUNGARY", "ICELAND", "INDIA", "INDONESIA", "IRAN", "IRAQ", "IRELAND", "ISLE OF MAN", "ISRAEL", "ITALY", "JAMAICA", "JAN MAYEN", "JAPAN", "JARVIS ISLAND", "JERSEY", "JOHNSTON ATOLL", "JORDAN", "JUAN DE NOVA ISLAND", "KAZAKHSTAN", "KENYA", "KINGMAN REEF", "KIRIBATI", "KOREA, NORTH", "KOREA, SOUTH", "KOSOVO", "KUWAIT", "KYRGYZSTAN", "LAOS", "LATVIA", "LEBANON", "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIA", "LUXEMBOURG", "MACAU", "MACEDONIA", "MADAGASCAR", "MALAWI", "MALAYSIA", "MALDIVES", "MALI", "MALTA", "MARSHALL ISLANDS", "MARTINIQUE", "MAURITANIA", "MAURITIUS", "MAYOTTE", "MEXICO", "MICRONESIA, FEDERATED STATES OF", "MIDWAY ISLANDS", "MOLDOVA", "MONACO", "MONGOLIA", "MONTENEGRO", "MONTSERRAT", "MOROCCO", "MOZAMBIQUE", "NAMIBIA", "NAURU", "NAVASSA ISLAND", "NEPAL", "NETHERLANDS", "NEW CALEDONIA", "NEW ZEALAND", "NICARAGUA", "NIGER", "NIGERIA", "NIUE", "NORFOLK ISLAND", "NORTHERN MARIANA ISLANDS", "NORWAY", "OMAN", "PAKISTAN", "PALAU", "PALMYRA ATOLL", "PANAMA", "PAPUA NEW GUINEA", "PARACEL ISLANDS", "PARAGUAY", "PERU", "PHILIPPINES", "PITCAIRN ISLANDS", "POLAND", "PORTUGAL", "PUERTO RICO", "QATAR", "REUNION", "ROMANIA", "RUSSIA", "RWANDA", "SAINT BARTHELEMY", "SAINT HELENA, ASCENSION, AND TRISTAN DA CUNHA", "SAINT KITTS AND NEVIS", "SAINT LUCIA", "SAINT MARTIN", "SAINT PIERRE AND MIQUELON", "SAINT VINCENT AND THE GRENADINES", "SAMOA", "SAN MARINO", "SAO TOME AND PRINCIPE", "SAUDI ARABIA", "SENEGAL", "SERBIA", "SEYCHELLES", "SIERRA LEONE", "SINGAPORE", "SINT MAARTEN", "SLOVAKIA", "SLOVENIA", "SOLOMON ISLANDS", "SOMALIA", "SOUTH AFRICA", "SOUTH GEORGIA AND SOUTH SANDWICH ISLANDS", "SOUTH SUDAN", "SPAIN", "SPRATLY ISLANDS", "SRI LANKA", "SUDAN", "SURINAME", "SVALBARD", "SWAZILAND", "SWEDEN", "SWITZERLAND", "SYRIA", "TAIWAN", "TAJIKISTAN", "TANZANIA", "THAILAND", "TIMOR-LESTE", "TOGO", "TOKELAU", "TONGA", "TRINIDAD AND TOBAGO", "TROMELIN ISLAND", "TUNISIA", "TURKEY", "TURKMENISTAN", "TURKS AND CAICOS ISLANDS", "TUVALU", "UGANDA", "UKRAINE", "UNITED ARAB EMIRATES", "UNITED KINGDOM", "UNKNOWN", "URUGUAY", "UZBEKISTAN", "VANUATU", "VATICAN CITY", "VENEZUELA", "VIETNAM", "VIRGIN ISLANDS, BRITISH", "VIRGIN ISLANDS, U.S.", "WAKE ISLAND", "WALLIS AND FUTUNA", "WEST BANK", "WESTERN SAHARA", "YEMEN", "ZAMBIA", "ZIMBABWE"],
+    options: COUNTRY_OPTIONS,
   },
   {
     id: "Page4.Prod1.Prod1City",
@@ -991,7 +1004,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Name, Strength, Manufacturer/Compounder: Unit",
     type: "enum",
     required: false,
-    options: [" ", "AS NECESSARY - AN", "BECQUEREL(S) - BQ", "CURIE(S) - CI", "CYCLICAL - CYC", "DOSAGE FORM - DF", "DROP(S) - GTT", "GIGABECQUEREL(S) - GBQ", "GRAM(S) - GM", "INTERNATIONAL UNIT(S) - IU", "IU(1,000,000S) - MIU", "IU(1000S) - KIU", "IU/KILOGRAM - IU/KG", "KILOBECQUEREL(S) - KBQ", "KILOGRAM(S) - KG", "LITRE(S) - L", "MEGABECQUEREL(S) - MBQ", "MICROCURIE(S) - UCI", "MICROGRAM(S) - UGM", "MICROGRAM(S)/KILOGRAM(S) -UGM/KG", "MICROGRAM(S)/MICROGRAM(S) - UGM/UGM", "MICROGRAM(S)/SQ. METERS - UGM/SQ M", "MICROGRAMS/HOUR - UGM/HR", "MICROLITRE(S) - UL", "MICROMOLE(S) - UMOLE", "MILLICURIE(S) - MCI", "MILLIEQUIVALENT(S) - MEQ", "MILLIGRAM(S) - MG", "MILLIGRAM(S)/KILOGRAM(S) - MG/KG", "MILLIGRAM(S)/SQ. METERS - MG/SQ M", "MILLIGRAMS/MILLIGRAMS - MG/MG", "MILLIGRAMS/MILLILITRES - MG/ML", "MILLILITRE(S) - ML", "MILLIMOLE(S) - MMOLE", "MOLE(S) - MOLE", "NANOCURIE(S) - NCI", "NANOGRAM(S) - NGM", "PERCENT - %", "PICOGRAM(S) - PGM", "TOTAL - TOT", "TRIMESTER - TRI", "UNKNOWN - UNK"],
+    options: UNIT_OPTIONS,
   },
   {
     id: "Page5.Prod2.Prod2NDC_ID",
@@ -1032,7 +1045,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Dose or Amount: Unit",
     type: "enum",
     required: false,
-    options: [" ", "AS NECESSARY - AN", "BECQUEREL(S) - BQ", "CURIE(S) - CI", "CYCLICAL - CYC", "DOSAGE FORM - DF", "DROP(S) - GTT", "GIGABECQUEREL(S) - GBQ", "GRAM(S) - GM", "INTERNATIONAL UNIT(S) - IU", "IU(1,000,000S) - MIU", "IU(1000S) - KIU", "IU/KILOGRAM - IU/KG", "KILOBECQUEREL(S) - KBQ", "KILOGRAM(S) - KG", "LITRE(S) - L", "MEGABECQUEREL(S) - MBQ", "MICROCURIE(S) - UCI", "MICROGRAM(S) - UGM", "MICROGRAM(S)/KILOGRAM(S) -UGM/KG", "MICROGRAM(S)/MICROGRAM(S) - UGM/UGM", "MICROGRAM(S)/SQ. METERS - UGM/SQ M", "MICROGRAMS/HOUR - UGM/HR", "MICROLITRE(S) - UL", "MICROMOLE(S) - UMOLE", "MILLICURIE(S) - MCI", "MILLIEQUIVALENT(S) - MEQ", "MILLIGRAM(S) - MG", "MILLIGRAM(S)/KILOGRAM(S) - MG/KG", "MILLIGRAM(S)/SQ. METERS - MG/SQ M", "MILLIGRAMS/MILLIGRAMS - MG/MG", "MILLIGRAMS/MILLILITRES - MG/ML", "MILLILITRE(S) - ML", "MILLIMOLE(S) - MMOLE", "MOLE(S) - MOLE", "NANOCURIE(S) - NCI", "NANOGRAM(S) - NGM", "PERCENT - %", "PICOGRAM(S) - PGM", "TOTAL - TOT", "TRIMESTER - TRI", "UNKNOWN - UNK"],
+    options: UNIT_OPTIONS,
   },
   {
     id: "Page5.Prod2.Prod2Freq",
@@ -1041,7 +1054,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Dose or Amount: Frequency",
     type: "enum",
     required: false,
-    options: [" ", "BID", "Daily", "HS", "PRN", "QID", "TID", "Other"],
+    options: FREQUENCY_OPTIONS,
   },
   {
     id: "Page5.Prod2.Prod2FreqOther",
@@ -1058,7 +1071,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Dose or Amount: Route",
     type: "enum",
     required: false,
-    options: [" ", "Auricular (otic)", "Buccal", "Cutaneous", "Dental", "Endocervical", "Endosinusial", "Endotracheal", "Epidural", "Extra-amniotic", "Hemodialysis", "Intra corpus cavernosum", "Intra-amniotic", "Intra-arterial", "Intra-articular", "Intra-uterine", "Intracardiac", "Intracavernous", "Intracerebral", "Intracervical", "Intracisternal", "Intracorneal", "Intracoronary", "Intradermal", "Intradiscal (intraspinal)", "Intrahepatic", "Intralesional", "Intralymphatic", "Intramedullar (bone marrow)", "Intrameningeal", "Intramuscular", "Intraocular", "Intrapericardial", "Intraperitoneal", "Intrapleural", "Intrasynovial", "Intrathecal", "Intrathoracic", "Intratracheal", "Intratumor", "Intravenous (not otherwise specified)", "Intravenous bolus", "Intravenous drip", "Intravesical", "Iontophoresis", "Nasal", "Occlusive dressing technique", "Ophthalmic", "Oral", "Oropharingeal", "Parenteral", "Periarticular", "Perineural", "Rectal", "Respiratory (inhalation)", "Retrobulbar", "Subcutaneous", "Subdermal", "Sublingual", "Sunconjunctival", "Topical", "Transdermal", "Transmammary", "Transplacental", "Unknown", "Urethral", "Vaginal", "Other"],
+    options: ROUTE_OPTIONS,
   },
   {
     id: "Page5.Prod2.Prod2RouteOther",
@@ -1107,7 +1120,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Treatment/Therapy/Usage Dates: Duration Unit",
     type: "enum",
     required: false,
-    options: [" ", "Minute(s)", "Hour(s)", "Day(s)", "Week(s)", "Month(s)", "Year(s)"],
+    options: DURATION_UNIT_OPTIONS,
   },
   {
     id: "Page5.Prod2.Prod2TherapyOngoingYes",
@@ -1228,7 +1241,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Suspect Product #2: Place and Date of Purchase: Country",
     type: "enum",
     required: false,
-    options: [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIRI", "ALBANIA", "ALGERIA", "AMERICAN SAMOA", "ANDORRA", "ANGOLA", "ANGUILLA", "ANTARCTICA", "ANTIGUA AND BARBUDA", "ARGENTINA", "ARMENIA", "ARUBA", "ASHMORE AND CARTIER ISLANDS", "AUSTRALIA", "AUSTRIA", "AZERBAIJAN", "BAHAMAS, THE", "BAHRAIN", "BAKER ISLAND", "BANGLADESH", "BARBADOS", "BASSAS DA INDIA", "BELARUS", "BELGIUM", "BELIZE", "BENIN", "BERMUDA", "BHUTAN", "BOLIVIA", "BONAIRE, SINT EUSTATIUS, AND SABA", "BOSNIA AND HERZEGOVINA", "BOTSWANA", "BOUVET ISLAND", "BRAZIL", "BRITISH INDIAN OCEAN TERRITORY", "BRUNEI", "BULGARIA", "BURKINA FASO", "BURMA", "BURUNDI", "CABO VERDE", "CAMBODIA", "CAMEROON", "CANADA", "CAYMAN ISLANDS", "CENTRAL AFRICAN REPUBLIC", "CHAD", "CHILE", "CHINA", "CHRISTMAS ISLAND", "CLIPPERTON ISLAND", "COCOS (KEELING) ISLANDS", "COLOMBIA", "COMOROS", "CONGO (BRAZZAVILLE)", "CONGO (KINSHASA)", "COOK ISLANDS", "CORAL SEA ISLANDS", "COSTA RICA", "CROATIA", "CUBA", "CURAÇAO", "CYPRUS", "CZECH REPUBLIC", "CÔTE D’IVOIRE", "DENMARK", "DHEKELIA", "DIEGO GARCIA", "DJIBOUTI", "DOMINICA", "DOMINICAN REPUBLIC", "ECUADOR", "EGYPT", "EL SALVADOR", "EQUATORIAL GUINEA", "ERITREA", "ESTONIA", "ETHIOPIA", "EUROPA ISLAND", "FALKLAND ISLANDS (ISLAS MALVINAS)", "FAROE ISLANDS", "FIJI", "FINLAND", "FRANCE", "FRENCH GUIANA", "FRENCH POLYNESIA", "FRENCH SOUTHERN AND ANTARCTIC LANDS", "GABON", "GAMBIA, THE", "GAZA STRIP", "GEORGIA", "GERMANY", "GHANA", "GIBRALTAR", "GLORIOSO ISLANDS", "GREECE", "GREENLAND", "GRENADA", "GUADELOUPE", "GUAM", "GUANTANAMO BAY NAVAL BASE", "GUATEMALA", "GUERNSEY", "GUINEA", "GUINEA-BISSAU", "GUYANA", "HAITI", "HEARD ISLAND AND MCDONALD ISLANDS", "HONDURAS", "HONG KONG", "HOWLAND ISLAND", "HUNGARY", "ICELAND", "INDIA", "INDONESIA", "IRAN", "IRAQ", "IRELAND", "ISLE OF MAN", "ISRAEL", "ITALY", "JAMAICA", "JAN MAYEN", "JAPAN", "JARVIS ISLAND", "JERSEY", "JOHNSTON ATOLL", "JORDAN", "JUAN DE NOVA ISLAND", "KAZAKHSTAN", "KENYA", "KINGMAN REEF", "KIRIBATI", "KOREA, NORTH", "KOREA, SOUTH", "KOSOVO", "KUWAIT", "KYRGYZSTAN", "LAOS", "LATVIA", "LEBANON", "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIA", "LUXEMBOURG", "MACAU", "MACEDONIA", "MADAGASCAR", "MALAWI", "MALAYSIA", "MALDIVES", "MALI", "MALTA", "MARSHALL ISLANDS", "MARTINIQUE", "MAURITANIA", "MAURITIUS", "MAYOTTE", "MEXICO", "MICRONESIA, FEDERATED STATES OF", "MIDWAY ISLANDS", "MOLDOVA", "MONACO", "MONGOLIA", "MONTENEGRO", "MONTSERRAT", "MOROCCO", "MOZAMBIQUE", "NAMIBIA", "NAURU", "NAVASSA ISLAND", "NEPAL", "NETHERLANDS", "NEW CALEDONIA", "NEW ZEALAND", "NICARAGUA", "NIGER", "NIGERIA", "NIUE", "NORFOLK ISLAND", "NORTHERN MARIANA ISLANDS", "NORWAY", "OMAN", "PAKISTAN", "PALAU", "PALMYRA ATOLL", "PANAMA", "PAPUA NEW GUINEA", "PARACEL ISLANDS", "PARAGUAY", "PERU", "PHILIPPINES", "PITCAIRN ISLANDS", "POLAND", "PORTUGAL", "PUERTO RICO", "QATAR", "REUNION", "ROMANIA", "RUSSIA", "RWANDA", "SAINT BARTHELEMY", "SAINT HELENA, ASCENSION, AND TRISTAN DA CUNHA", "SAINT KITTS AND NEVIS", "SAINT LUCIA", "SAINT MARTIN", "SAINT PIERRE AND MIQUELON", "SAINT VINCENT AND THE GRENADINES", "SAMOA", "SAN MARINO", "SAO TOME AND PRINCIPE", "SAUDI ARABIA", "SENEGAL", "SERBIA", "SEYCHELLES", "SIERRA LEONE", "SINGAPORE", "SINT MAARTEN", "SLOVAKIA", "SLOVENIA", "SOLOMON ISLANDS", "SOMALIA", "SOUTH AFRICA", "SOUTH GEORGIA AND SOUTH SANDWICH ISLANDS", "SOUTH SUDAN", "SPAIN", "SPRATLY ISLANDS", "SRI LANKA", "SUDAN", "SURINAME", "SVALBARD", "SWAZILAND", "SWEDEN", "SWITZERLAND", "SYRIA", "TAIWAN", "TAJIKISTAN", "TANZANIA", "THAILAND", "TIMOR-LESTE", "TOGO", "TOKELAU", "TONGA", "TRINIDAD AND TOBAGO", "TROMELIN ISLAND", "TUNISIA", "TURKEY", "TURKMENISTAN", "TURKS AND CAICOS ISLANDS", "TUVALU", "UGANDA", "UKRAINE", "UNITED ARAB EMIRATES", "UNITED KINGDOM", "UNKNOWN", "URUGUAY", "UZBEKISTAN", "VANUATU", "VATICAN CITY", "VENEZUELA", "VIETNAM", "VIRGIN ISLANDS, BRITISH", "VIRGIN ISLANDS, U.S.", "WAKE ISLAND", "WALLIS AND FUTUNA", "WEST BANK", "WESTERN SAHARA", "YEMEN", "ZAMBIA", "ZIMBABWE"],
+    options: COUNTRY_OPTIONS,
   },
   {
     id: "Page5.Prod2.Pdt2City",
@@ -1781,7 +1794,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Name and Address: Country",
     type: "enum",
     required: false,
-    options: [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIRI", "ALBANIA", "ALGERIA", "AMERICAN SAMOA", "ANDORRA", "ANGOLA", "ANGUILLA", "ANTARCTICA", "ANTIGUA AND BARBUDA", "ARGENTINA", "ARMENIA", "ARUBA", "ASHMORE AND CARTIER ISLANDS", "AUSTRALIA", "AUSTRIA", "AZERBAIJAN", "BAHAMAS, THE", "BAHRAIN", "BAKER ISLAND", "BANGLADESH", "BARBADOS", "BASSAS DA INDIA", "BELARUS", "BELGIUM", "BELIZE", "BENIN", "BERMUDA", "BHUTAN", "BOLIVIA", "BONAIRE, SINT EUSTATIUS, AND SABA", "BOSNIA AND HERZEGOVINA", "BOTSWANA", "BOUVET ISLAND", "BRAZIL", "BRITISH INDIAN OCEAN TERRITORY", "BRUNEI", "BULGARIA", "BURKINA FASO", "BURMA", "BURUNDI", "CABO VERDE", "CAMBODIA", "CAMEROON", "CANADA", "CAYMAN ISLANDS", "CENTRAL AFRICAN REPUBLIC", "CHAD", "CHILE", "CHINA", "CHRISTMAS ISLAND", "CLIPPERTON ISLAND", "COCOS (KEELING) ISLANDS", "COLOMBIA", "COMOROS", "CONGO (BRAZZAVILLE)", "CONGO (KINSHASA)", "COOK ISLANDS", "CORAL SEA ISLANDS", "COSTA RICA", "CROATIA", "CUBA", "CURAÇAO", "CYPRUS", "CZECH REPUBLIC", "CÔTE D’IVOIRE", "DENMARK", "DHEKELIA", "DIEGO GARCIA", "DJIBOUTI", "DOMINICA", "DOMINICAN REPUBLIC", "ECUADOR", "EGYPT", "EL SALVADOR", "EQUATORIAL GUINEA", "ERITREA", "ESTONIA", "ETHIOPIA", "EUROPA ISLAND", "FALKLAND ISLANDS (ISLAS MALVINAS)", "FAROE ISLANDS", "FIJI", "FINLAND", "FRANCE", "FRENCH GUIANA", "FRENCH POLYNESIA", "FRENCH SOUTHERN AND ANTARCTIC LANDS", "GABON", "GAMBIA, THE", "GAZA STRIP", "GEORGIA", "GERMANY", "GHANA", "GIBRALTAR", "GLORIOSO ISLANDS", "GREECE", "GREENLAND", "GRENADA", "GUADELOUPE", "GUAM", "GUANTANAMO BAY NAVAL BASE", "GUATEMALA", "GUERNSEY", "GUINEA", "GUINEA-BISSAU", "GUYANA", "HAITI", "HEARD ISLAND AND MCDONALD ISLANDS", "HONDURAS", "HONG KONG", "HOWLAND ISLAND", "HUNGARY", "ICELAND", "INDIA", "INDONESIA", "IRAN", "IRAQ", "IRELAND", "ISLE OF MAN", "ISRAEL", "ITALY", "JAMAICA", "JAN MAYEN", "JAPAN", "JARVIS ISLAND", "JERSEY", "JOHNSTON ATOLL", "JORDAN", "JUAN DE NOVA ISLAND", "KAZAKHSTAN", "KENYA", "KINGMAN REEF", "KIRIBATI", "KOREA, NORTH", "KOREA, SOUTH", "KOSOVO", "KUWAIT", "KYRGYZSTAN", "LAOS", "LATVIA", "LEBANON", "LESOTHO", "LIBERIA", "LIBYA", "LIECHTENSTEIN", "LITHUANIA", "LUXEMBOURG", "MACAU", "MACEDONIA", "MADAGASCAR", "MALAWI", "MALAYSIA", "MALDIVES", "MALI", "MALTA", "MARSHALL ISLANDS", "MARTINIQUE", "MAURITANIA", "MAURITIUS", "MAYOTTE", "MEXICO", "MICRONESIA, FEDERATED STATES OF", "MIDWAY ISLANDS", "MOLDOVA", "MONACO", "MONGOLIA", "MONTENEGRO", "MONTSERRAT", "MOROCCO", "MOZAMBIQUE", "NAMIBIA", "NAURU", "NAVASSA ISLAND", "NEPAL", "NETHERLANDS", "NEW CALEDONIA", "NEW ZEALAND", "NICARAGUA", "NIGER", "NIGERIA", "NIUE", "NORFOLK ISLAND", "NORTHERN MARIANA ISLANDS", "NORWAY", "OMAN", "PAKISTAN", "PALAU", "PALMYRA ATOLL", "PANAMA", "PAPUA NEW GUINEA", "PARACEL ISLANDS", "PARAGUAY", "PERU", "PHILIPPINES", "PITCAIRN ISLANDS", "POLAND", "PORTUGAL", "PUERTO RICO", "QATAR", "REUNION", "ROMANIA", "RUSSIA", "RWANDA", "SAINT BARTHELEMY", "SAINT HELENA, ASCENSION, AND TRISTAN DA CUNHA", "SAINT KITTS AND NEVIS", "SAINT LUCIA", "SAINT MARTIN", "SAINT PIERRE AND MIQUELON", "SAINT VINCENT AND THE GRENADINES", "SAMOA", "SAN MARINO", "SAO TOME AND PRINCIPE", "SAUDI ARABIA", "SENEGAL", "SERBIA", "SEYCHELLES", "SIERRA LEONE", "SINGAPORE", "SINT MAARTEN", "SLOVAKIA", "SLOVENIA", "SOLOMON ISLANDS", "SOMALIA", "SOUTH AFRICA", "SOUTH GEORGIA AND SOUTH SANDWICH ISLANDS", "SOUTH SUDAN", "SPAIN", "SPRATLY ISLANDS", "SRI LANKA", "SUDAN", "SURINAME", "SVALBARD", "SWAZILAND", "SWEDEN", "SWITZERLAND", "SYRIA", "TAIWAN", "TAJIKISTAN", "TANZANIA", "THAILAND", "TIMOR-LESTE", "TOGO", "TOKELAU", "TONGA", "TRINIDAD AND TOBAGO", "TROMELIN ISLAND", "TUNISIA", "TURKEY", "TURKMENISTAN", "TURKS AND CAICOS ISLANDS", "TUVALU", "UGANDA", "UKRAINE", "UNITED ARAB EMIRATES", "UNITED KINGDOM", "UNKNOWN", "URUGUAY", "UZBEKISTAN", "VANUATU", "VATICAN CITY", "VENEZUELA", "VIETNAM", "VIRGIN ISLANDS, BRITISH", "VIRGIN ISLANDS, U.S.", "WAKE ISLAND", "WALLIS AND FUTUNA", "WEST BANK", "WESTERN SAHARA", "YEMEN", "ZAMBIA", "ZIMBABWE"],
+    options: COUNTRY_OPTIONS,
   },
   {
     id: "Page7.SecG_Reporter.PhoneNum",
@@ -1822,7 +1835,7 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     label: "Occupation",
     type: "enum",
     required: false,
-    options: [" ", "Administrator/Supervisor", "Biomedical Engineer", "Dentist", "Non-Health Professional", "Nurse", "Nurse Practitioner", "Other Health Professional", "Pharmacist", "Physician", "Physician Assistant", "Risk Manager", "Third Party Servicer"],
+    options: OCCUPATION_OPTIONS,
   },
   {
     id: "Page7.SecG_Reporter.ManuComp",

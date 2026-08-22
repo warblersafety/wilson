@@ -68,4 +68,32 @@ describe("FORM_3500_FIELDS", () => {
   it("has exactly 227 fields", () => {
     expect(FORM_3500_FIELDS.length).toBe(227);
   });
+
+  // id is meant to be mechanically derived from pdfFieldName (strip the
+  // "topmostSubform[0]." prefix and every "[N]" index), not hand-typed
+  // independently — this guards against the two drifting apart.
+  it("derives every id from its own pdfFieldName", () => {
+    for (const f of FORM_3500_FIELDS) {
+      const derived = f.pdfFieldName
+        .replace(/^topmostSubform\[0\]\./, "")
+        .replace(/\[\d+\]/g, "");
+      expect(f.id).toBe(derived);
+    }
+  });
+
+  // Regression guard for a transcription bug caught in review: several
+  // TestDataTable rows got labeled with the wrong row number because the
+  // PDF's own "RowN[0]" subform containers don't reliably match the row a
+  // field actually belongs to (rows 5-8 are scattered across containers).
+  // The field's own trailing digit (TestData5, TDate8, ...) is the
+  // reliable row number — labels must agree with it, not the container.
+  it("labels every TestDataTable row field with its own field-name row number", () => {
+    const rowFieldPattern =
+      /\.(?:TestData|TLowRange|THighRange|TDate)(\d+)\[0\]$/;
+    for (const f of FORM_3500_FIELDS) {
+      const match = f.pdfFieldName.match(rowFieldPattern);
+      if (!match) continue;
+      expect(f.label).toContain(`Row ${match[1]} —`);
+    }
+  });
 });
