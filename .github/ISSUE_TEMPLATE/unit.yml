@@ -1,0 +1,26 @@
+# Copied to .github/ISSUE_TEMPLATE/unit.yml at bootstrap. The web form
+# requires acceptance criteria at creation; an issue filed via `gh` must
+# carry the same sections by rule — the form is a guardrail for the web
+# path, not a universal gate.
+name: Unit
+description: One unit of work — acceptance criteria are frozen here before any code.
+title: "Unit: "
+body:
+  - type: textarea
+    id: what-why
+    attributes:
+      label: What and why
+      description: What this unit delivers, and why it matters to the charter.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: >-
+        Frozen once work starts. Each criterion must be testable; the unit
+        is done when all pass and the PR merges to dev. Discoveries during
+        the work follow the intake rule — they do not widen these criteria.
+      placeholder: "- [ ] ..."
+    validations:
+      required: true

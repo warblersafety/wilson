@@ -1,0 +1,65 @@
+# Seed CI for a workload repo. Bootstrap adapts the stack-specific parts
+# (the placeholder markers) to the project's actual language and tooling.
+name: ci
+
+# claude/* branches are deliberately absent from the push list: every one
+# has an open PR by rule, so the pull_request trigger already covers them —
+# listing them too would run everything twice per commit.
+on:
+  push:
+    branches: [dev, staging, main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npx tsc --noEmit
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # No zero-test escape hatch, deliberately. Vitest exits non-zero
+      # when nothing is collected — a test job that ran no tests is not a
+      # passing test job. The bootstrap PR therefore ships at least one
+      # real test — see the bootstrap skill — rather than CI carrying a
+      # branch that reports SUCCESS having run nothing. The charter's test
+      # floor is per-unit acceptance-criteria-to-artifact mapping, not a
+      # coverage percentage, so no coverage gate here.
+      - name: Tests against the charter's floor
+        run: |
+          npm test
+
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # gitleaks/gitleaks-action@v2 requires a paid GITLEAKS_LICENSE for
+      # any organization account (confirmed on this repo, 2026-08-21: "is
+      # an organization. License key is required."). The underlying OSS
+      # scanner is free regardless of account type, so this runs the
+      # released binary directly instead of the Action wrapper.
+      - name: Install gitleaks
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/
+      - name: Scan for secrets
+        run: gitleaks detect --source . -v
