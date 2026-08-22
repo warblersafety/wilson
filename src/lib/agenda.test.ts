@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAction, initAgenda, nextField } from "./agenda";
+import { applyAction, initAgenda } from "./agenda";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 
 describe("initAgenda", () => {
@@ -64,45 +64,5 @@ describe("applyAction", () => {
     const record = initAgenda();
     expect(() => applyAction(record, id, { type: "answer" })).toThrow();
     expect(() => applyAction(record, id, { type: "answer" }, "")).toThrow();
-  });
-});
-
-describe("nextField", () => {
-  it("returns the first unasked field in section order", () => {
-    const field = nextField(initAgenda());
-    expect(field?.section).toBe("A");
-  });
-
-  it("skips answered, unknown, and declined fields", () => {
-    const first = nextField(initAgenda())!;
-    const record = applyAction(initAgenda(), first.id, { type: "answer" }, "x");
-    const second = nextField(record);
-    expect(second?.id).not.toBe(first.id);
-  });
-
-  it("returns null once every field is resolved", () => {
-    let record = initAgenda();
-    for (const field of FORM_3500_FIELDS) {
-      record = applyAction(record, field.id, { type: "decline" });
-    }
-    expect(nextField(record)).toBeNull();
-  });
-
-  it("moves to the next section once the current section is fully resolved", () => {
-    let record = initAgenda();
-    for (const field of FORM_3500_FIELDS) {
-      if (field.section === "A") {
-        record = applyAction(record, field.id, { type: "decline" });
-      }
-    }
-    const field = nextField(record);
-    expect(field).not.toBeNull();
-    expect(field?.section).not.toBe("A");
-  });
-
-  it("throws if the record is missing a real manifest field", () => {
-    const record = initAgenda();
-    delete record[FORM_3500_FIELDS[0].id];
-    expect(() => nextField(record)).toThrow();
   });
 });

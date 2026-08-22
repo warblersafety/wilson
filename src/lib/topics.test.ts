@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3500-fields";
-import { TOPICS } from "./topics";
+import { TOPICS, initRepeatCounts, nextStep, setRepeatCount } from "./topics";
 
 const SECTION_ORDER = Object.keys(FORM_3500_SECTIONS) as FormSection[];
 
@@ -109,5 +110,238 @@ describe("TOPICS", () => {
     );
     expect(suspectProductInstances).toEqual(new Set([1, 2]));
     expect(concomitantInstances).toEqual(new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setRepeatCount — real TOPICS, since RepeatGroup is already a fixed
+// two-value union tied to it; no benefit to parameterizing for isolation.
+// ---------------------------------------------------------------------------
+
+describe("setRepeatCount", () => {
+  it("records a valid count", () => {
+    const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 1);
+    expect(counts).toEqual({ "suspect-product": 1 });
+  });
+
+  it("does not mutate the input counts", () => {
+    const counts = initRepeatCounts();
+    setRepeatCount(counts, "suspect-product", 1);
+    expect(counts).toEqual({});
+  });
+
+  it("rejects a count below 1", () => {
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", 0)).toThrow();
+  });
+
+  it("rejects a count above the group's real max instance count", () => {
+    // suspect-product's real max is 2 (Issue #16)
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", 3)).toThrow();
+  });
+
+  it("accepts the real max for a group with a larger max", () => {
+    // concomitant-medication's real max is 10 (Issue #16)
+    const counts = setRepeatCount(initRepeatCounts(), "concomitant-medication", 10);
+    expect(counts).toEqual({ "concomitant-medication": 10 });
+  });
+
+  it("rejects NaN — without this check it would silently bypass both range comparisons", () => {
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", NaN)).toThrow();
+  });
+
+  it("rejects a non-integer count", () => {
+    expect(() => setRepeatCount(initRepeatCounts(), "suspect-product", 1.5)).toThrow();
+  });
+
+  it("throws a clear error, not a -Infinity range, when given a topics list with none of the group's topics", () => {
+    expect(() =>
+      setRepeatCount(initRepeatCounts(), "suspect-product", 1, [
+        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+      ]),
+    ).toThrow(/no topics/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// nextStep — synthetic fields/topics for isolated logic testing; a few
+// integration-style checks against the real TOPICS/FORM_3500_FIELDS at
+// the end confirm the wiring actually works against real data too.
+// ---------------------------------------------------------------------------
+
+function field(id: string, type: "text" | "date" | "checkbox" | "enum") {
+  return { id, section: "A" as const, pdfFieldName: `form.${id}[0]`, label: id, type, required: false };
+}
+
+function topic(
+  id: string,
+  fieldIds: string[],
+  opts: { repeatGroup?: "suspect-product" | "concomitant-medication"; repeatInstance?: number } = {},
+) {
+  return {
+    id,
+    section: "A" as const,
+    label: id,
+    fieldIds,
+    repeatGroup: opts.repeatGroup ?? null,
+    repeatInstance: opts.repeatInstance ?? null,
+  };
+}
+
+function recordOf(entries: Record<string, { state: "unasked" | "answered" | "unknown" | "declined" }>) {
+  const record: AgendaRecord = {};
+  for (const [id, entry] of Object.entries(entries)) {
+    record[id] = entry.state === "answered" ? { state: "answered", value: "x" } : { state: entry.state };
+  }
+  return record;
+}
+
+describe("nextStep", () => {
+  it("returns the first topic with an unresolved text/date field", () => {
+    const fields = [field("cb", "checkbox"), field("t", "text")];
+    const topics = [topic("checkbox-only", ["cb"]), topic("has-text", ["t"])];
+    const record = recordOf({ cb: { state: "unasked" }, t: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["t"] });
+  });
+
+  it("skips a topic that's entirely checkbox/enum — zero conversational step for it", () => {
+    const fields = [field("cb1", "checkbox"), field("cb2", "enum"), field("t", "text")];
+    const topics = [topic("all-choice", ["cb1", "cb2"]), topic("has-text", ["t"])];
+    const record = recordOf({ cb1: { state: "unasked" }, cb2: { state: "unasked" }, t: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["t"] });
+  });
+
+  it("skips a topic whose text/date fields are already all resolved", () => {
+    const fields = [field("x", "text"), field("y", "text")];
+    const topics = [topic("first", ["x"]), topic("second", ["y"])];
+    const record = recordOf({ x: { state: "answered" }, y: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["y"] });
+  });
+
+  it("returns only the still-unresolved subset of a partially-answered topic", () => {
+    const fields = [field("x", "text"), field("y", "text")];
+    const topics = [topic("mixed", ["x", "y"])];
+    const record = recordOf({ x: { state: "answered" }, y: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["y"] });
+  });
+
+  it("returns done once every topic is resolved with no pending repeat-decision", () => {
+    const fields = [field("x", "text")];
+    const topics = [topic("only", ["x"])];
+    const record = recordOf({ x: { state: "declined" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "done" });
+  });
+
+  it("asks instance 1 of a repeating group directly, no repeat-decision needed first", () => {
+    const fields = [field("f1", "text")];
+    const topics = [topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    const record = recordOf({ f1: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["f1"] });
+  });
+
+  it("surfaces a repeat-decision before instance 2's topic when the group isn't decided yet", () => {
+    const fields = [field("f1", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 });
+  });
+
+  it("declining every field of instance 1 still reaches the repeat-decision step normally", () => {
+    // This is how "I have none of these" gets expressed — no special
+    // zero-count case needed.
+    const fields = [field("f1", "text"), field("f1b", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1", "f1b"], { repeatGroup: "concomitant-medication", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "concomitant-medication", repeatInstance: 2 }),
+    ];
+    const record = recordOf({
+      f1: { state: "declined" },
+      f1b: { state: "declined" },
+      f2: { state: "unasked" },
+    });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({
+      kind: "repeat-decision",
+      repeatGroup: "concomitant-medication",
+      afterInstance: 1,
+    });
+  });
+
+  it("skips instance 2 entirely once the group is decided at a lower count", () => {
+    const fields = [field("f1", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
+    const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 1);
+    const step = nextStep(record, counts, topics, fields);
+    expect(step).toEqual({ kind: "done" });
+  });
+
+  it("asks instance 2 normally once the group is decided at a count that includes it", () => {
+    const fields = [field("f1", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
+    const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 2);
+    const step = nextStep(record, counts, topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["f2"] });
+  });
+
+  it("throws, rather than silently treating it as resolved, when a topic references a field id missing from the record", () => {
+    const fields = [field("x", "text")];
+    const topics = [topic("only", ["x"])];
+    // record deliberately has no entry for "x" at all — a mismatched
+    // topics/fields/record combination, which talk.ts's Deps allows a
+    // caller to construct.
+    expect(() => nextStep({}, initRepeatCounts(), topics, fields)).toThrow();
+  });
+
+  it("throws when a topic references a field id missing from the given fields list", () => {
+    const topics = [topic("only", ["x"])];
+    const record = recordOf({ x: { state: "unasked" } });
+    expect(() => nextStep(record, initRepeatCounts(), topics, [])).toThrow();
+  });
+
+  it("throws on a directly-constructed invalid repeat count (bypassing setRepeatCount) instead of silently skipping instance 1", () => {
+    const fields = [field("f1", "text")];
+    const topics = [topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    const record = recordOf({ f1: { state: "unasked" } });
+    expect(() => nextStep(record, { "suspect-product": 0 }, topics, fields)).toThrow();
+    expect(() => nextStep(record, { "suspect-product": NaN }, topics, fields)).toThrow();
+  });
+
+  it("against the real manifest: the very first step of a fresh session is patient-basics's text/date fields", () => {
+    const step = nextStep(initAgenda(), initRepeatCounts());
+    expect(step.kind).toBe("topic");
+    if (step.kind === "topic") {
+      expect(step.topic.id).toBe("patient-basics");
+      expect(step.fieldIds).toContain("Page1.SecA_Patient.PatientIdentifier");
+      // AgeYears/SexM/etc. are checkbox fields — never surfaced here.
+      expect(step.fieldIds).not.toContain("Page1.SecA_Patient.AgeYears");
+    }
+  });
+
+  it("against the real manifest: a fully-resolved record with all repeat groups decided at 1 reaches done", () => {
+    let record = initAgenda();
+    for (const f of FORM_3500_FIELDS) {
+      record = applyAction(record, f.id, { type: "decline" });
+    }
+    let counts = initRepeatCounts();
+    counts = setRepeatCount(counts, "suspect-product", 1);
+    counts = setRepeatCount(counts, "concomitant-medication", 1);
+    expect(nextStep(record, counts)).toEqual({ kind: "done" });
   });
 });
