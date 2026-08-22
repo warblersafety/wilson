@@ -31,11 +31,11 @@ wilson is positioned as an aid, not a diagnostic or classification
 authority. The clinician is expected to review and sign off before
 anything is submitted — that review is the actual safety boundary, the
 same trust boundary lucy uses (models produce proposals, code/humans own
-writes). We do not have access to a medical coding database yet (e.g. for
-MedDRA-style reaction coding likely asked on the form); once available,
-wilson may surface a handful of suggested candidates to speed the
-clinician up, but it must never assert or imply an authoritative
-classification.
+writes). wilson may surface a handful of suggested product/diagnosis/lab/
+device candidates to speed the clinician up, sourced from a free data
+stack (`docs/coding-databases.md`) rather than blocked on a paid
+coding-database procurement, but any such suggestion must never assert or
+imply an authoritative classification.
 
 **Review-depth conclusion:** this isn't throwaway — it's real clinical
 adverse-event data headed toward an FDA submission — but the clinician

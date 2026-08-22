@@ -41,7 +41,7 @@ telling an ambiguous narrative a model has to mine for evidence.
 | **Talker** | Converse: guide one topic at a time, plain language instead of raw form-speak — this is what makes wilson faster than the form itself, not just a re-skin of it | Never |
 | **Agenda** | Deterministic field-state machine: track each field as `answered` / `unknown` / `declined`, decide what's next, tolerate partial completion — a clinician not having every fact on hand is a normal, expected path | State only |
 | **Extractor** | Deterministic parsing/normalization of the clinician's direct answers into structured field values (dates, drug names, dosage formats) | Proposes only |
-| **Suggestion layer** | Once a medical coding database is available: surface a handful of candidate codes/classifications | Never — advisory only, kept out of the record until a clinician explicitly accepts a candidate |
+| **Suggestion layer** | Surface a handful of candidate product/diagnosis/lab/device matches, sourced from a free data stack (see `docs/coding-databases.md`) — not blocked on procurement | Never — advisory only, kept out of the record until a clinician explicitly accepts a candidate |
 | **Assembly/Export** | Deterministic mapping from the structured record to the Form 3500 PDF | Deterministic |
 
 lucy's quote-provenance validator (checking each extracted field against a
@@ -113,9 +113,20 @@ suggestion layer writing through.
   section-level structure itself, which the original draft of this
   document got wrong (see Data shape above) — not just under-specified
   below the section level, as assumed here previously.
-- **The coding database doesn't exist yet.** v1 either ships without the
-  suggestion layer or stubs it; either way, nothing about the record's
-  correctness should depend on it existing.
+- **Resolved, 2026-08-22 (Issue #24).** Corrects this document's prior
+  framing here, which assumed the only real coding source was MedDRA and
+  that MedDRA was blocked on procurement — both true individually, but the
+  conclusion drawn from them wasn't: MedDRA is one source among several,
+  not the source. Research found eight of the nine sources wilson's field
+  manifest could use are free (public domain or a no-cost registration),
+  six of those eight fully self-hostable with no runtime dependency on any
+  external service, covering every codeable field the form actually has
+  (product identity, diagnosis/indication, lab data, device identity).
+  MedDRA itself is excluded from wilson's scope entirely, not deferred —
+  see `docs/coding-databases.md` for the source-by-source detail and the
+  reasoning. Whether/when to actually build the Suggestion layer is now a
+  real product-scope choice rather than a blocked default; nothing about
+  the record's correctness depends on it existing either way.
 - **Keeping "advisory, not authoritative" honest in the actual UX**, not
   just in this document — the charter's review-depth conclusion weights
   this heavily. Addressed above (no pre-selected candidates, acceptance is
