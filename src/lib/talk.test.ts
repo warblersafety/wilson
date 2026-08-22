@@ -117,7 +117,7 @@ describe("startTalk", () => {
 
 describe("processTurn", () => {
   it("applies one answer within a bundled topic and re-surfaces just the remaining field", async () => {
-    const extract: ExtractFn = async () => [{ fieldId: "a", type: "answer", value: "42" }];
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
     const session = syntheticSession();
     const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
 
@@ -126,10 +126,12 @@ describe("processTurn", () => {
   });
 
   it("moves to the next topic once every field in the current one is resolved", async () => {
-    const extract: ExtractFn = async () => [
-      { fieldId: "a", type: "answer", value: "42" },
-      { fieldId: "b", type: "decline" },
-    ];
+    const extract: ExtractFn = async () => ({
+      actions: [
+        { fieldId: "a", type: "answer", value: "42" },
+        { fieldId: "b", type: "decline" },
+      ],
+    });
     const session = syntheticSession();
     const result = await processTurn(session, "42, no comment on the rest", {
       extract,
@@ -141,7 +143,7 @@ describe("processTurn", () => {
   });
 
   it("appends both the clinician's message and the reply to the transcript", async () => {
-    const extract: ExtractFn = async () => [];
+    const extract: ExtractFn = async () => ({ actions: [] });
     const session = syntheticSession();
     const result = await processTurn(session, "not sure", {
       extract,
@@ -156,7 +158,7 @@ describe("processTurn", () => {
   });
 
   it("does not mutate the input session", async () => {
-    const extract: ExtractFn = async () => [{ fieldId: "a", type: "answer", value: "42" }];
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
     const session = syntheticSession();
     await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
     expect(session.transcript).toEqual([]);
@@ -164,7 +166,7 @@ describe("processTurn", () => {
   });
 
   it("ask sees the record already updated with this turn's extraction — never a stale record", async () => {
-    const extract: ExtractFn = async () => [{ fieldId: "a", type: "answer", value: "42" }];
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
     const ask = vi.fn(askStep);
     await processTurn(syntheticSession(), "42", { extract, ask, topics: TOPICS, fields: FIELDS });
 
@@ -173,7 +175,7 @@ describe("processTurn", () => {
   });
 
   it("ask sees this turn's clinician message already in the transcript", async () => {
-    const extract: ExtractFn = async () => [];
+    const extract: ExtractFn = async () => ({ actions: [] });
     const ask = vi.fn(askStep);
     await processTurn(syntheticSession(), "not sure", { extract, ask, topics: TOPICS, fields: FIELDS });
 
@@ -182,10 +184,12 @@ describe("processTurn", () => {
   });
 
   it("applies every proposed action from a turn, even for a field outside the current topic", async () => {
-    const extract: ExtractFn = async () => [
-      { fieldId: "a", type: "answer", value: "42" },
-      { fieldId: "c", type: "decline" },
-    ];
+    const extract: ExtractFn = async () => ({
+      actions: [
+        { fieldId: "a", type: "answer", value: "42" },
+        { fieldId: "c", type: "decline" },
+      ],
+    });
     const session = syntheticSession();
     const result = await processTurn(session, "42, and skip the other thing entirely", {
       extract,
@@ -198,10 +202,12 @@ describe("processTurn", () => {
   });
 
   it("applies proposals in the order extract returned them", async () => {
-    const extract: ExtractFn = async () => [
-      { fieldId: "a", type: "answer", value: "first" },
-      { fieldId: "a", type: "answer", value: "second" },
-    ];
+    const extract: ExtractFn = async () => ({
+      actions: [
+        { fieldId: "a", type: "answer", value: "first" },
+        { fieldId: "a", type: "answer", value: "second" },
+      ],
+    });
     const result = await processTurn(syntheticSession(), "actually, second", {
       extract,
       ask: askStep,
@@ -213,7 +219,7 @@ describe("processTurn", () => {
 
   it("directly overwrites an already-resolved field via answer, no reopen required", async () => {
     const declined = applyAction(unaskedRecordFor(["a", "b", "c"]), "a", { type: "decline" });
-    const extract: ExtractFn = async () => [{ fieldId: "a", type: "answer", value: "45" }];
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "45" }] });
     const result = await processTurn(
       { transcript: [], record: declined, repeatCounts: initRepeatCounts() },
       "actually, it's 45",
@@ -223,10 +229,12 @@ describe("processTurn", () => {
   });
 
   it("throws and leaves the record untouched if any proposed action is invalid — never partially applied", async () => {
-    const extract: ExtractFn = async () => [
-      { fieldId: "a", type: "answer", value: "42" },
-      { fieldId: "not-a-real-field", type: "answer", value: "x" },
-    ];
+    const extract: ExtractFn = async () => ({
+      actions: [
+        { fieldId: "a", type: "answer", value: "42" },
+        { fieldId: "not-a-real-field", type: "answer", value: "x" },
+      ],
+    });
     const session = syntheticSession();
     await expect(
       processTurn(session, "42 and something bogus", {
@@ -240,7 +248,7 @@ describe("processTurn", () => {
   });
 
   it("reports done and lets ask produce a closing message once every topic resolves", async () => {
-    const extract: ExtractFn = async () => [{ fieldId: "c", type: "decline" }];
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "c", type: "decline" }] });
     let record = applyAction(unaskedRecordFor(["a", "b", "c"]), "a", { type: "decline" });
     record = applyAction(record, "b", { type: "decline" });
     const session = { transcript: [], record, repeatCounts: initRepeatCounts() };
@@ -260,7 +268,7 @@ describe("processTurn", () => {
     let record = applyAction(unaskedRecordFor(["a", "b", "c"]), "a", { type: "decline" });
     const session = { transcript: [], record, repeatCounts: initRepeatCounts() };
     const ask = vi.fn(askStep);
-    const extract: ExtractFn = async () => [];
+    const extract: ExtractFn = async () => ({ actions: [] });
     const result = await processTurn(session, "that's the only one", {
       extract,
       ask,
@@ -281,7 +289,7 @@ describe("processTurn", () => {
     let record = applyAction(unaskedRecordFor(["a", "b", "c"]), "a", { type: "decline" });
     const repeatCounts = setRepeatCount(initRepeatCounts(), "suspect-product", 1, [g1, g2]);
     const session = { transcript: [], record, repeatCounts };
-    const extract: ExtractFn = async () => [];
+    const extract: ExtractFn = async () => ({ actions: [] });
     const result = await processTurn(session, "no more", {
       extract,
       ask: askStep,
@@ -289,5 +297,50 @@ describe("processTurn", () => {
       fields: FIELDS,
     });
     expect(result.nextStep).toEqual({ kind: "done" });
+  });
+
+  it("applies a repeatDecision to repeatCounts, in addition to any field actions from the same turn", async () => {
+    const g1 = topic("g1", ["a"], { repeatGroup: "suspect-product", repeatInstance: 1 });
+    const g2 = topic("g2", ["b"], { repeatGroup: "suspect-product", repeatInstance: 2 });
+    const record = unaskedRecordFor(["a", "b", "c"]);
+    const session = { transcript: [], record, repeatCounts: initRepeatCounts() };
+    const extract: ExtractFn = async () => ({
+      actions: [],
+      repeatDecision: { repeatGroup: "suspect-product", count: 2 },
+    });
+    const result = await processTurn(session, "yes, there was a second one", {
+      extract,
+      ask: askStep,
+      topics: [g1, g2],
+      fields: FIELDS,
+    });
+    expect(result.session.repeatCounts).toEqual({ "suspect-product": 2 });
+  });
+
+  it("throws and leaves repeatCounts untouched if repeatDecision's count is out of range", async () => {
+    const g1 = topic("g1", ["a"], { repeatGroup: "suspect-product", repeatInstance: 1 });
+    const g2 = topic("g2", ["b"], { repeatGroup: "suspect-product", repeatInstance: 2 });
+    const record = unaskedRecordFor(["a", "b", "c"]);
+    const session = { transcript: [], record, repeatCounts: initRepeatCounts() };
+    const extract: ExtractFn = async () => ({
+      actions: [],
+      repeatDecision: { repeatGroup: "suspect-product", count: 99 },
+    });
+    await expect(
+      processTurn(session, "there were loads more", {
+        extract,
+        ask: askStep,
+        topics: [g1, g2],
+        fields: FIELDS,
+      }),
+    ).rejects.toThrow();
+    expect(session.repeatCounts).toEqual({});
+  });
+
+  it("does not mutate repeatCounts when repeatDecision is absent", async () => {
+    const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+    const session = syntheticSession();
+    const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
+    expect(result.session.repeatCounts).toEqual(session.repeatCounts);
   });
 });

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { TalkTurn } from "./talk";
-import { validateCandidates, type ExtractionCandidate } from "./extraction-validator";
+import {
+  validateCandidates,
+  validateRepeatCandidate,
+  type ExtractionCandidate,
+  type RepeatCandidate,
+} from "./extraction-validator";
 
 const TEXT_FIELD = FORM_3500_FIELDS.find((f) => f.type === "text")!;
 const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
@@ -238,5 +243,87 @@ describe("validateCandidates", () => {
     expect(result.accepted).toEqual([
       { fieldId: TEXT_FIELD.id, type: "answer", value: "unrelated made-up answer" },
     ]);
+  });
+});
+
+describe("validateRepeatCandidate", () => {
+  it("accepts a repeat-group decision whose quote is a real clinician turn", () => {
+    const transcript = transcriptWith("yes, there was a second one, lisinopril");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes, there was a second one" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({ accepted: true });
+  });
+
+  it("rejects a repeat-group decision whose quote isn't a real substring of the cited turn", () => {
+    const transcript = transcriptWith("no, that's the only one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes there was another" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a repeat-group decision quoting a talker turn instead of a clinician turn", () => {
+    const transcript = transcriptWith("yes");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      // index 0 is the talker's "(question)" turn, not the clinician's
+      quote: { turnIndex: 0, text: "(question)" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a punctuation-only quote — the same vacuous-match guard as validateCandidates", () => {
+    const transcript = transcriptWith("yes");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "suspect-product",
+      count: 2,
+      quote: { turnIndex: 1, text: "..." },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "quote_not_found",
+    });
+  });
+
+  it("rejects a candidate naming a different repeat group than the one actually open, even with a real quote", () => {
+    // The step actually open is what's authoritative here, not the
+    // candidate's own claim — a candidate naming the wrong group is
+    // exactly what a model mis-firing during an unrelated turn would
+    // produce, and quote-grounding alone can't catch it.
+    const transcript = transcriptWith("yes, there was a second one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "concomitant-medication",
+      count: 2,
+      quote: { turnIndex: 1, text: "yes, there was a second one" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "wrong_repeat_group",
+    });
+  });
+
+  it("checks the repeat-group match before the quote — a wrong group is rejected even with a bogus quote too", () => {
+    const transcript = transcriptWith("yes, there was a second one");
+    const candidate: RepeatCandidate = {
+      repeatGroup: "concomitant-medication",
+      count: 2,
+      quote: { turnIndex: 1, text: "a sentence never said" },
+    };
+    expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
+      accepted: false,
+      reason: "wrong_repeat_group",
+    });
   });
 });

@@ -42,6 +42,11 @@ jobs:
       - name: Tests against the charter's floor
         run: |
           npm test
+      # No API calls — validates the extraction fixture corpus against the
+      # real manifest/topics/prompt wiring only. The live sweep is a
+      # separate, workflow_dispatch-only job (eval-extraction.yml).
+      - name: Extraction eval — dry structural check
+        run: npm run eval:dry
 
   python:
     runs-on: ubuntu-latest
