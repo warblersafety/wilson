@@ -1,0 +1,227 @@
+import { describe, expect, it } from "vitest";
+import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import type { TalkTurn } from "./talk";
+import { validateCandidates, type ExtractionCandidate } from "./extraction-validator";
+
+const TEXT_FIELD = FORM_3500_FIELDS.find((f) => f.type === "text")!;
+const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
+const ENUM_FIELD = FORM_3500_FIELDS.find((f) => f.type === "enum")!;
+const CHECKBOX_FIELD = FORM_3500_FIELDS.find((f) => f.type === "checkbox")!;
+const FIELDS: FormFieldSpec[] = [TEXT_FIELD, DATE_FIELD, ENUM_FIELD, CHECKBOX_FIELD];
+
+function transcriptWith(...clinicianTexts: string[]): TalkTurn[] {
+  const turns: TalkTurn[] = [];
+  for (const text of clinicianTexts) {
+    turns.push({ role: "talker", text: "(question)" });
+    turns.push({ role: "clinician", text });
+  }
+  return turns;
+}
+
+describe("validateCandidates", () => {
+  it("accepts a value candidate whose value is literally quoted from a clinician turn", () => {
+    const transcript = transcriptWith("I'm 42 years old");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quotes: [{ turnIndex: 1, text: "I'm 42 years old" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "42" },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it("accepts an unknown candidate grounded in a clinician turn expressing uncertainty", () => {
+    const transcript = transcriptWith("I don't know, honestly");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "unknown",
+      quotes: [{ turnIndex: 1, text: "I don't know" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "mark_unknown" }]);
+  });
+
+  it("accepts a declined candidate grounded in a clinician turn", () => {
+    const transcript = transcriptWith("I'd rather not say");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "declined",
+      quotes: [{ turnIndex: 1, text: "rather not say" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "decline" }]);
+  });
+
+  it("accepts a batch of mixed candidates, all in one call, in order", () => {
+    const transcript = transcriptWith("42", "no idea", "skip that one");
+    const candidates: ExtractionCandidate[] = [
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quotes: [{ turnIndex: 1, text: "42" }] },
+      { fieldId: DATE_FIELD.id, kind: "unknown", quotes: [{ turnIndex: 3, text: "no idea" }] },
+      { fieldId: DATE_FIELD.id, kind: "declined", quotes: [{ turnIndex: 5, text: "skip that one" }] },
+    ];
+    const result = validateCandidates(transcript, candidates, FIELDS);
+    expect(result.accepted).toEqual([
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "42" },
+      { fieldId: DATE_FIELD.id, type: "mark_unknown" },
+      { fieldId: DATE_FIELD.id, type: "decline" },
+    ]);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it("accepts two candidates for the same field in one batch, both surfaced in order", () => {
+    const transcript = transcriptWith("42, actually wait, 45");
+    const candidates: ExtractionCandidate[] = [
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "42", quotes: [{ turnIndex: 1, text: "42" }] },
+      { fieldId: TEXT_FIELD.id, kind: "value", value: "45", quotes: [{ turnIndex: 1, text: "45" }] },
+    ];
+    const result = validateCandidates(transcript, candidates, FIELDS);
+    expect(result.accepted).toEqual([
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "42" },
+      { fieldId: TEXT_FIELD.id, type: "answer", value: "45" },
+    ]);
+  });
+
+  it("returns empty accepted/rejected for an empty candidate list", () => {
+    const result = validateCandidates(transcriptWith("hello"), [], FIELDS);
+    expect(result).toEqual({ accepted: [], rejected: [] });
+  });
+
+  it("rejects a candidate targeting a field id not in the given field list", () => {
+    const transcript = transcriptWith("42");
+    const candidate: ExtractionCandidate = {
+      fieldId: "not-a-real-field",
+      kind: "value",
+      value: "42",
+      quotes: [{ turnIndex: 1, text: "42" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected).toEqual([{ candidate, reason: "unknown_field" }]);
+  });
+
+  it("rejects a candidate targeting an enum field — enum fields never go through extraction", () => {
+    const transcript = transcriptWith("twice a day");
+    const candidate: ExtractionCandidate = {
+      fieldId: ENUM_FIELD.id,
+      kind: "value",
+      value: "BID",
+      quotes: [{ turnIndex: 1, text: "twice a day" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "not_extractable_field_type" }]);
+  });
+
+  it("rejects a candidate targeting a checkbox field — checkbox fields never go through extraction", () => {
+    const transcript = transcriptWith("yes");
+    const candidate: ExtractionCandidate = {
+      fieldId: CHECKBOX_FIELD.id,
+      kind: "value",
+      value: "true",
+      quotes: [{ turnIndex: 1, text: "yes" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "not_extractable_field_type" }]);
+  });
+
+  it("rejects a candidate with zero quotes", () => {
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quotes: [],
+    };
+    const result = validateCandidates(transcriptWith("42"), [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
+  });
+
+  it("rejects a quote whose turn index doesn't exist in the transcript", () => {
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quotes: [{ turnIndex: 99, text: "42" }],
+    };
+    const result = validateCandidates(transcriptWith("42"), [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
+  });
+
+  it("rejects a quote pointing at a talker turn instead of a clinician turn", () => {
+    const transcript = transcriptWith("42");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      // index 0 is the talker's "(question)" turn, not the clinician's
+      quotes: [{ turnIndex: 0, text: "(question)" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
+  });
+
+  it("rejects a quote whose text isn't actually a substring of the cited turn", () => {
+    const transcript = transcriptWith("I'm 42 years old");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quotes: [{ turnIndex: 1, text: "I'm 50 years old" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_not_found" }]);
+  });
+
+  it("matches a quote after normalizing case, whitespace, and punctuation", () => {
+    const transcript = transcriptWith("I'm  42   YEARS old!!");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quotes: [{ turnIndex: 1, text: "i'm 42 years old" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toHaveLength(1);
+  });
+
+  it("rejects a value not grounded in its own quote, even if the quote itself is real", () => {
+    // The clinician deflected; the quote is a real substring of what they
+    // said, but "45" never appears in it — this is the deflection-as-value
+    // case the grounding check exists to catch.
+    const transcript = transcriptWith("can we talk about something else");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "45",
+      quotes: [{ turnIndex: 1, text: "can we talk about something else" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected).toEqual([{ candidate, reason: "value_not_grounded" }]);
+  });
+
+  it("accepts a value grounded across normalization even if punctuation/case differ", () => {
+    const transcript = transcriptWith("It's the WATER PILL, 40mg.");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "water pill",
+      quotes: [{ turnIndex: 1, text: "the water pill" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toHaveLength(1);
+  });
+
+  it("does not require value grounding for unknown/declined candidates — only the reason itself needs a quote", () => {
+    const transcript = transcriptWith("I have no idea about that one");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "unknown",
+      quotes: [{ turnIndex: 1, text: "no idea" }],
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "mark_unknown" }]);
+  });
+});
