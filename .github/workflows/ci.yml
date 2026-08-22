@@ -43,6 +43,20 @@ jobs:
         run: |
           npm test
 
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      # Includes scripts/tests/test_fill_3500_real_form.py — Issue #9's
+      # proof that the manifest still resolves against the real, AES-256
+      # encrypted FDA_3500 PDF, not just against fakes.
+      - run: python -m pytest scripts/tests
+
   secrets:
     runs-on: ubuntu-latest
     permissions:
