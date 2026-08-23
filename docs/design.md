@@ -41,8 +41,14 @@ telling an ambiguous narrative a model has to mine for evidence.
 | **Talker** | Converse: guide one topic at a time, plain language instead of raw form-speak — this is what makes wilson faster than the form itself, not just a re-skin of it | Never |
 | **Agenda** | Deterministic field-state machine: track each field as `answered` / `unknown` / `declined`, decide what's next, tolerate partial completion — a clinician not having every fact on hand is a normal, expected path | State only |
 | **Extractor** | Deterministic parsing/normalization of the clinician's direct answers into structured field values (dates, drug names, dosage formats) | Proposes only |
-| **Suggestion layer** | Surface a handful of candidate product/diagnosis/lab/device matches, sourced from a free data stack (see `docs/coding-databases.md`) — not blocked on procurement | Never — advisory only, kept out of the record until a clinician explicitly accepts a candidate |
 | **Assembly/Export** | Deterministic mapping from the structured record to the Form 3500 PDF | Deterministic |
+
+wilson v1 has no Suggestion layer — cut, not stubbed (charter Non-goals,
+decided 2026-08-22, Issue #27). This table previously carried a
+Suggestion layer row describing candidate product/diagnosis/lab/device
+matches sourced from `docs/coding-databases.md`'s free data stack;
+that research stays valid as reference, but no component here builds
+against it for v1.
 
 lucy's quote-provenance validator (checking each extracted field against a
 literal transcript quote) is not carried over wholesale — but it is not
@@ -56,17 +62,6 @@ what was actually said, not a bare claim the model can silently invent.
 Deterministic format validation (valid date, known drug string) alone was
 not sufficient — it verifies shape, not correspondence to the
 conversation, and that's the gap lucy's validator existed to close.
-
-**Suggestion acceptance is an explicit, separate action — never a
-default.** No candidate is ever pre-selected; a suggestion field starts
-empty regardless of ranking. Accepting a candidate requires a distinct
-affirmative action, never bundled into generic wizard-advance (e.g.
-"Next"). Once accepted, the field stays visually distinguished from a
-clinician-entered value through review and export — the clinician always
-sees which fields came from their own answer versus an accepted
-suggestion. This exists specifically to prevent a technically-compliant
-build where a pre-filled top suggestion plus "Next" reads to the clinician
-as settled fact rather than a choice they made.
 
 **Review-stage edits re-enter the same pipeline, not a side door.** The
 charter's end condition requires the clinician be able to edit any field
@@ -97,10 +92,7 @@ one's.
 
 Every field carries a **state**, not just a value — `answered` / `unknown`
 / `declined` — directly supporting the Agenda's tolerance for incomplete
-information. Suggested/candidate codes from the suggestion layer live
-separately from the record itself; a field's real value is only ever set
-by an accepted answer or an explicitly accepted candidate, never by the
-suggestion layer writing through.
+information.
 
 ## Main structural risks
 
@@ -113,35 +105,15 @@ suggestion layer writing through.
   section-level structure itself, which the original draft of this
   document got wrong (see Data shape above) — not just under-specified
   below the section level, as assumed here previously.
-- **Partially resolved, 2026-08-22 (Issue #24).** Corrects this document's
-  prior framing here, which assumed the only real coding source was MedDRA
-  and that MedDRA was blocked on procurement — both true individually, but
-  the conclusion drawn from them wasn't: MedDRA is one source among
-  several, not the source. Research found eight of the nine sources
-  wilson's field manifest could use are free (public domain or a no-cost
-  registration), covering every codeable field the form actually has
-  (product identity, diagnosis/indication, lab data, device identity).
-  MedDRA itself is excluded from wilson's scope entirely, not deferred —
-  see `docs/coding-databases.md` for the source-by-source detail and the
-  reasoning. Whether/when to actually build the Suggestion layer is now a
-  real product-scope choice rather than a blocked default; nothing about
-  the record's correctness depends on it existing either way. **Not fully
-  resolved — one real open item, not yet owned by anyone:** five of the
-  eight free sources (NDC Directory, ICD-10-CM, LOINC, FDA Device
-  Classification DB, GUDID) are unconditionally free with no ongoing
-  obligation at all, but RxNorm, SNOMED CT, and UMLS are free only under
-  an annual UTS license report; a lapsed report doesn't just risk a fee,
-  it puts continued use of that data for *new* suggestions outside the
-  license's terms. Whoever builds a Suggestion layer using any of those
-  three sources needs to name an owner for that renewal, the same way the
-  PHI data-handling risk below is explicitly named to Steve rather than
-  left unowned.
-- **Keeping "advisory, not authoritative" honest in the actual UX**, not
-  just in this document — the charter's review-depth conclusion weights
-  this heavily. Addressed above (no pre-selected candidates, acceptance is
-  a distinct action, accepted suggestions stay visually distinguished),
-  but it's the first unit's job to prove the built UI actually matches
-  this, not just the design.
+- **Resolved as a non-issue, 2026-08-22 (Issue #27).** Issue #24's
+  research into coding-database sourcing (see `docs/coding-databases.md`)
+  found a free, mostly self-hostable source stack that would have made a
+  Suggestion layer buildable without MedDRA. Steve then decided wilson v1
+  ships with no Suggestion layer at all, regardless of source (charter
+  Non-goals) — so the licensing/ownership questions that research
+  surfaced (RxNorm/SNOMED/UMLS's annual UTS report) aren't live risks for
+  this repo right now. `docs/coding-databases.md` stays as reference for
+  if a Suggestion layer is ever built later, not a current obligation.
 - **Model-provider data handling for PHI-bearing content is not yet
   resolved.** Server-side-only calls and metrics-only logging are decided
   above; whether the provider carries a no-retention/no-training

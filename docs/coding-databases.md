@@ -1,5 +1,10 @@
 # Coding/classification data sources for the Suggestion layer
 
+**Status: reference material for a non-goal.** wilson v1 ships with no
+Suggestion layer at all (charter Non-goals, decided 2026-08-22, Issue
+#27) — this research stays valid if that's revisited later, but nothing
+here is near-term integration guidance.
+
 Research from the 2026-08-22 design conversation on Issue #24, correcting
 `docs/design.md`'s prior framing that the Suggestion layer's data source
 "doesn't exist yet." It does — eight of the nine sources below are free,
