@@ -5,6 +5,7 @@
 // no transcript turn appended, so the parent constructs the new TalkStep
 // itself rather than routing through talk.ts's processTurn()/respond()
 // (which always appends a talker turn).
+import { useState } from "react";
 import { applyAction, type AgendaRecord } from "@/lib/agenda";
 import { askDeterministic } from "@/lib/ask";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
@@ -30,10 +31,12 @@ interface TopicFieldsProps {
   topic: Topic;
   current: TalkStep;
   onChange: (next: TalkStep) => void;
+  disabled?: boolean;
 }
 
-export function TopicFields({ topic, current, onChange }: TopicFieldsProps) {
+export function TopicFields({ topic, current, onChange, disabled = false }: TopicFieldsProps) {
   const { session } = current;
+  const [error, setError] = useState<string | null>(null);
   const fields = topic.fieldIds
     .map((id) => FIELDS_BY_ID.get(id))
     .filter((f): f is FormFieldSpec => f !== undefined && (f.type === "checkbox" || f.type === "enum"));
@@ -41,16 +44,26 @@ export function TopicFields({ topic, current, onChange }: TopicFieldsProps) {
   if (fields.length === 0) return null;
 
   async function writeField(fieldId: string, value: string) {
-    const record: AgendaRecord = applyAction(session.record, fieldId, { type: "answer" }, value);
-    const nextSession = { ...session, record };
-    const step = nextStep(nextSession.record, nextSession.repeatCounts);
-    const reply = await askDeterministic(step, nextSession);
-    onChange({ session: nextSession, reply, nextStep: step });
+    try {
+      const record: AgendaRecord = applyAction(session.record, fieldId, { type: "answer" }, value);
+      const nextSession = { ...session, record };
+      const step = nextStep(nextSession.record, nextSession.repeatCounts);
+      const reply = await askDeterministic(step, nextSession);
+      setError(null);
+      onChange({ session: nextSession, reply, nextStep: step });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that.");
+    }
   }
 
   return (
-    <fieldset className="topic-fields">
+    <fieldset className="topic-fields" disabled={disabled}>
       <legend>{topic.label}</legend>
+      {error && (
+        <p className="topic-fields__error" role="alert">
+          {error}
+        </p>
+      )}
       {fields.map((field) => {
         const entry = session.record[field.id];
         if (field.type === "checkbox") {
@@ -67,12 +80,17 @@ export function TopicFields({ topic, current, onChange }: TopicFieldsProps) {
           );
         }
 
-        // enum: the manifest's own leading " " option is the "unselected"
-        // placeholder — selecting it is a no-op (an "answered" entry must
-        // carry a non-blank value, per scripts/fill-3500.py's own check).
-        const value = entry.state === "answered" ? (entry.value ?? "") : "";
+        // enum: the manifest's own blank option (a literal " ", not "") is
+        // the "unselected" placeholder — selecting it is a no-op (an
+        // "answered" entry must carry a non-blank value, per
+        // scripts/fill-3500.py's own check). Read straight from the
+        // manifest rather than assumed as "", so a controlled <select>'s
+        // value always matches a real <option>, however that placeholder
+        // is spelled.
         const disallowed = DISALLOWED_ENUM_VALUES[field.id];
         const options = (field.options ?? []).filter((option) => !disallowed?.has(option));
+        const blankOption = options.find((option) => option.trim().length === 0) ?? "";
+        const value = entry.state === "answered" ? (entry.value ?? blankOption) : blankOption;
         return (
           <label key={field.id} className="topic-field topic-field--enum">
             {field.label}

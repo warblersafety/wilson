@@ -13,9 +13,14 @@ import type { TalkStep } from "@/lib/talk";
 interface AskFormProps {
   current: TalkStep;
   onSubmitted: (next: TalkStep) => void;
+  // Reports pending state upward so the parent can disable TopicFields'
+  // checkbox/enum widgets while a submission is in flight — otherwise a
+  // checkbox edit resolving mid-request gets silently clobbered when this
+  // form's (now-stale) response lands.
+  onPendingChange?: (pending: boolean) => void;
 }
 
-export function AskForm({ current, onSubmitted }: AskFormProps) {
+export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -25,8 +30,10 @@ export function AskForm({ current, onSubmitted }: AskFormProps) {
     const text = message.trim();
     if (text.length === 0) return;
     setError(null);
+    onPendingChange?.(true);
     startTransition(async () => {
       const result = await submitTurn(current.session, text);
+      onPendingChange?.(false);
       if (result.ok) {
         setMessage("");
         onSubmitted(result.step);

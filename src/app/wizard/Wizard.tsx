@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { nextStep } from "@/lib/topics";
+import { nextStep, topicStatuses } from "@/lib/topics";
 import { AskForm } from "./AskForm";
 import { Sidebar } from "./Sidebar";
 import { TopicFields } from "./TopicFields";
@@ -19,16 +19,30 @@ async function freshStep(): Promise<TalkStep> {
 
 export function Wizard() {
   const [current, setCurrent] = useState<TalkStep | null>(null);
+  // Disables TopicFields' checkbox/enum widgets while an AskForm submission
+  // is in flight: both write from their own session snapshot, so a checkbox
+  // edit that resolves after a slower Server Action response would
+  // otherwise get silently clobbered when the stale response lands.
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function hydrate() {
       const stored = loadSession(window.localStorage);
       let step: TalkStep;
-      if (stored) {
-        const next = nextStep(stored.record, stored.repeatCounts);
-        step = { session: stored, nextStep: next, reply: await askDeterministic(next, stored) };
-      } else {
+      try {
+        if (stored) {
+          const next = nextStep(stored.record, stored.repeatCounts);
+          step = { session: stored, nextStep: next, reply: await askDeterministic(next, stored) };
+        } else {
+          step = await freshStep();
+        }
+      } catch {
+        // A stored session that no longer matches the current field
+        // manifest/topic map (nextStep()'s documented "missing field id"
+        // throw) would otherwise leave the wizard stuck on "Loading…"
+        // forever — fail forward into a fresh session instead.
+        clearSession(window.localStorage);
         step = await freshStep();
       }
       if (!cancelled) setCurrent(step);
@@ -59,17 +73,35 @@ export function Wizard() {
 
   const { session, nextStep: step } = current;
 
+  // Every topic nextStep() has already walked past ("done") gets its
+  // checkbox/enum widgets shown here too — nextStep() itself skips any
+  // topic with zero unresolved text/date fields in a single pass (a
+  // checkbox/enum-only topic never becomes its own conversational "topic"
+  // step), so restricting this to just the current step's topic would
+  // leave those topics' fields permanently unreachable. The "current"
+  // topic's fields are included only when the step kind is actually
+  // "topic" — during a pending repeat-decision, topicStatuses() points at
+  // the next instance's topic, which isn't confirmed to exist yet.
+  const visibleTopics = topicStatuses(session.record, session.repeatCounts)
+    .filter((entry) => entry.status === "done" || (entry.status === "current" && step.kind === "topic"))
+    .map((entry) => entry.topic);
+
   return (
     <div className="wizard-layout">
       <Sidebar session={session} />
       <main className="wizard">
-        {step.kind === "topic" && (
-          <>
-            <TopicFields topic={step.topic} current={current} onChange={handleStep} />
-            <AskForm current={current} onSubmitted={handleStep} />
-          </>
+        {visibleTopics.map((topic) => (
+          <TopicFields
+            key={topic.id}
+            topic={topic}
+            current={current}
+            onChange={handleStep}
+            disabled={isSubmitting}
+          />
+        ))}
+        {(step.kind === "topic" || step.kind === "repeat-decision") && (
+          <AskForm current={current} onSubmitted={handleStep} onPendingChange={setIsSubmitting} />
         )}
-        {step.kind === "repeat-decision" && <AskForm current={current} onSubmitted={handleStep} />}
         {step.kind === "done" && (
           <div className="wizard__done">
             <p>{current.reply}</p>

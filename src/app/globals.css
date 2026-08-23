@@ -85,3 +85,12 @@ body {
 .ask-form__error {
   color: #b00020;
 }
+
+.topic-fields__error {
+  color: #b00020;
+  margin: 0 0 0.5rem;
+}
+
+.topic-fields:disabled {
+  opacity: 0.6;
+}
