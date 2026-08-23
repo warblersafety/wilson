@@ -43,8 +43,9 @@ sign-off before anything is sent is the load-bearing safety control, not
 wilson's own correctness. The risk that matters is a bug that *silently*
 mis-fills a field or drops data — not "a bug means bad data reaches FDA
 unreviewed," since nothing reaches FDA without a human reviewing it
-first. Review effort should weight PDF field-mapping correctness heavily;
-it does not need production-grade infrastructure rigor everywhere.
+first. Review effort should weight PDF field-mapping correctness and the
+Extractor's grounding-to-transcript check heavily; it does not need
+production-grade infrastructure rigor everywhere.
 
 ## Non-goals (for now)
 
