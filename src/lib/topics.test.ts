@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3500-fields";
-import { TOPICS, initRepeatCounts, nextStep, setRepeatCount } from "./topics";
+import { TOPICS, initRepeatCounts, nextStep, setRepeatCount, topicStatuses } from "./topics";
 
 const SECTION_ORDER = Object.keys(FORM_3500_SECTIONS) as FormSection[];
 
@@ -343,5 +343,86 @@ describe("nextStep", () => {
     counts = setRepeatCount(counts, "suspect-product", 1);
     counts = setRepeatCount(counts, "concomitant-medication", 1);
     expect(nextStep(record, counts)).toEqual({ kind: "done" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// topicStatuses — built on nextStep() itself (one call), not a duplicated
+// walk. Synthetic fields/topics for isolation; a real-manifest check at
+// the end confirms the wiring.
+// ---------------------------------------------------------------------------
+
+describe("topicStatuses", () => {
+  it("marks the first unresolved topic current, everything after upcoming, on a fresh session", () => {
+    const fields = [field("x", "text"), field("y", "text"), field("z", "text")];
+    const topics = [topic("a", ["x"]), topic("b", ["y"]), topic("c", ["z"])];
+    const record = recordOf({ x: { state: "unasked" }, y: { state: "unasked" }, z: { state: "unasked" } });
+    const statuses = topicStatuses(record, initRepeatCounts(), topics, fields);
+    expect(statuses).toEqual([
+      { topic: topics[0], status: "current" },
+      { topic: topics[1], status: "upcoming" },
+      { topic: topics[2], status: "upcoming" },
+    ]);
+  });
+
+  it("marks resolved topics before the current one done", () => {
+    const fields = [field("x", "text"), field("y", "text"), field("z", "text")];
+    const topics = [topic("a", ["x"]), topic("b", ["y"]), topic("c", ["z"])];
+    const record = recordOf({ x: { state: "declined" }, y: { state: "unasked" }, z: { state: "unasked" } });
+    const statuses = topicStatuses(record, initRepeatCounts(), topics, fields);
+    expect(statuses).toEqual([
+      { topic: topics[0], status: "done" },
+      { topic: topics[1], status: "current" },
+      { topic: topics[2], status: "upcoming" },
+    ]);
+  });
+
+  it("marks a repeat instance skipped by a decided count as done, not upcoming", () => {
+    const fields = [field("f1", "text"), field("f2", "text"), field("f3", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+      topic("after", ["f3"]),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" }, f3: { state: "unasked" } });
+    const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 1);
+    const statuses = topicStatuses(record, counts, topics, fields);
+    expect(statuses).toEqual([
+      { topic: topics[0], status: "done" },
+      { topic: topics[1], status: "done" },
+      { topic: topics[2], status: "current" },
+    ]);
+  });
+
+  it("marks the correct next-instance topic current when a repeat-decision is pending", () => {
+    const fields = [field("f1", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
+    const statuses = topicStatuses(record, initRepeatCounts(), topics, fields);
+    expect(statuses).toEqual([
+      { topic: topics[0], status: "done" },
+      { topic: topics[1], status: "current" },
+    ]);
+  });
+
+  it("marks everything done once nextStep reaches done", () => {
+    const fields = [field("x", "text")];
+    const topics = [topic("only", ["x"])];
+    const record = recordOf({ x: { state: "declined" } });
+    const statuses = topicStatuses(record, initRepeatCounts(), topics, fields);
+    expect(statuses).toEqual([{ topic: topics[0], status: "done" }]);
+  });
+
+  it("against the real manifest: a fresh session has patient-basics current and everything else upcoming", () => {
+    const statuses = topicStatuses(initAgenda(), initRepeatCounts());
+    expect(statuses).toHaveLength(34);
+    expect(statuses[0]).toEqual({ topic: TOPICS[0], status: "current" });
+    expect(statuses[0].topic.id).toBe("patient-basics");
+    for (const entry of statuses.slice(1)) {
+      expect(entry.status).toBe("upcoming");
+    }
   });
 });
