@@ -704,3 +704,49 @@ export function nextStep(
 
   return { kind: "done" };
 }
+
+export type TopicStatus = "done" | "current" | "upcoming";
+
+export interface TopicStatusEntry {
+  topic: Topic;
+  status: TopicStatus;
+}
+
+// Derived from nextStep() itself (a single call) rather than a second walk
+// over topics — used by the wizard UI's sidebar (Issue #32) to show every
+// topic's progress. Safe to reduce nextStep()'s single "what's next" answer
+// into a full done/current/upcoming split for every topic because
+// nextStep()'s own walk is strictly sequential: a repeat group's decided
+// count can only exist once every earlier topic is already resolved, so a
+// repeat instance skipped by that count (see below) can never sit *after*
+// the current position in topics' array order — only at or before it.
+export function topicStatuses(
+  record: AgendaRecord,
+  repeatCounts: RepeatCounts,
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): TopicStatusEntry[] {
+  const step = nextStep(record, repeatCounts, topics, fields);
+  const currentTopicId = currentTopicIdFor(step, topics);
+  const currentIndex = currentTopicId === null ? topics.length : topics.findIndex((t) => t.id === currentTopicId);
+
+  return topics.map((topic, i) => ({
+    topic,
+    status: i < currentIndex ? "done" : i === currentIndex ? "current" : "upcoming",
+  }));
+}
+
+function currentTopicIdFor(step: NextStep, topics: Topic[]): string | null {
+  if (step.kind === "done") return null;
+  if (step.kind === "topic") return step.topic.id;
+
+  const target = topics.find(
+    (t) => t.repeatGroup === step.repeatGroup && t.repeatInstance === step.afterInstance + 1,
+  );
+  if (!target) {
+    throw new Error(
+      `topicStatuses: no topic found for ${step.repeatGroup} instance ${step.afterInstance + 1}`,
+    );
+  }
+  return target.id;
+}

@@ -4,4 +4,93 @@
 
 body {
   margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.wizard-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 1rem;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+}
+
+.sidebar__section {
+  margin-bottom: 1rem;
+}
+
+.sidebar__section-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  color: #666;
+  margin: 0 0 0.25rem;
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__topic {
+  font-size: 0.9rem;
+  padding: 0.15rem 0;
+}
+
+.sidebar__topic--done {
+  color: #2a7a2a;
+}
+
+.sidebar__topic--current {
+  font-weight: 700;
+}
+
+.sidebar__topic--upcoming {
+  color: #999;
+}
+
+.wizard {
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 640px;
+}
+
+.topic-fields {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.topic-field {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.ask-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ask-form__reply {
+  font-weight: 600;
+}
+
+.ask-form__error {
+  color: #b00020;
+}
+
+.topic-fields__error {
+  color: #b00020;
+  margin: 0 0 0.5rem;
+}
+
+.topic-fields:disabled {
+  opacity: 0.6;
 }
