@@ -18,10 +18,9 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "scripts/**/*.ts",
-    "fixtures/**/*.ts",
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
+    "next.config.ts",
     "next-env.d.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
