@@ -1,5 +1,10 @@
 # Coding/classification data sources for the Suggestion layer
 
+**Status: reference material for a non-goal.** wilson v1 ships with no
+Suggestion layer at all (charter Non-goals, decided 2026-08-22, Issue
+#27) — this research stays valid if that's revisited later, but nothing
+here is near-term integration guidance.
+
 Research from the 2026-08-22 design conversation on Issue #24, correcting
 `docs/design.md`'s prior framing that the Suggestion layer's data source
 "doesn't exist yet." It does — eight of the nine sources below are free,
@@ -68,7 +73,11 @@ has.
 
 ## Suggested integration order, if/when the Suggestion layer is built
 
-Not a commitment — a starting point for whoever scopes that unit:
+Not a commitment — a starting point for whoever scopes that unit, and
+not itself the reopening this order would require: per charter
+Non-goals, cutting the Suggestion layer was a deliberate scope decision,
+and reopening it needs a new charter conversation before this list (or
+any part of it) becomes a scoped unit.
 
 1. **NDC/RxNorm (product identity)** — strongest fit. Suggestions here are
    close to unambiguous ("is this the drug you meant"), which makes
