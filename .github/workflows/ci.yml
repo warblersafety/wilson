@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - name: Lint
         run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
 
   test:
     runs-on: ubuntu-latest
