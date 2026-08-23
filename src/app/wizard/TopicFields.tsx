@@ -6,11 +6,11 @@
 // itself rather than routing through talk.ts's processTurn()/respond()
 // (which always appends a talker turn).
 import { useState } from "react";
-import { applyAction, type AgendaRecord } from "@/lib/agenda";
-import { askDeterministic } from "@/lib/ask";
+import { applyAction } from "@/lib/agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
-import { nextStep, type Topic } from "@/lib/topics";
+import type { Topic } from "@/lib/topics";
 import type { TalkStep } from "@/lib/talk";
+import { stepForRecord } from "./direct-step";
 
 const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
 
@@ -45,12 +45,10 @@ export function TopicFields({ topic, current, onChange, disabled = false }: Topi
 
   async function writeField(fieldId: string, value: string) {
     try {
-      const record: AgendaRecord = applyAction(session.record, fieldId, { type: "answer" }, value);
-      const nextSession = { ...session, record };
-      const step = nextStep(nextSession.record, nextSession.repeatCounts);
-      const reply = await askDeterministic(step, nextSession);
+      const record = applyAction(session.record, fieldId, { type: "answer" }, value);
+      const step = await stepForRecord(session, record);
       setError(null);
-      onChange({ session: nextSession, reply, nextStep: step });
+      onChange(step);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that.");
     }

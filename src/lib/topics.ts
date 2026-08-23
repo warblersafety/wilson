@@ -38,7 +38,7 @@
 // "yeah, there was a second one" into a count) is still out of scope
 // here: that's real interpretation work for the not-yet-built Extractor,
 // the same boundary Issue #13 already drew for checkbox/enum fields.
-import { type AgendaRecord } from "./agenda";
+import { applyAction, type AgendaRecord } from "./agenda";
 import { isResolved } from "./field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
@@ -734,6 +734,37 @@ export function topicStatuses(
     topic,
     status: i < currentIndex ? "done" : i === currentIndex ? "current" : "upcoming",
   }));
+}
+
+// The review-stage edit path (design.md, Issue #34): field-state.ts's
+// `reopen` action already re-enters the state machine rather than
+// patching a value directly — this is its one caller. Sends a topic's
+// *resolved* text/date fields back to `unasked`; checkbox/enum fields are
+// left alone since those are already directly editable in place
+// (TopicFields, Issue #32) and never need a conversational re-ask.
+// nextStep()'s own serial walk then picks the topic back up as a normal
+// "topic" step, going through the same Extractor/grounding check a first
+// answer does.
+export function reopenTopic(
+  record: AgendaRecord,
+  topic: Topic,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): AgendaRecord {
+  const fieldsById = new Map(fields.map((f) => [f.id, f]));
+  return topic.fieldIds.reduce((rec, fieldId) => {
+    const field = fieldsById.get(fieldId);
+    if (!field) {
+      throw new Error(`reopenTopic: no such field in the given fields list: ${fieldId}`);
+    }
+    if (!Object.hasOwn(rec, fieldId)) {
+      throw new Error(`reopenTopic: record missing field id: ${fieldId}`);
+    }
+    const isTextOrDate = field.type === "text" || field.type === "date";
+    if (isTextOrDate && isResolved(rec[fieldId].state)) {
+      return applyAction(rec, fieldId, { type: "reopen" });
+    }
+    return rec;
+  }, record);
 }
 
 function currentTopicIdFor(step: NextStep, topics: Topic[]): string | null {
