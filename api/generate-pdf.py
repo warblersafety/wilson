@@ -68,9 +68,20 @@ def is_record(payload):
     for entry in payload.values():
         if not isinstance(entry, dict):
             return False
-        if entry.get("state") not in VALID_STATES:
+        state = entry.get("state")
+        if state not in VALID_STATES:
             return False
-        if "value" in entry and not isinstance(entry["value"], str):
+        value = entry.get("value")
+        if "value" in entry and not isinstance(value, str):
+            return False
+        # fill-3500.py's render_value() raises FillError for exactly this
+        # shape (an "answered" entry with no real value) — caught by
+        # build_response()'s generic except-Exception and reported as a
+        # 500, indistinguishable from a real fill failure. Refused here as
+        # the 400 it actually is: a structurally invalid record, the same
+        # thing src/lib/agenda.ts's applyAction() already refuses at the
+        # record layer for any client going through it.
+        if state == "answered" and not (isinstance(value, str) and value.strip()):
             return False
     return True
 

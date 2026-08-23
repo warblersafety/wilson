@@ -4,10 +4,12 @@
 // driven entirely by the real nextStep()/TOPICS, not hardcoded per-topic.
 import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
+import { isResolved } from "@/lib/field-state";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
 import { nextStep, reopenTopic, topicStatuses, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
+import { stepForRecord } from "./direct-step";
 import { PdfReview } from "./PdfReview";
 import { Sidebar } from "./Sidebar";
 import { TopicFields } from "./TopicFields";
@@ -25,6 +27,7 @@ export function Wizard() {
   // edit that resolves after a slower Server Action response would
   // otherwise get silently clobbered when the stale response lands.
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,17 +71,19 @@ export function Wizard() {
   // topic's resolved text/date fields back to `unasked`, so nextStep()'s
   // own serial walk picks it back up as a normal "topic" step — the same
   // AskForm/Extractor path a first answer goes through, not a raw patch.
-  // Mirrors TopicFields' writeField(): construct the new TalkStep
-  // directly (no transcript turn appended, matching topic.ts's own
-  // "current" definition) rather than routing through processTurn().
+  // Shares stepForRecord() with TopicFields' writeField() (no transcript
+  // turn appended, matching topic.ts's own "current" definition) rather
+  // than routing through processTurn().
   async function handleEditTopic(topic: Topic) {
     if (!current) return;
-    const { session } = current;
-    const record = reopenTopic(session.record, topic);
-    const nextSession = { ...session, record };
-    const step = nextStep(nextSession.record, nextSession.repeatCounts);
-    const reply = await askDeterministic(step, nextSession);
-    handleStep({ session: nextSession, reply, nextStep: step });
+    try {
+      const record = reopenTopic(current.session.record, topic);
+      const step = await stepForRecord(current.session, record);
+      setEditError(null);
+      handleStep(step);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Could not reopen that topic.");
+    }
   }
 
   if (!current) {
@@ -100,8 +105,21 @@ export function Wizard() {
   // topic's fields are included only when the step kind is actually
   // "topic" — during a pending repeat-decision, topicStatuses() points at
   // the next instance's topic, which isn't confirmed to exist yet.
+  //
+  // Also included: any topic with at least one resolved field, regardless
+  // of its computed status. Reopening an *earlier* topic (Issue #34's
+  // review-stage edit) moves nextStep()'s walk back to it, and
+  // topicStatuses()'s index-based done/current/upcoming split then
+  // relabels every later topic "upcoming" even though its fields are
+  // still answered — this clause keeps those topics' widgets on screen
+  // through that transient state instead of hiding already-entered data.
   const visibleTopics = topicStatuses(session.record, session.repeatCounts)
-    .filter((entry) => entry.status === "done" || (entry.status === "current" && step.kind === "topic"))
+    .filter(
+      (entry) =>
+        entry.status === "done" ||
+        (entry.status === "current" && step.kind === "topic") ||
+        entry.topic.fieldIds.some((id) => isResolved(session.record[id].state)),
+    )
     .map((entry) => entry.topic);
 
   return (
@@ -123,7 +141,16 @@ export function Wizard() {
         {step.kind === "done" && (
           <div className="wizard__done">
             <p>{current.reply}</p>
-            <PdfReview record={session.record} onEditTopic={(topic) => void handleEditTopic(topic)} disabled={isSubmitting} />
+            {editError && (
+              <p className="wizard__edit-error" role="alert">
+                {editError}
+              </p>
+            )}
+            <PdfReview
+              record={session.record}
+              onEditTopic={(topic) => void handleEditTopic(topic)}
+              disabled={isSubmitting}
+            />
             <button type="button" onClick={() => void handleStartOver()}>
               Start over
             </button>

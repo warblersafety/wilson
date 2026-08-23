@@ -16,21 +16,28 @@ export interface PdfFetchResponse {
 
 export type PdfFetch = (
   url: string,
-  init: { method: "POST"; headers: Record<string, string>; body: string },
+  init: { method: "POST"; headers: Record<string, string>; body: string; signal?: AbortSignal },
 ) => Promise<PdfFetchResponse>;
 
 export class PdfExportError extends Error {}
 
 // Returns the filled PDF's raw bytes. Never returns partial/garbage bytes
 // silently — a non-ok response or a transport failure both throw
-// PdfExportError rather than handing back whatever arrived.
-export async function fetchReportPdf(record: AgendaRecord, fetchImpl: PdfFetch): Promise<ArrayBuffer> {
+// PdfExportError rather than handing back whatever arrived. `signal`
+// lets a caller give up on a superseded request (PdfReview regenerates on
+// every record change) rather than let it run to completion unused.
+export async function fetchReportPdf(
+  record: AgendaRecord,
+  fetchImpl: PdfFetch,
+  signal?: AbortSignal,
+): Promise<ArrayBuffer> {
   let response: PdfFetchResponse;
   try {
     response = await fetchImpl("/api/generate-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record),
+      signal,
     });
   } catch {
     // Never the caught error's own message: on this route that could be

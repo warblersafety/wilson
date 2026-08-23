@@ -106,6 +106,10 @@ body {
   color: #b00020;
 }
 
+.wizard__edit-error {
+  color: #b00020;
+}
+
 .pdf-review__topic {
   border-top: 1px solid #ddd;
   padding: 0.75rem 0;

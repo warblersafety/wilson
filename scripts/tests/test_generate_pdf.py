@@ -116,6 +116,25 @@ class TestBuildResponse:
         assert status == 400
         assert json.loads(payload) == {"error": "bad_record"}
 
+    def test_rejects_an_answered_field_with_no_value_as_bad_record_not_pdf_failed(self, route):
+        # fill-3500.py's render_value() raises FillError for this shape;
+        # the route must catch it as a 400 structural refusal before ever
+        # calling the filler, not let it fall through to a generic 500.
+        body = json.dumps({"f1": {"state": "answered"}}).encode()
+        status, _, payload = route.build_response(
+            "POST", "application/json", str(len(body)), body, filler=fake_filler_ok
+        )
+        assert status == 400
+        assert json.loads(payload) == {"error": "bad_record"}
+
+    def test_rejects_an_answered_field_with_a_blank_value(self, route):
+        body = json.dumps({"f1": {"state": "answered", "value": "   "}}).encode()
+        status, _, payload = route.build_response(
+            "POST", "application/json", str(len(body)), body, filler=fake_filler_ok
+        )
+        assert status == 400
+        assert json.loads(payload) == {"error": "bad_record"}
+
     def test_rejects_a_record_over_the_field_count_cap(self, route):
         body = json.dumps({f"f{i}": {"state": "unasked"} for i in range(route.MAX_FIELDS + 1)}).encode()
         status, _, payload = route.build_response("POST", "application/json", str(len(body)), body)

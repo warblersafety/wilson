@@ -9,6 +9,7 @@
 // PDF as a download.
 import { useEffect, useState } from "react";
 import { type AgendaRecord } from "@/lib/agenda";
+import { isResolved } from "@/lib/field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
 import { fetchReportPdf, PdfExportError } from "@/lib/pdf-export";
 import { TOPICS, type Topic } from "@/lib/topics";
@@ -18,7 +19,11 @@ const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => 
 // Mirrors scripts/fill-3500.py's UNKNOWN_SENTINEL/DECLINED_SENTINEL — the
 // same words that land in the generated PDF, so the review list reads as
 // the same report, not a second, differently-worded account of it.
+// Object.hasOwn-guarded like every other AgendaRecord accessor in this
+// codebase (nextStep, reopenTopic, applyAction) — a stale/mismatched
+// record must not crash this screen mid-render.
 function displayValue(record: AgendaRecord, fieldId: string): string {
+  if (!Object.hasOwn(record, fieldId)) return "";
   const entry = record[fieldId];
   if (entry.state === "answered") return entry.value ?? "";
   if (entry.state === "unknown") return "Unknown";
@@ -48,9 +53,14 @@ export function PdfReview({ record, onEditTopic, disabled = false }: PdfReviewPr
   // stale preview on screen — AC #34.
   useEffect(() => {
     let cancelled = false;
+    // A superseded request otherwise still runs the server-side PDF fill
+    // to completion with its result thrown away the moment a later edit
+    // fires this effect again — abort() gives the request itself up, not
+    // just its (already-guarded-by-`cancelled`) result.
+    const controller = new AbortController();
     setStatus("loading");
     setError(null);
-    fetchReportPdf(record, fetch)
+    fetchReportPdf(record, fetch, controller.signal)
       .then((bytes) => {
         if (cancelled) return;
         const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
@@ -64,6 +74,7 @@ export function PdfReview({ record, onEditTopic, disabled = false }: PdfReviewPr
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [record]);
 
@@ -77,14 +88,23 @@ export function PdfReview({ record, onEditTopic, disabled = false }: PdfReviewPr
 
   function handleDownload() {
     if (!pdfUrl) return;
+    // Some WebKit/Safari versions only honor a click on an <a download>
+    // that's actually in the document — a detached element's click is
+    // unreliable there.
     const link = document.createElement("a");
     link.href = pdfUrl;
     link.download = "form-3500.pdf";
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   }
 
+  // Only topics actually reached — a repeat-instance topic nextStep()
+  // skipped (the clinician confirmed fewer instances exist) has every
+  // field still `unasked`; an Edit button there would reopen nothing and
+  // silently no-op.
   const topicsWithTextDate = TOPICS.map((topic) => ({ topic, fields: textDateFieldsOf(topic) })).filter(
-    ({ fields }) => fields.length > 0,
+    ({ fields }) => fields.length > 0 && fields.some((f) => isResolved(record[f.id]?.state ?? "unasked")),
   );
 
   return (
