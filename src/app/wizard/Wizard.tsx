@@ -6,8 +6,9 @@ import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { nextStep, topicStatuses } from "@/lib/topics";
+import { nextStep, reopenTopic, topicStatuses, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
+import { PdfReview } from "./PdfReview";
 import { Sidebar } from "./Sidebar";
 import { TopicFields } from "./TopicFields";
 
@@ -63,6 +64,23 @@ export function Wizard() {
     setCurrent(await freshStep());
   }
 
+  // The review-stage edit path (Issue #34): reopenTopic() sends the
+  // topic's resolved text/date fields back to `unasked`, so nextStep()'s
+  // own serial walk picks it back up as a normal "topic" step — the same
+  // AskForm/Extractor path a first answer goes through, not a raw patch.
+  // Mirrors TopicFields' writeField(): construct the new TalkStep
+  // directly (no transcript turn appended, matching topic.ts's own
+  // "current" definition) rather than routing through processTurn().
+  async function handleEditTopic(topic: Topic) {
+    if (!current) return;
+    const { session } = current;
+    const record = reopenTopic(session.record, topic);
+    const nextSession = { ...session, record };
+    const step = nextStep(nextSession.record, nextSession.repeatCounts);
+    const reply = await askDeterministic(step, nextSession);
+    handleStep({ session: nextSession, reply, nextStep: step });
+  }
+
   if (!current) {
     return (
       <main className="wizard">
@@ -105,6 +123,7 @@ export function Wizard() {
         {step.kind === "done" && (
           <div className="wizard__done">
             <p>{current.reply}</p>
+            <PdfReview record={session.record} onEditTopic={(topic) => void handleEditTopic(topic)} disabled={isSubmitting} />
             <button type="button" onClick={() => void handleStartOver()}>
               Start over
             </button>

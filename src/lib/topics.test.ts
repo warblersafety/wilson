@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3500-fields";
-import { TOPICS, initRepeatCounts, nextStep, setRepeatCount, topicStatuses } from "./topics";
+import { TOPICS, initRepeatCounts, nextStep, reopenTopic, setRepeatCount, topicStatuses } from "./topics";
 
 const SECTION_ORDER = Object.keys(FORM_3500_SECTIONS) as FormSection[];
 
@@ -424,5 +424,69 @@ describe("topicStatuses", () => {
     for (const entry of statuses.slice(1)) {
       expect(entry.status).toBe("upcoming");
     }
+  });
+});
+
+// The review-stage edit path (Issue #34): field-state.ts's `reopen` action
+// already exists for exactly this ("the review-stage edit path in
+// docs/design.md re-enters this same state machine rather than patching a
+// value directly") but nothing called it yet. reopenTopic() is the one
+// caller — send a topic's resolved text/date fields back to `unasked` so
+// nextStep()'s own serial walk picks the topic up again as a normal
+// conversational step, the same Extractor/grounding path a first answer
+// goes through.
+describe("reopenTopic", () => {
+  it("sends a topic's resolved text/date fields back to unasked, clearing their value", () => {
+    const fields = [field("t", "text"), field("d", "date")];
+    const t = topic("only", ["t", "d"]);
+    const record = recordOf({ t: { state: "answered" }, d: { state: "declined" } });
+    const reopened = reopenTopic(record, t, fields);
+    expect(reopened.t).toEqual({ state: "unasked" });
+    expect(reopened.d).toEqual({ state: "unasked" });
+  });
+
+  it("leaves the topic's checkbox/enum fields untouched", () => {
+    const fields = [field("cb", "checkbox"), field("en", "enum"), field("t", "text")];
+    const t = topic("only", ["cb", "en", "t"]);
+    const record = recordOf({ cb: { state: "answered" }, en: { state: "answered" }, t: { state: "answered" } });
+    const reopened = reopenTopic(record, t, fields);
+    expect(reopened.cb).toEqual(record.cb);
+    expect(reopened.en).toEqual(record.en);
+    expect(reopened.t).toEqual({ state: "unasked" });
+  });
+
+  it("leaves other topics' fields untouched", () => {
+    const fields = [field("a", "text"), field("b", "text")];
+    const topics = [topic("first", ["a"]), topic("second", ["b"])];
+    const record = recordOf({ a: { state: "answered" }, b: { state: "answered" } });
+    const reopened = reopenTopic(record, topics[0], fields);
+    expect(reopened.a).toEqual({ state: "unasked" });
+    expect(reopened.b).toEqual(record.b);
+  });
+
+  it("is a no-op on a text/date field that is already unasked", () => {
+    const fields = [field("t", "text")];
+    const t = topic("only", ["t"]);
+    const record = recordOf({ t: { state: "unasked" } });
+    const reopened = reopenTopic(record, t, fields);
+    expect(reopened).toEqual(record);
+  });
+
+  it("makes nextStep() return to a topic reopened after it was passed, even with only-later topics still done", () => {
+    const fields = [field("a", "text"), field("b", "text")];
+    const topics = [topic("first", ["a"]), topic("second", ["b"])];
+    const record = recordOf({ a: { state: "answered" }, b: { state: "answered" } });
+    expect(nextStep(record, initRepeatCounts(), topics, fields)).toEqual({ kind: "done" });
+    const reopened = reopenTopic(record, topics[0], fields);
+    expect(nextStep(reopened, initRepeatCounts(), topics, fields)).toEqual({
+      kind: "topic",
+      topic: topics[0],
+      fieldIds: ["a"],
+    });
+  });
+
+  it("throws on a field id not present in the given fields list", () => {
+    const t = topic("only", ["ghost"]);
+    expect(() => reopenTopic({}, t, [])).toThrow(/no such field/);
   });
 });
