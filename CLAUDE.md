@@ -60,8 +60,18 @@ refreshes it.
   (smansf/sofa-claude#2).
 - Deploy wiring lives in Steve's Vercel account (team `warblersafety`,
   covering wilson, lucy, and future apps). Only `staging` and `main`
-  actually deploy — `dev` and unit branches build/test locally only,
-  enforced by an Ignored Build Step on wilson's Vercel project. Claude
+  actually deploy, enforced by [vercel.json](vercel.json)'s
+  `git.deploymentEnabled` — `dev` and unit branches build/test locally
+  only. This isn't just tidiness: Vercel's Hobby plan refuses to
+  deploy any commit not authored by the account owner on a private
+  org-owned repo, which is every commit Claude pushes.
+  `deploymentEnabled` stops Vercel from even attempting those
+  branches, so the refusal never happens rather than needing to be
+  tolerated downstream (a project-level Ignored Build Step was tried
+  first and confirmed too late in Vercel's pipeline to help — it fires
+  after that refusal, not before). `staging`/`main` deploy normally
+  once Steve merges under his own GitHub identity, which satisfies
+  that same rule. Claude
   holds a Vercel token only when Steve hands one over for a specific
   task — short-lived, never auto-minted the way GitHub's is (Vercel has
   no per-operation minting equivalent to `gh_token.py`), stored locally,
