@@ -34,9 +34,13 @@ refreshes it.
   outcome as a PR comment quoting the tool's summary — an observed
   result, never an invocation or replication of his lane; absent both
   findings and a record comment, the review is treated as not yet
-  run. Vercel preview deploy not yet wired — needs-Steve digest.
+  run. Vercel preview deploy is wired: every push to `staging` deploys
+  automatically, gated behind Vercel Authentication like every other
+  preview URL.
 - `main` — production. Steve promotes `staging → main`. Vercel production
-  deploy not yet wired — needs-Steve digest.
+  deploy is wired: every push to `main` deploys automatically and is
+  publicly visible (Hobby plan protects preview URLs only, not
+  production).
 - **Before preparing the first promotion PR**, confirm `gh repo view --json
   deleteBranchOnMerge` reports `false`. A promotion PR's head *is* a
   long-lived branch, so with the setting on, merging `staging → main`
@@ -54,8 +58,16 @@ refreshes it.
   `staging`/`main` rests on process alone until this repo goes public or
   the org has Enterprise rulesets. Filed in the needs-Steve digest
   (smansf/sofa-claude#2).
-- Deploy wiring lives in Steve's Vercel account; Claude holds no Vercel
-  credentials. Claude never merges to `staging` or `main`.
+- Deploy wiring lives in Steve's Vercel account (team `warblersafety`,
+  covering wilson, lucy, and future apps). Only `staging` and `main`
+  actually deploy — `dev` and unit branches build/test locally only,
+  enforced by an Ignored Build Step on wilson's Vercel project. Claude
+  holds a Vercel token only when Steve hands one over for a specific
+  task — short-lived, never auto-minted the way GitHub's is (Vercel has
+  no per-operation minting equivalent to `gh_token.py`), stored locally,
+  never committed. See
+  [docs/SECRETS-AND-COSTS.md](docs/SECRETS-AND-COSTS.md) for the current
+  secrets shape. Claude never merges to `staging` or `main`.
 - Every GitHub call from this repo — `scripts/merge_dev.py`, or a
   session's own `gh` — runs under a short-lived App token minted by
   `scripts/gh_token.py`, scoped to the repositories and permissions the

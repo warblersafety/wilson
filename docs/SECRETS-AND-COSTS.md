@@ -3,7 +3,8 @@
 Scoped down from lucy's own `docs/SECRETS-AND-COSTS.md` (murmurpv/lucy) per
 this repo's charter — "does not need production-grade infrastructure rigor
 everywhere." Same underlying pattern, sized to what wilson actually has
-today: no Vercel deploy, no production or preview traffic, one Anthropic
+today: a Vercel deploy exists (team `warblersafety`), but only `staging`
+and `main` branches populate it — no real traffic yet, one Anthropic
 workspace actually in use.
 
 ## Secrets
@@ -26,15 +27,16 @@ Only `wilson-evals` is actually wired into anything:
 | Bucket | Workspace | Home | Status |
 |---|---|---|---|
 | **wilson-evals** | `wilson-evals` | GitHub Actions repository secret, `ANTHROPIC_API_KEY`, on `warblersafety/wilson` | **Wired up** — used by `.github/workflows/eval-extraction.yml` |
-| **wilson-nonprod** | `wilson-nonprod` | (none yet) | Created, not yet placed — needs a Vercel project's Preview environment to scope it to |
-| **wilson-prod** | `wilson-prod` | (none yet) | Created, not yet placed — needs a Vercel project's Production environment to scope it to |
+| **wilson-nonprod** | `wilson-nonprod` | (none yet) | Created, not yet placed — Vercel project exists now (`wilson`, team `warblersafety`); Steve hasn't added it |
+| **wilson-prod** | `wilson-prod` | (none yet) | Created, not yet placed — Vercel project exists now (`wilson`, team `warblersafety`); Steve hasn't added it |
 
-wilson has no Vercel project yet, so there is nothing for the prod/nonprod
-keys to meter — placing them is deferred to whenever that project exists,
-not forgotten. When it does, follow lucy's own operator checklist: add
-`ANTHROPIC_API_KEY` twice in the Vercel project's environment variables,
-Sensitive, `wilson-prod`'s value scoped to Production and `wilson-nonprod`'s
-to Preview.
+wilson's Vercel project now exists (2026-08-24), so placing the prod/nonprod
+keys is no longer blocked on that — just not yet done. Steve's to do
+whenever he gets to it, per this doc's own invariant (Claude never places a
+secret value). Checklist, matching lucy's own: add `ANTHROPIC_API_KEY`
+twice in the Vercel project's environment variables, Sensitive,
+`wilson-prod`'s value scoped to Production and `wilson-nonprod`'s to
+Preview.
 
 ### The development machine holds no key
 
@@ -58,8 +60,13 @@ Same practice as lucy: local dev is keyless by design.
 - **GitHub App token**: minted per-invocation by `scripts/gh_token.py`
   (Grant 4), scoped to the repositories/permissions the task actually
   touches. Not a standing secret at all — nothing to place or rotate here.
-- **Vercel account/tokens**: not yet provisioned to anything; no Vercel
-  project exists for this repo yet.
+- **Vercel account/tokens**: Claude holds one only when Steve hands over a
+  short-lived token for a specific task — Vercel has no per-operation
+  minting equivalent to `gh_token.py`, so this is a manual, occasional
+  exception, not a standing credential. Stored locally
+  (`.env.vercel`, gitignored), never committed, never echoed. First used
+  2026-08-24 to audit and correct wilson's Vercel project (team renamed
+  `murmur-pv` → `warblersafety`; see [../CLAUDE.md](../CLAUDE.md)).
 - **Patient/clinician data**: not a secret, but follows a stricter rule per
   `docs/design.md` — no server-side persistence, and once real calls exist,
   server logs must never contain transcript content, metrics only. This
