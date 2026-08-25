@@ -1,0 +1,27 @@
+# Live sweep of the Extractor fixture corpus (Issue #22) against the real
+# Claude Sonnet 5 API, billed to the wilson-evals Anthropic workspace.
+#
+# workflow_dispatch only, deliberately — no push or schedule trigger.
+# Matches the lesson recorded in lucy's own docs/SECRETS-AND-COSTS.md: a
+# push-triggered eval workflow "fails nothing — it simply starts billing."
+# The free, no-API-calls structural check (`npm run eval:dry`) already runs
+# on every PR via ci.yml; this is the separately-triggered, real-money job.
+name: eval-extraction
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Live extraction sweep
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run eval:extraction

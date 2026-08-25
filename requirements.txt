@@ -1,0 +1,6 @@
+# Pinned deliberately, same reasoning as lucy's requirements.txt: pymupdf
+# is the one dependency that produces the artifact a clinician sends to a
+# regulator, and the whole PDF path rests on its behavior against an
+# AES-256-encrypted AcroForm. An unpinned floating version can change that
+# behavior between two green runs of the same commit.
+pymupdf==1.26.0
