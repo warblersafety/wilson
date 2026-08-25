@@ -245,3 +245,102 @@ h3 {
 .pdf-review__field dd {
   margin: 0 0 0.5rem;
 }
+
+/* --- start surface (Issue #42) -------------------------------------------- */
+
+.start-surface {
+  max-width: var(--measure-copy);
+  margin: 0 auto;
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+}
+
+.start-surface__heading {
+  margin: 0 0 var(--space-8);
+}
+
+.start-surface__questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-10);
+  color: var(--text-prose);
+  font-size: var(--type-lead-size);
+  line-height: var(--type-lead-line);
+}
+
+.start-surface__questions p {
+  margin: 0;
+}
+
+.start-surface__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.start-surface__composer {
+  width: 100%;
+  min-height: 220px;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-field);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: vertical;
+}
+
+.start-surface__composer:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent-wilson);
+}
+
+.start-surface__composer:disabled {
+  opacity: 0.6;
+}
+
+.start-surface__hint {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--type-fine-size);
+}
+
+.start-surface__form button {
+  align-self: flex-start;
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.start-surface__form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.start-surface__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.start-surface__privacy {
+  margin: var(--space-11) 0 0;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}

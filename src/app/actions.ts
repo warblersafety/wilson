@@ -9,6 +9,7 @@
 // show an inline, retryable error without losing the clinician's message.
 import { createExtractFn } from "@/lib/extract";
 import { askDeterministic } from "@/lib/ask";
+import { createNarrativeExtractFn, type NarrativeExtractResult } from "@/lib/narrative-extract";
 import { processTurn, type TalkSession, type TalkStep } from "@/lib/talk";
 
 export type SubmitTurnResult = { ok: true; step: TalkStep } | { ok: false; message: string };
@@ -20,6 +21,25 @@ export async function submitTurn(session: TalkSession, message: string): Promise
       extract: createExtractFn(),
     });
     return { ok: true, step };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Something went wrong." };
+  }
+}
+
+// The Start surface's (Issue #42) server-side hand-off into the narrative
+// pass (Issue #41) — same shape and same reason as submitTurn above: this
+// dev machine is keyless by design, so a real call fails cleanly into
+// ok:false rather than an unhandled exception crossing the Server Action
+// boundary. Return type matches src/lib/start-surface.ts's NarrativeSubmitFn
+// structurally (deliberately not imported from there — src/app depends on
+// src/lib, never the reverse) so StartSurface.tsx can pass this action
+// straight through with no adapter.
+export type SubmitNarrativeResult = { ok: true; result: NarrativeExtractResult } | { ok: false; message: string };
+
+export async function submitNarrative(session: TalkSession, narrative: string): Promise<SubmitNarrativeResult> {
+  try {
+    const result = await createNarrativeExtractFn()(session, narrative);
+    return { ok: true, result };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Something went wrong." };
   }
