@@ -121,14 +121,22 @@ flow is six surfaces:
    carry the full answer grammar — answer / "I don't have that" /
    "rather not say" — because fields have `unknown` and `declined`
    states to write. **Repeat decisions** ("Was there another suspect
-   product?") are binary in the machinery — a count, where "decided"
-   means *confirmed not to exist* and skips the rest of that group — so
-   their chips are **yes / no only**: offering an uncertainty chip with
-   nothing valid to write would silently convert "I don't know" into
+   product?") write a count, where "decided" means *confirmed not to
+   exist* for every instance beyond it — the group's remaining slots
+   are skipped and the question is never re-asked. Their chips are
+   **yes / no** — never an uncertainty chip, which would have nothing
+   valid to write and would silently convert "I don't know" into
    "confirmed none," foreclosing products on an FDA report (doc-review
-   on the amendment PR, finding 2). Representing repeat-decision
-   uncertainty honestly needs machinery, not copy — filed as follow-up
-   intake, not smuggled into a UI unit. Enum/checkbox fields use widget
+   on the amendment PR, finding 2; representing that uncertainty needs
+   machinery, not copy — filed as follow-up intake, not smuggled into a
+   UI unit). For a group with more than two slots (concomitant
+   medications: ten), yes/no alone is lossy the same silent way — a
+   bare "yes" writing 2 drops medications 3+ with no further ask
+   (reviewer pass, same PR) — so there "yes" leads to a deterministic
+   count follow-through: "how many in total?" as choice chips where
+   every option is a valid total to write. The chip grammar must be
+   able to carry every count v1's free text could; the rebuild is never
+   allowed to be lossier than what it replaces. Enum/checkbox fields use widget
    sections in lucy's chip grammar (yes/no, choice, always-present
    "not sure" and "skip"); raw manifest strings and PDF `/Opt` codes
    never reach the clinician.
