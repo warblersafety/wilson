@@ -23,6 +23,10 @@
    */
   --danger: #8c1d2f;
   --danger-bg: #fcf1f3;
+
+  /* Shared so .wizard-layout's viewport-height calc below can't silently
+     desync from the header it's subtracting (reviewer pass, finding 2). */
+  --shell-header-height: 56px;
 }
 
 * {
@@ -33,14 +37,29 @@ body {
   margin: 0;
   background: var(--surface-page);
   color: var(--text-body);
-  font-family: var(--font-body);
+  /* Fallback covers --font-body itself being out of scope (not just the
+     face inside it) — e.g. a page that doesn't load this stylesheet's
+     :root block at all (reviewer pass, finding 1). */
+  font-family: var(--font-body, system-ui, sans-serif);
 }
 
-h1,
-h2,
+/* Each level's own tracking, not one borrowed value — h3's -0.01em is not
+   h1's or h2's, and only reads as "the heading rule" if you don't check
+   (reviewer pass, finding 3: two live <h2>s were already rendering at
+   h3's tracking). */
+h1 {
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h1-track);
+}
+
+h2 {
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h2-track);
+}
+
 h3 {
-  font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h3-track);
 }
 
 /* --- app shell ------------------------------------------------------------ */
@@ -52,7 +71,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 13px;
-  height: 56px;
+  height: var(--shell-header-height);
   padding: 0 18px;
   border-bottom: 1px solid var(--border-hairline);
   background: var(--header-scrim);
@@ -60,7 +79,7 @@ h3 {
 }
 
 .shell__brand {
-  font-family: var(--font-display);
+  font-family: var(--font-display, system-ui, sans-serif);
   font-weight: 700;
   font-size: 15px;
   letter-spacing: -0.01em;
@@ -83,7 +102,11 @@ h3 {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font-family: var(--font-display);
+  font-family: var(--font-display, system-ui, sans-serif);
+  /* 700, not brand-tokens.css's --type-product-weight (800): that token is
+     the marketing site's larger product-name treatment, a different
+     context from this 14px header wordmark — 700 matches the mockup's own
+     literal value for this exact element (reviewer pass, altitude angle). */
   font-weight: 700;
   font-size: 14px;
   color: var(--text-body);
@@ -108,7 +131,7 @@ h3 {
 
 .wizard-layout {
   display: flex;
-  min-height: calc(100vh - 56px);
+  min-height: calc(100vh - var(--shell-header-height));
 }
 
 .sidebar {

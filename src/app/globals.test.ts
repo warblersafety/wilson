@@ -22,35 +22,35 @@ const GLOBALS = readCss("src/app/globals.css");
 const LAYOUT = readCss("src/app/layout.tsx");
 const COMBINED = `${BRAND_TOKENS}\n${GLOBALS}`;
 
-function declaredCustomProperties(css: string): Set<string> {
-  return new Set([...css.matchAll(/--([\w-]+)\s*:/g)].map((m) => m[1]));
+/** Every capture-group-1 match of `pattern` across `text`, as a Set. */
+function namesMatching(text: string, pattern: RegExp): Set<string> {
+  return new Set([...text.matchAll(pattern)].map((m) => m[1]));
 }
 
-function referencedCustomProperties(css: string): Set<string> {
-  return new Set([...css.matchAll(/var\(--([\w-]+)/g)].map((m) => m[1]));
-}
-
+const DECLARED_PATTERN = /--([\w-]+)\s*:/g;
+const REFERENCED_PATTERN = /var\(--([\w-]+)/g;
 // --font-hanken/--font-schibsted are declared outside any stylesheet: Next
 // injects them at build time from `localFont({ variable: "--font-x" })` in
 // layout.tsx. Read from there rather than hand-listed, so a rename that
 // misses a call site still fails this check instead of the allow-list
 // quietly covering for it.
-function fontLoaderVariables(source: string): Set<string> {
-  return new Set([...source.matchAll(/variable:\s*"--([\w-]+)"/g)].map((m) => m[1]));
-}
+const FONT_LOADER_PATTERN = /variable:\s*"--([\w-]+)"/g;
+
+const DECLARED = new Set([
+  ...namesMatching(COMBINED, DECLARED_PATTERN),
+  ...namesMatching(LAYOUT, FONT_LOADER_PATTERN),
+]);
 
 describe("design tokens", () => {
   it("declares every custom property globals.css references", () => {
-    const declared = new Set([...declaredCustomProperties(COMBINED), ...fontLoaderVariables(LAYOUT)]);
-    const used = referencedCustomProperties(GLOBALS);
-    const missing = [...used].filter((name) => !declared.has(name));
+    const used = namesMatching(GLOBALS, REFERENCED_PATTERN);
+    const missing = [...used].filter((name) => !DECLARED.has(name));
     expect(missing).toEqual([]);
   });
 
   it("carries the semantic tokens the app shell consumes", () => {
-    const declared = declaredCustomProperties(COMBINED);
     for (const name of ["accent-wilson", "accent-lucy", "font-body", "font-display", "danger"]) {
-      expect(declared.has(name), `--${name} is not declared`).toBe(true);
+      expect(DECLARED.has(name), `--${name} is not declared`).toBe(true);
     }
   });
 
