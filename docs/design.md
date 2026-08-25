@@ -40,7 +40,7 @@ telling an ambiguous narrative a model has to mine for evidence.
 |---|---|---|
 | **Talker** | Converse: guide one topic at a time, plain language instead of raw form-speak — this is what makes wilson faster than the form itself, not just a re-skin of it | Never |
 | **Agenda** | Deterministic field-state machine: track each field as `answered` / `unknown` / `declined`, decide what's next, tolerate partial completion — a clinician not having every fact on hand is a normal, expected path | State only |
-| **Extractor** | Deterministic parsing/normalization of the clinician's direct answers into structured field values (dates, drug names, dosage formats) | Proposes only |
+| **Extractor** | Model-backed extraction of structured field values (dates, drug names, dosage formats) from the clinician's words, grounded against the conversation before anything is accepted (see below) | Proposes only |
 | **Assembly/Export** | Deterministic mapping from the structured record to the Form 3500 PDF | Deterministic |
 
 wilson v1 has no Suggestion layer — cut, not stubbed (charter Non-goals,
@@ -71,6 +71,103 @@ as applicable) and triggers PDF regeneration, the same as an edit made
 during the original conversation. There is no write path to the record
 that skips validation, including the one closest to the FDA-bound
 artifact.
+
+## Interaction model and UI (decided 2026-08-25)
+
+The charter left the interaction model provisionally conversational,
+"open to change once the design conversation gets into specifics." That
+conversation happened 2026-08-25, working from Noah's mockups (`Wilson
+voice reporting UI mockups.zip`, repo root — a Claude Design canvas
+grounded in this repo's actual machinery: the 227-field manifest, the
+topic map, the `answered`/`unknown`/`declined` field states, the repeat
+decision) and from lucy's shipped UI. This section records the outcome;
+the v1 wizard it replaces was never pinned down in this document, which
+is how it shipped as a bare form-walker no clinician would prefer over
+the paper form.
+
+**The shape: dictation-first, then targeted follow-ups.** lucy walks a
+patient through their story turn by turn because a patient needs
+eliciting; a clinician already knows the clinical facts, so wilson's job
+is to *receive* them fast and ask only for what's still missing. The
+flow is six surfaces:
+
+1. **Start** — two pinned questions (chosen to fill the most fields:
+   suspect product + reaction; timing + outcome) above one large
+   free-text composer the clinician dictates or types into. No separate
+   landing page; this is the landing.
+2. **Read-back** — the narrative shown back with the values wilson would
+   write highlighted inline where they were said (inline-highlight
+   treatment, chosen over gutter-mapping and value-chips: prose first,
+   nothing to learn), beside a "what I'd write from this" panel listing
+   every proposed field. A value whose supporting quote can't be located
+   in the text still appears in the panel — the panel, not the
+   highlighting, is the complete list. **Nothing is written to the
+   record until the clinician confirms here**; edits to the narrative
+   re-enter extraction, never patch the record. Confirmation applies the
+   accepted proposals through the same Agenda write path as any answer.
+3. **Follow-ups** — the existing topic-at-a-time loop (bundled fields,
+   max three per ask), now with the conversation transcript visible
+   (wilson already accumulates it; v1 never rendered it). Repeat
+   decisions ("Was there another suspect product?") are answer chips —
+   yes / no / I don't know / rather not say — writing the existing
+   states, not free-text detours. Enum/checkbox fields use widget
+   sections in lucy's chip grammar (yes/no, choice, always-present
+   "not sure" and "skip"); raw manifest strings and PDF `/Opt` codes
+   never reach the clinician.
+4. **Review** — field-led sectioned cards (form sections A–G), every
+   topic editable; an edit reopens the topic as a normal question
+   (the existing reopen path). The rendered Form 3500 PDF stays one
+   click away rather than leading the layout — legible values and
+   obvious gaps beat pen-sized paper for editing; the paper is there
+   for trust. (Chosen over paper-led review.)
+5. **Open fields** — what's still `unknown` or unasked, listed with its
+   reason, each answerable from here; "file as it stands" always
+   available. A partial report is a valid report; this surface nudges,
+   it never gates.
+6. **Ready** — honest completion: the filled PDF to download,
+   answered/unknown/declined counts, and the reminder that wilson keeps
+   nothing server-side, so the download is the clinician's copy. **No
+   submission claims**: wilson fills and exports the form, like lucy;
+   there is no MedWatch e-submission pipeline, so no "filed with FDA"
+   language and no confirmation numbers anywhere in the UI.
+
+**Voice: wilson owns no microphone.** Dictation is the device's own
+keyboard feature (iOS/macOS/Android/Windows all provide it), typed into
+the composer like any text. Consequence, and the copy rule that follows
+from it: the app never receives audio, so the UI may say "wilson never
+hears your voice — dictation happens on your device, and only text you
+approve is sent," and must never claim on-device *processing* (whether
+the OS transcribes locally or in its vendor's cloud varies by platform
+and is the clinician's device posture, not ours). An app-owned
+push-to-talk mic (the mockups' docked-bar treatment) is possible later
+work if OS dictation proves too fiddly — it would reopen the audio
+data-flow question alongside the provider-DPA item above, so it is a
+deliberate non-goal this round.
+
+**Extraction scope.** The opening narrative is extracted against the
+full topic map — that pass (new; v1's extractor is scoped to the
+current ask's fields) is what makes dictation-first work, and it keeps
+the same grounding discipline: no proposal accepted without support in
+what the clinician actually wrote. Follow-up turns stay scoped to the
+ask they answer, matching v1's cost posture; the mockups' "answer
+several topics at once and I'll sort them" affordance for follow-ups is
+deferred until someone checks what full-manifest prompts per turn cost
+with caching.
+
+**Design system.** The warbler-safety tokens, transcribed verbatim from
+warblersafety.com — the same system lucy ships as `brand-tokens.css`
+and the same one Noah's mockups use. wilson takes its designated accent
+(`--accent-wilson`, teal) where lucy takes the yellow. Fonts are Hanken
+Grotesk (body) and Schibsted Grotesk (display), OFL-licensed, self-
+hosted like lucy's. The palette deliberately contains no error/danger
+color (the marketing site never needed one); wilson must invent one and
+record the choice in its tokens file.
+
+**Explicitly rejected**: the mockups' single-screen "density console"
+(transcript, questions, and paper in one screen, sign-off in the
+header) — it makes the read-back moment skippable, and the clinician's
+sign-off is the charter's load-bearing safety control; the surfaces
+exist to walk through it, not around it.
 
 ## Data shape
 

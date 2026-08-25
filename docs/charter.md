@@ -17,10 +17,15 @@ as possible.
 
 A clinician, working alone, originates an adverse-event report from
 scratch — not derived from any prior patient submission. The interaction
-model leans conversational, following lucy's lead, but this is open to
-change once the design conversation gets into specifics; a clinician
-already knows the clinical facts in structured terms, unlike a patient
-telling a narrative, so the right shape may differ from lucy's.
+model was provisionally conversational, "open to change once the design
+conversation gets into specifics" — that conversation happened
+2026-08-25 and settled it: **dictation-first**. The clinician states the
+case in one dictated or typed narrative, wilson extracts what it can and
+reads it back for confirmation, then asks targeted follow-ups for only
+what's missing — rather than lucy's turn-by-turn walk, because a
+clinician already knows the clinical facts and the interface's job is
+receiving them fast, not eliciting them. Specifics live in
+`docs/design.md` ("Interaction model and UI").
 
 Environment: hosted on Vercel, like lucy. Anticipated load is light —
 individual clinicians, not sustained high-volume traffic.
@@ -81,7 +86,12 @@ check, e2e, or an explicit manual-check note), mechanically enforced in CI
 via typecheck/test/build jobs. Any model-touching eval suites get a free
 "dry" structural check (no API calls, runs every PR, validates corpus/
 vocabulary/wiring) with live sweeps as a separately-triggered job — same
-split lucy uses for its triage and conversation evals.
+split lucy uses for its triage and conversation evals. That mandate
+binds whatever model-touching components wilson actually ships — in v1
+that is the Extractor (whose split already exists:
+`scripts/eval-extraction.ts` dry checks per PR, live sweeps separately
+triggered) — and was never specific to the since-cut Suggestion layer
+(resolves Issue #31).
 
 ## End condition (v1, falsifiable)
 
