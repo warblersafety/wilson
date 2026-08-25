@@ -4,6 +4,7 @@ import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3
 import {
   TOPICS,
   initRepeatCounts,
+  isValidRepeatCount,
   narrativePassFields,
   nextStep,
   reopenTopic,
@@ -167,6 +168,50 @@ describe("setRepeatCount", () => {
         { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
       ]),
     ).toThrow(/no topics/);
+  });
+});
+
+// Issue #41: a non-throwing sibling for validating a CANDIDATE repeat count
+// before deciding whether to accept it — setRepeatCount's own throw is
+// right for an actual write attempt (a real system-configuration bug), but
+// wrong for "is this proposed count plausible" (an ordinary, expected
+// rejection outcome, not a crash).
+describe("isValidRepeatCount", () => {
+  it("accepts a count within the group's real range", () => {
+    expect(isValidRepeatCount("suspect-product", 1)).toBe(true);
+    expect(isValidRepeatCount("suspect-product", 2)).toBe(true);
+  });
+
+  it("rejects a count above the group's real max instance count", () => {
+    // suspect-product's real max is 2 (Issue #16)
+    expect(isValidRepeatCount("suspect-product", 3)).toBe(false);
+  });
+
+  it("accepts the real max for a group with a larger max", () => {
+    // concomitant-medication's real max is 10 (Issue #16)
+    expect(isValidRepeatCount("concomitant-medication", 10)).toBe(true);
+    expect(isValidRepeatCount("concomitant-medication", 11)).toBe(false);
+  });
+
+  it("rejects a count below 1", () => {
+    expect(isValidRepeatCount("suspect-product", 0)).toBe(false);
+    expect(isValidRepeatCount("suspect-product", -1)).toBe(false);
+  });
+
+  it("rejects a non-integer count", () => {
+    expect(isValidRepeatCount("suspect-product", 1.5)).toBe(false);
+  });
+
+  it("rejects NaN", () => {
+    expect(isValidRepeatCount("suspect-product", NaN)).toBe(false);
+  });
+
+  it("returns false, not a thrown error, for a topics list with none of the group's topics", () => {
+    expect(
+      isValidRepeatCount("suspect-product", 1, [
+        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+      ]),
+    ).toBe(false);
   });
 });
 

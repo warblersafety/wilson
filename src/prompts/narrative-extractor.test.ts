@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "../lib/form-3500-fields";
-import { NARRATIVE_EXTRACTION_RESPONSE_SCHEMA, buildNarrativeExtractionUserContent } from "./narrative-extractor";
+import {
+  NARRATIVE_EXTRACTION_RESPONSE_SCHEMA,
+  NARRATIVE_EXTRACTOR_SYSTEM,
+  buildNarrativeExtractionUserContent,
+} from "./narrative-extractor";
 
 function field(
   id: string,
@@ -28,10 +32,15 @@ describe("buildNarrativeExtractionUserContent", () => {
     expect(content).toContain("d (date): Field D");
   });
 
-  it("tells the model a checkbox field's only two legal values", () => {
+  it("lists a checkbox field's id, type, and label, with no per-field restatement of the true/false rule", () => {
+    // The rule lives once in NARRATIVE_EXTRACTOR_SYSTEM (asserted below),
+    // not repeated per field — see renderOpenField()'s own comment.
     const content = buildNarrativeExtractionUserContent("narrative", [CHECKBOX_FIELD]);
-    expect(content).toMatch(/cb \(checkbox.*"true".*"false"/);
-    expect(content).toContain("Field CB");
+    expect(content).toContain("cb (checkbox): Field CB");
+  });
+
+  it("states the checkbox true/false contract exactly once, in the system prompt", () => {
+    expect(NARRATIVE_EXTRACTOR_SYSTEM).toMatch(/"true".*"false"/);
   });
 
   it("lists an enum field's exact legal options, excluding the blank placeholder", () => {

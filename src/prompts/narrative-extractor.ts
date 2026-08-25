@@ -98,10 +98,13 @@ function legalEnumOptions(field: FormFieldSpec): string[] {
   return (field.options ?? []).filter((option) => option.trim().length > 0 && !disallowed?.has(option));
 }
 
+// Checkbox carries no per-field elaboration — NARRATIVE_EXTRACTOR_SYSTEM
+// already states the "true"/"false" contract once, and restating it on
+// every checkbox field (61 of them against a blank record) cost ~600
+// tokens of identical text per call, in the uncached user block, for zero
+// added information (reviewer pass, finding). Enum genuinely needs its
+// per-field options rendered — those vary field to field.
 function renderOpenField(field: FormFieldSpec): string {
-  if (field.type === "checkbox") {
-    return `- ${field.id} (checkbox — legal values: "true" or "false"): ${field.label}`;
-  }
   if (field.type === "enum") {
     const options = legalEnumOptions(field).map((option) => `"${option}"`);
     return `- ${field.id} (enum — legal values: ${options.join(", ")}): ${field.label}`;

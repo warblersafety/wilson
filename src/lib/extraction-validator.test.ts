@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { TalkTurn } from "./talk";
 import {
+  ALL_FIELD_TYPES,
   validateCandidates,
   validateRepeatCandidate,
   type ExtractionCandidate,
@@ -13,6 +14,12 @@ const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
 const ENUM_FIELD = FORM_3500_FIELDS.find((f) => f.type === "enum")!;
 const CHECKBOX_FIELD = FORM_3500_FIELDS.find((f) => f.type === "checkbox")!;
 const FIELDS: FormFieldSpec[] = [TEXT_FIELD, DATE_FIELD, ENUM_FIELD, CHECKBOX_FIELD];
+
+describe("ALL_FIELD_TYPES", () => {
+  it("names exactly the four real field types — a runtime companion to the satisfies-based compile-time check", () => {
+    expect(new Set(ALL_FIELD_TYPES)).toEqual(new Set(["text", "date", "checkbox", "enum"]));
+  });
+});
 
 // One of the four fields scripts/fill-3500.py and form-3500-fields.ts both
 // document as carrying a real PDF /Opt defect — "AS NECESSARY - AN" is a
@@ -261,7 +268,7 @@ describe("validateCandidates", () => {
   // exercises the unchanged default ["text", "date"] and must keep passing
   // unmodified.
   describe("fixed-choice fields, opted in via allowedTypes", () => {
-    const ALL_TYPES: FormFieldSpec["type"][] = ["text", "date", "checkbox", "enum"];
+    const ALL_TYPES = ALL_FIELD_TYPES;
 
     it("accepts a grounded checkbox value of \"true\"", () => {
       const transcript = transcriptWith("she was hospitalized overnight");

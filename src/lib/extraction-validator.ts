@@ -92,7 +92,22 @@ export interface ValidationResult {
   rejected: RejectedCandidate[];
 }
 
-export const ALL_FIELD_TYPES: readonly FormFieldSpec["type"][] = ["text", "date", "checkbox", "enum"];
+// `satisfies Record<FormFieldSpec["type"], true>`, not a plain array
+// literal, is what actually makes this exhaustive: a bare `readonly
+// FormFieldSpec["type"][]` array typechecks fine even missing a union
+// member (reviewer pass, finding — the isExtractableFieldType() switch
+// below fails to compile on a 5th type; this constant, on its own, did
+// not). Object.keys() is well-defined key order for string keys, so the
+// resulting array is stable.
+const FIELD_TYPE_MEMBERSHIP = {
+  text: true,
+  date: true,
+  checkbox: true,
+  enum: true,
+} satisfies Record<FormFieldSpec["type"], true>;
+export const ALL_FIELD_TYPES: readonly FormFieldSpec["type"][] = Object.keys(
+  FIELD_TYPE_MEMBERSHIP,
+) as FormFieldSpec["type"][];
 
 function isExtractableFieldType(
   type: FormFieldSpec["type"],

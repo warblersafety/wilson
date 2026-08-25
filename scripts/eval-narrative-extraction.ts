@@ -20,6 +20,7 @@ import {
   type NarrativeExtractionFixture,
 } from "../fixtures/narrative-extraction/cases";
 import { createNarrativeExtractFn, resolveNarrativeExtraction } from "../src/lib/narrative-extract";
+import { EXTRACTOR_MODEL } from "../src/prompts/extractor";
 import { FORM_3500_FIELDS } from "../src/lib/form-3500-fields";
 import { initAgenda, type AgendaRecord } from "../src/lib/agenda";
 import { TOPICS, initRepeatCounts, narrativePassFields } from "../src/lib/topics";
@@ -179,7 +180,7 @@ async function runLive(): Promise<void> {
     }
   }
 
-  console.log(`\nmodel: (see src/prompts/extractor.ts's EXTRACTOR_MODEL)`);
+  console.log(`\nmodel: ${EXTRACTOR_MODEL}`);
   console.log(`total cost this run: $${totalCostUsd.toFixed(4)} (ceiling $${CEILING_USD.toFixed(2)})`);
   console.log(`${fixtures.length - failures}/${fixtures.length} fixtures matched (adversarial fixtures skipped)`);
   if (failures > 0) process.exit(1);

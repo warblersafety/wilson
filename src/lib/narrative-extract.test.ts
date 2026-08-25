@@ -40,6 +40,31 @@ const REPEAT_TOPIC_1: Topic = {
   repeatInstance: 1,
 };
 const FIELD_P1 = field("p1", "text");
+const FIELD_C1 = field("c1", "text");
+
+// Instance 2's own topic — never passed to narrativePassFields as an
+// extraction target (it's still excluded by repeatInstance > 1 even when
+// present in the topics list), but needed so isValidRepeatCount() sees the
+// group's real max (2) instead of a synthetic single-instance max of 1.
+const REPEAT_TOPIC_2: Topic = {
+  id: "g2",
+  section: "D",
+  label: "Group instance 2",
+  fieldIds: ["p2"],
+  repeatGroup: "suspect-product",
+  repeatInstance: 2,
+};
+// concomitant-medication's real max is 10 (topics.test.ts) — three
+// same-group topics here are enough for isValidRepeatCount(..., 3, ...) to
+// see a max ≥ 3 without needing all ten.
+const CONCOMITANT_TOPICS_UP_TO_3: Topic[] = [1, 2, 3].map((n) => ({
+  id: `c${n}`,
+  section: "F",
+  label: `Concomitant instance ${n}`,
+  fieldIds: [`c${n}`],
+  repeatGroup: "concomitant-medication",
+  repeatInstance: n,
+}));
 
 function unaskedRecordFor(fieldIds: string[]): AgendaRecord {
   const record: AgendaRecord = {};
@@ -171,12 +196,35 @@ describe("createNarrativeExtractFn", () => {
         ],
       }),
     );
-    const extract = createNarrativeExtractFn(client, [REPEAT_TOPIC_1], [FIELD_P1]);
+    const extract = createNarrativeExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_P1]);
     const result = await extract(
       { transcript: [], record: unaskedRecordFor(["p1"]), repeatCounts: initRepeatCounts() },
       "two suspect products, amoxicillin and a sulfa drug",
     );
     expect(result.repeatDecisions).toEqual([{ repeatGroup: "suspect-product", count: 2 }]);
+  });
+
+  it("drops a repeat decision whose count exceeds the group's real max instance count, even with a real grounding quote", async () => {
+    vi.spyOn(client.messages, "parse").mockResolvedValue(
+      fakeParsedResponse({
+        candidates: [],
+        repeatDecisions: [
+          { repeatGroup: "suspect-product", count: 3, quote: { turnIndex: 0, text: "three suspect drugs" } },
+        ],
+      }),
+    );
+    // suspect-product's real topics cap it at 2 instances — [REPEAT_TOPIC_1,
+    // REPEAT_TOPIC_2] here mirrors that, same as the real TOPICS would.
+    const extract = createNarrativeExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_P1]);
+    const result = await extract(
+      { transcript: [], record: unaskedRecordFor(["p1"]), repeatCounts: initRepeatCounts() },
+      "she was on three suspect drugs when it started",
+    );
+    // Not just "dropped from repeatDecisions" — proposals must stay intact
+    // too: this is the exact scenario that used to throw inside
+    // applyNarrativeProposals and discard a whole confirmed batch.
+    expect(result.repeatDecisions).toEqual([]);
+    expect(result.rejected).toEqual([]);
   });
 
   it("drops a repeat decision whose quote is not real", async () => {
@@ -206,9 +254,13 @@ describe("createNarrativeExtractFn", () => {
         ],
       }),
     );
-    const extract = createNarrativeExtractFn(client, [REPEAT_TOPIC_1], [FIELD_P1]);
+    const extract = createNarrativeExtractFn(
+      client,
+      [REPEAT_TOPIC_1, REPEAT_TOPIC_2, ...CONCOMITANT_TOPICS_UP_TO_3],
+      [FIELD_P1, FIELD_C1],
+    );
     const result = await extract(
-      { transcript: [], record: unaskedRecordFor(["p1"]), repeatCounts: initRepeatCounts() },
+      { transcript: [], record: unaskedRecordFor(["p1", "c1"]), repeatCounts: initRepeatCounts() },
       "two suspects, and three others",
     );
     expect(result.repeatDecisions).toEqual([
@@ -218,21 +270,25 @@ describe("createNarrativeExtractFn", () => {
   });
 
   it("keeps only the first accepted decision when the model proposes two for the same group", async () => {
+    // concomitant-medication (real max 10), not suspect-product (real max
+    // 2): both proposed counts need to be independently in-range so this
+    // test proves dedup specifically, not the range check from the
+    // previous test rejecting the second one before dedup ever sees it.
     vi.spyOn(client.messages, "parse").mockResolvedValue(
       fakeParsedResponse({
         candidates: [],
         repeatDecisions: [
-          { repeatGroup: "suspect-product", count: 2, quote: { turnIndex: 0, text: "two suspects" } },
-          { repeatGroup: "suspect-product", count: 3, quote: { turnIndex: 0, text: "three suspects" } },
+          { repeatGroup: "concomitant-medication", count: 2, quote: { turnIndex: 0, text: "two others" } },
+          { repeatGroup: "concomitant-medication", count: 3, quote: { turnIndex: 0, text: "three others" } },
         ],
       }),
     );
-    const extract = createNarrativeExtractFn(client, [REPEAT_TOPIC_1], [FIELD_P1]);
+    const extract = createNarrativeExtractFn(client, CONCOMITANT_TOPICS_UP_TO_3, [FIELD_C1]);
     const result = await extract(
-      { transcript: [], record: unaskedRecordFor(["p1"]), repeatCounts: initRepeatCounts() },
-      "two suspects, or maybe three suspects",
+      { transcript: [], record: unaskedRecordFor(["c1"]), repeatCounts: initRepeatCounts() },
+      "two others, or maybe three others",
     );
-    expect(result.repeatDecisions).toEqual([{ repeatGroup: "suspect-product", count: 2 }]);
+    expect(result.repeatDecisions).toEqual([{ repeatGroup: "concomitant-medication", count: 2 }]);
   });
 
   it("fails closed (nothing proposed) when structured output parsing fails", async () => {

@@ -611,6 +611,20 @@ function maxInstance(group: RepeatGroup, topics: Topic[]): number {
   return Math.max(...instances);
 }
 
+// Non-throwing sibling to setRepeatCount's own range check (Issue #41): the
+// narrative-extraction pass needs to decide whether a MODEL-PROPOSED count
+// is plausible before ever accepting it as a candidate, and a thrown error
+// is the wrong shape for that — an implausible count is an ordinary,
+// expected rejection outcome (same as an ungrounded quote), not the
+// system-configuration bug setRepeatCount's throw is for. A group absent
+// from the given topics list is treated as "no valid count" (false for
+// every input) rather than thrown, for the same reason.
+export function isValidRepeatCount(group: RepeatGroup, count: number, topics: Topic[] = TOPICS): boolean {
+  const instances = topics.filter((t) => t.repeatGroup === group).map((t) => t.repeatInstance!);
+  if (instances.length === 0) return false;
+  return Number.isInteger(count) && count >= 1 && count <= Math.max(...instances);
+}
+
 export function setRepeatCount(
   counts: RepeatCounts,
   group: RepeatGroup,

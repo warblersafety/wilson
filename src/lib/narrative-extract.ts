@@ -30,6 +30,7 @@ import {
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   TOPICS,
+  isValidRepeatCount,
   narrativePassFields,
   setRepeatCount,
   type RepeatCounts,
@@ -39,6 +40,13 @@ import {
 
 export interface NarrativeProposal {
   action: ProposedAction;
+  // quote.turnIndex is always 0: it indexes into the single-clinician-turn
+  // transcript this pass constructs internally ([{role:"clinician", text:
+  // narrative}]), not necessarily session.transcript (which may already
+  // hold other turns, or not yet include this narrative at all — this
+  // module never appends to it). A caller highlighting the quote within
+  // the displayed narrative should match quote.text against the narrative
+  // string directly, not index into session.transcript with it.
   quote: Quote;
 }
 
@@ -50,7 +58,15 @@ export interface NarrativeExtractResult {
 
 export type NarrativeExtractFn = (session: TalkSession, narrative: string) => Promise<NarrativeExtractResult>;
 
-const EMPTY_RESULT: NarrativeExtractResult = { proposals: [], repeatDecisions: [], rejected: [] };
+// A fresh literal, not a shared const: this is returned by reference from
+// two call sites below, and its arrays are ordinary mutable arrays — a
+// caller that ever mutates a returned result in place (e.g. a read-back UI
+// merging in an edit) would otherwise corrupt every subsequent empty
+// result for the lifetime of this module, across unrelated sessions in a
+// long-lived server process (reviewer pass, finding).
+function emptyResult(): NarrativeExtractResult {
+  return { proposals: [], repeatDecisions: [], rejected: [] };
+}
 
 // The pure core: given a transcript, an (real or scripted/fake) extraction
 // response, and the fields this pass actually offered as targets, apply the
@@ -63,6 +79,7 @@ export function resolveNarrativeExtraction(
   transcript: TalkTurn[],
   response: NarrativeExtractionResponse,
   openFields: FormFieldSpec[],
+  topics: Topic[] = TOPICS,
 ): NarrativeExtractResult {
   // openFields, not the full manifest: a candidate targeting a
   // repeat-instance-2+ field (never offered above) is refused the same
@@ -88,9 +105,19 @@ export function resolveNarrativeExtraction(
   // pass there is no single "the question being asked" the way a per-turn
   // repeat-decision step has, so the only real check is quote grounding
   // (validateRepeatCandidate's group-match check becomes a tautology
-  // against the candidate's own group, deliberately).
+  // against the candidate's own group, deliberately) — PLUS a range check
+  // neither validateRepeatCandidate nor the schema performs: a count is
+  // `z.number().int()`, unbounded. Without this, an out-of-range count
+  // (e.g. 3 "suspect products" when the form has 2 slots) would sail
+  // through as an accepted, confirmable proposal and only fail later, at
+  // applyNarrativeProposals's setRepeatCount call — where the whole
+  // confirmed batch's object-literal return throws before any of it comes
+  // back, discarding every other field answer confirmed alongside it, not
+  // just the bad count (reviewer pass, finding).
   const acceptedRepeats = response.repeatDecisions.filter(
-    (candidate) => validateRepeatCandidate(transcript, candidate, candidate.repeatGroup).accepted,
+    (candidate) =>
+      validateRepeatCandidate(transcript, candidate, candidate.repeatGroup).accepted &&
+      isValidRepeatCount(candidate.repeatGroup, candidate.count, topics),
   );
   // At most one decision per group — first-accepted wins. Two proposals
   // for the same group is a mis-fire regardless of which is "right";
@@ -115,7 +142,7 @@ export function createNarrativeExtractFn(
   return async (session: TalkSession, narrative: string): Promise<NarrativeExtractResult> => {
     const openFields = narrativePassFields(session.record, topics, fields);
     if (openFields.length === 0) {
-      return EMPTY_RESULT;
+      return emptyResult();
     }
 
     // The opening narrative is the landing (design.md: "No separate
@@ -135,12 +162,25 @@ export function createNarrativeExtractFn(
 
     const parsed = response.parsed_output;
     if (!parsed) {
-      // Structured-output parsing failed. Fail closed — nothing proposed —
-      // same posture as extract.ts's per-turn ExtractFn.
-      return EMPTY_RESULT;
+      // `parsed_output` is genuinely null only for a response with no text
+      // block at all (empty content, or a thinking/tool_use-only response)
+      // — a degenerate case, failed closed here. It is NOT what catches a
+      // malformed/truncated response: the SDK's structured-output parser
+      // throws on invalid JSON or a Zod validation failure rather than
+      // returning null (verified against the installed
+      // @anthropic-ai/sdk — same behavior in the pre-existing
+      // src/lib/extract.ts, which copies this same check). That throw is
+      // deliberately NOT caught here: letting it reject this function's
+      // promise, rather than silently returning "nothing extracted", is
+      // the honest signal for the one round of this whole app that a
+      // clinician's dictated narrative could genuinely fail to process —
+      // a caller can tell "extraction broke, try again" apart from "your
+      // narrative had nothing reportable in it" only if this distinction
+      // survives.
+      return emptyResult();
     }
 
-    return resolveNarrativeExtraction(transcript, parsed, openFields);
+    return resolveNarrativeExtraction(transcript, parsed, openFields, topics);
   };
 }
 
