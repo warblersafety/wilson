@@ -767,6 +767,48 @@ export function reopenTopic(
   }, record);
 }
 
+// Every field the narrative-extraction pass (Issue #41) may target: every
+// non-repeat topic, plus instance 1 of each repeat group, still unresolved
+// — any field type, unlike nextStep()'s text/date-only walk, since
+// design.md's "Extraction scope" puts checkbox/enum fields in scope for
+// this pass specifically.
+//
+// Deliberately excludes repeat-instance 2+ unconditionally (there is no
+// repeatCounts parameter to widen it) — the pass never attributes fields
+// to a SPECIFIC later instance. A narrative naming two suspect products is
+// exactly the case where getting that attribution wrong would silently
+// mis-file one product's dose or route under the other's fields — the
+// class of bug the charter's review-depth conclusion weighs most heavily.
+// Instance 2+ stays with the ordinary, already-proven per-turn follow-up
+// flow instead, once a repeat decision unblocks it. Detecting THAT a
+// second instance exists is a separate, lighter-weight thing the
+// narrative pass may still do — see src/lib/narrative-extract.ts.
+export function narrativePassFields(
+  record: AgendaRecord,
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): FormFieldSpec[] {
+  const fieldsById = new Map(fields.map((f) => [f.id, f]));
+  const eligibleTopics = topics.filter((t) => t.repeatInstance === null || t.repeatInstance === 1);
+
+  const result: FormFieldSpec[] = [];
+  for (const topic of eligibleTopics) {
+    for (const fieldId of topic.fieldIds) {
+      const field = fieldsById.get(fieldId);
+      if (!field) {
+        throw new Error(`narrativePassFields: no such field in the given fields list: ${fieldId}`);
+      }
+      if (!Object.hasOwn(record, fieldId)) {
+        throw new Error(`narrativePassFields: record missing field id: ${fieldId}`);
+      }
+      if (!isResolved(record[fieldId].state)) {
+        result.push(field);
+      }
+    }
+  }
+  return result;
+}
+
 function currentTopicIdFor(step: NextStep, topics: Topic[]): string | null {
   if (step.kind === "done") return null;
   if (step.kind === "topic") return step.topic.id;

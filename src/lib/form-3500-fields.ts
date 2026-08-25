@@ -40,6 +40,23 @@ const COUNTRY_OPTIONS: string[] = [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIR
 
 const OCCUPATION_OPTIONS: string[] = [" ", "Administrator/Supervisor", "Biomedical Engineer", "Dentist", "Non-Health Professional", "Nurse", "Nurse Practitioner", "Other Health Professional", "Pharmacist", "Physician", "Physician Assistant", "Risk Manager", "Third Party Servicer"];
 
+// The source PDF's own /Opt array pairs the display text "AS NECESSARY - AN"
+// (a Frequency value) with an unrelated Strength/Dose unit export code on
+// these four fields — never a legitimate answer for a Strength/Dose Unit
+// field, even though the manifest reproduces it faithfully in options[]
+// above (not corrected there — see the comment above Prod1StrengthUnit).
+// The single shared source for every consumer that must refuse it:
+// scripts/fill-3500.py's own DISALLOWED_ENUM_VALUES (the canonical,
+// PDF-export-enforced definition), src/app/wizard/TopicFields.tsx (filters
+// it out of the dropdown), and src/lib/extraction-validator.ts (refuses it
+// as a legal narrative-extraction value) — one TS definition, not three.
+export const DISALLOWED_ENUM_VALUES: Record<string, ReadonlySet<string>> = {
+  "Page4.Prod1.Prod1StrengthUnit": new Set(["AS NECESSARY - AN"]),
+  "Page4.Prod1.Prod1DoseUnit": new Set(["AS NECESSARY - AN"]),
+  "Page5.Prod2.Prod2StrengthUnit": new Set(["AS NECESSARY - AN"]),
+  "Page5.Prod2.Prod2DoseUnit": new Set(["AS NECESSARY - AN"]),
+};
+
 
 // Prod1StrengthUnit/Prod1DoseUnit (and their Prod2 counterparts) carry a real
 // defect from the source PDF itself: the second /Opt entry pairs the display

@@ -7,25 +7,12 @@
 // (which always appends a talker turn).
 import { useState } from "react";
 import { applyAction } from "@/lib/agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
+import { DISALLOWED_ENUM_VALUES, FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
 import type { Topic } from "@/lib/topics";
 import type { TalkStep } from "@/lib/talk";
 import { stepForRecord } from "./direct-step";
 
 const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
-
-// Mirrors scripts/fill-3500.py's DISALLOWED_ENUM_VALUES: the source PDF's
-// own /Opt array pairs the display text "AS NECESSARY - AN" (a Frequency
-// value) with an unrelated Strength/Dose unit export code on these four
-// fields — never a legitimate answer for a Strength/Dose Unit field, and
-// fill-3500.py refuses to export a record that picked it. Filtered out of
-// the dropdown here so a clinician can't select it in the first place.
-const DISALLOWED_ENUM_VALUES: Record<string, Set<string>> = {
-  "Page4.Prod1.Prod1StrengthUnit": new Set(["AS NECESSARY - AN"]),
-  "Page4.Prod1.Prod1DoseUnit": new Set(["AS NECESSARY - AN"]),
-  "Page5.Prod2.Prod2StrengthUnit": new Set(["AS NECESSARY - AN"]),
-  "Page5.Prod2.Prod2DoseUnit": new Set(["AS NECESSARY - AN"]),
-};
 
 interface TopicFieldsProps {
   topic: Topic;
