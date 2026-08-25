@@ -32,9 +32,14 @@ here rather than assumed solved.
 
 **Principle carried over from lucy: code owns control flow and writes;
 models produce proposals, never authoritative writes.** Where wilson
-differs from lucy is *how much machinery that proposal step needs* — a
-clinician states facts directly (drug, dose, dates, reaction), rather than
-telling an ambiguous narrative a model has to mine for evidence.
+differs from lucy is degree, not kind: a clinician's input — including
+the opening dictation the interaction-model section below is built on —
+is still a narrative the Extractor mines for evidence, but it states
+facts in clinical shorthand (drug, dose, dates, reaction) with far less
+ambiguity than a patient's story, so the proposal machinery is lighter,
+not absent. (An earlier revision of this paragraph claimed clinician
+input wasn't narrative at all — the premise behind the "deterministic
+parsing" Extractor this document used to describe, corrected 2026-08-25.)
 
 | Component | Job | Writes record? |
 |---|---|---|
@@ -95,22 +100,35 @@ flow is six surfaces:
    suspect product + reaction; timing + outcome) above one large
    free-text composer the clinician dictates or types into. No separate
    landing page; this is the landing.
-2. **Read-back** — the narrative shown back with the values wilson would
-   write highlighted inline where they were said (inline-highlight
-   treatment, chosen over gutter-mapping and value-chips: prose first,
-   nothing to learn), beside a "what I'd write from this" panel listing
-   every proposed field. A value whose supporting quote can't be located
-   in the text still appears in the panel — the panel, not the
+2. **Read-back** — the narrative shown back with each proposal's
+   **supporting quote** highlighted inline (inline-highlight treatment,
+   chosen over gutter-mapping and value-chips: prose first, nothing to
+   learn), beside a "what I'd write from this" panel listing every
+   proposed field. The highlight marks what the clinician *wrote*; the
+   panel pairs it with the value wilson would *write down* — for
+   referential phrasing ("admitted her overnight" → Outcome:
+   Hospitalization) the value was never in the text, and the pairing
+   must present it as a reading of the quote, never as if the value
+   itself appeared in the prose. A proposal whose quote can't be
+   uniquely located still appears in the panel — the panel, not the
    highlighting, is the complete list. **Nothing is written to the
    record until the clinician confirms here**; edits to the narrative
    re-enter extraction, never patch the record. Confirmation applies the
    accepted proposals through the same Agenda write path as any answer.
 3. **Follow-ups** — the existing topic-at-a-time loop (bundled fields,
    max three per ask), now with the conversation transcript visible
-   (wilson already accumulates it; v1 never rendered it). Repeat
-   decisions ("Was there another suspect product?") are answer chips —
-   yes / no / I don't know / rather not say — writing the existing
-   states, not free-text detours. Enum/checkbox fields use widget
+   (wilson already accumulates it; v1 never rendered it). **Field asks**
+   carry the full answer grammar — answer / "I don't have that" /
+   "rather not say" — because fields have `unknown` and `declined`
+   states to write. **Repeat decisions** ("Was there another suspect
+   product?") are binary in the machinery — a count, where "decided"
+   means *confirmed not to exist* and skips the rest of that group — so
+   their chips are **yes / no only**: offering an uncertainty chip with
+   nothing valid to write would silently convert "I don't know" into
+   "confirmed none," foreclosing products on an FDA report (doc-review
+   on the amendment PR, finding 2). Representing repeat-decision
+   uncertainty honestly needs machinery, not copy — filed as follow-up
+   intake, not smuggled into a UI unit. Enum/checkbox fields use widget
    sections in lucy's chip grammar (yes/no, choice, always-present
    "not sure" and "skip"); raw manifest strings and PDF `/Opt` codes
    never reach the clinician.
@@ -125,11 +143,13 @@ flow is six surfaces:
    available. A partial report is a valid report; this surface nudges,
    it never gates.
 6. **Ready** — honest completion: the filled PDF to download,
-   answered/unknown/declined counts, and the reminder that wilson keeps
-   nothing server-side, so the download is the clinician's copy. **No
-   submission claims**: wilson fills and exports the form, like lucy;
-   there is no MedWatch e-submission pipeline, so no "filed with FDA"
-   language and no confirmation numbers anywhere in the UI.
+   answered/unknown/declined counts, and the reminder that wilson
+   stores nothing on its own servers, so the download is the
+   clinician's copy — phrased within the privacy copy rule below: it is
+   a claim about wilson's storage, never about the model-provider path.
+   **No submission claims**: wilson fills and exports the form, like
+   lucy; there is no MedWatch e-submission pipeline, so no "filed with
+   FDA" language and no confirmation numbers anywhere in the UI.
 
 **Voice: wilson owns no microphone.** Dictation is the device's own
 keyboard feature (iOS/macOS/Android/Windows all provide it), typed into
@@ -144,15 +164,53 @@ work if OS dictation proves too fiddly — it would reopen the audio
 data-flow question alongside the provider-DPA item above, so it is a
 deliberate non-goal this round.
 
+**Privacy copy tells the whole data path.** Submitted text — the
+narrative and every follow-up answer — is processed by wilson's model
+provider server-side, and whether that provider carries a
+no-retention/no-training agreement is the open procurement item in Main
+structural risks. Until it is resolved, no clinician-facing copy may
+state or imply that submitted text is unseen or unretained by third
+parties: "wilson keeps nothing" claims must be explicitly scoped to
+wilson's own storage, and the start surface's privacy line must say
+plainly that submitted text is processed by wilson's model provider.
+The audio rule above is the same principle — copy claims exactly what
+the machinery delivers, nothing more.
+
 **Extraction scope.** The opening narrative is extracted against the
 full topic map — that pass (new; v1's extractor is scoped to the
-current ask's fields) is what makes dictation-first work, and it keeps
-the same grounding discipline: no proposal accepted without support in
-what the clinician actually wrote. Follow-up turns stay scoped to the
-ask they answer, matching v1's cost posture; the mockups' "answer
-several topics at once and I'll sort them" affordance for follow-ups is
-deferred until someone checks what full-manifest prompts per turn cost
-with caching.
+current ask's fields) is what makes dictation-first work. Two decisions
+inside it, both made here rather than left to the implementing unit:
+
+- **Fixed-choice fields are in scope for the narrative pass.** v1's
+  validator hard-rejects every checkbox/enum candidate
+  (`not_extractable_field_type`) — 91 of the 227 fields, including the
+  entire outcome block. Carrying that exclusion into dictation-first
+  would make "admitted her overnight" fill the dates but silently never
+  the Hospitalization checkbox: an internally inconsistent form, the
+  exact silent-mis-fill class the charter weights heaviest. So the
+  narrative pass proposes fixed-choice fields too, under a tighter
+  contract than free text: a proposal must name one of the field's
+  legal options (checked mechanically against the manifest) *and* carry
+  a supporting quote. Whether the quote really means that option
+  ("admitted overnight" → Hospitalization) is exactly what the
+  read-back pairing exists to put in front of the clinician.
+- **The grounding check is named for what it is.** The validator
+  verifies the cited quote exists in the clinician's words — presence,
+  not semantic correspondence; its own header concedes a bad extractor
+  could cite a real but unrelated quote for a fabricated value. v1's
+  citation pool was one short answer; a full narrative widens it, and
+  this design accepts that scale-up **because the read-back confirm
+  step is the correspondence check**: every proposal is shown as
+  value ← quote before anything is written, and the confirmation is by
+  the clinician whose sign-off the charter already names as the
+  load-bearing control. The narrative-extraction fixture corpus must
+  include the real-quote/fabricated-value case so the failure mode
+  stays visible in CI rather than theoretical.
+
+Follow-up turns stay scoped to the ask they answer, matching v1's cost
+posture; the mockups' "answer several topics at once and I'll sort
+them" affordance for follow-ups is deferred until someone checks what
+full-manifest prompts per turn cost with caching.
 
 **Design system.** The warbler-safety tokens, transcribed verbatim from
 warblersafety.com — the same system lucy ships as `brand-tokens.css`
