@@ -19,8 +19,11 @@ import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/l
 import type { TalkSession } from "@/lib/talk";
 
 const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
+function fieldOf(fieldId: string): FormFieldSpec | undefined {
+  return FIELDS_BY_ID.get(fieldId);
+}
 function fieldLabel(fieldId: string): string {
-  return FIELDS_BY_ID.get(fieldId)?.label ?? fieldId;
+  return fieldOf(fieldId)?.label ?? fieldId;
 }
 
 interface ReadBackProps {
@@ -36,17 +39,8 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
   const [reExtractError, setReExtractError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const groups = groupProposalsByField(current.result.proposals);
-  const segments = buildHighlightSegments(current.narrative, current.result.proposals);
-  const readiness = resolveConfirmReadiness(groups, selections);
-
   function handleSelect(fieldId: string, proposal: NarrativeProposal) {
     setSelections((prev) => new Map(prev).set(fieldId, proposal));
-  }
-
-  function handleConfirm() {
-    if (!readiness.ready) return;
-    onConfirmed(confirmReadBack(current, readiness.actions));
   }
 
   function startEditing() {
@@ -70,35 +64,19 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
     });
   }
 
-  const draftValidation = validateNarrative(draftNarrative);
-
-  return (
-    <main className="read-back">
-      <h1 className="read-back__heading">Here&rsquo;s what I&rsquo;d write</h1>
-
-      {!editing ? (
-        <>
-          <p className="read-back__narrative">
-            {segments.map((segment, i) =>
-              segment.proposalIndexes.length === 0 ? (
-                <span key={i}>{segment.text}</span>
-              ) : (
-                <mark
-                  key={i}
-                  className={
-                    segment.proposalIndexes.length > 1 ? "read-back__mark read-back__mark--multi" : "read-back__mark"
-                  }
-                >
-                  {segment.text}
-                </mark>
-              ),
-            )}
-          </p>
-          <button type="button" className="read-back__edit-toggle" onClick={startEditing} disabled={isPending}>
-            Edit narrative
-          </button>
-        </>
-      ) : (
+  // The proposal set an edit is in the middle of replacing must never be
+  // confirmable — hence this whole block, panel included, only exists
+  // outside the editing branch. Not just a visibility toggle: while
+  // editing, none of this is computed at all, so a keystroke in the
+  // composer doesn't pay for highlight segments nobody can see or confirm
+  // (reviewer pass, finding — the confirm button used to stay live and
+  // enabled through an in-progress edit, applying the stale pre-edit
+  // proposals if clicked).
+  if (editing) {
+    const draftValidation = validateNarrative(draftNarrative);
+    return (
+      <main className="read-back">
+        <h1 className="read-back__heading">Here&rsquo;s what I&rsquo;d write</h1>
         <form onSubmit={handleReExtract} className="read-back__edit-form">
           <textarea
             className="read-back__edit-composer"
@@ -122,7 +100,42 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
             </p>
           )}
         </form>
-      )}
+      </main>
+    );
+  }
+
+  const groups = groupProposalsByField(current.result.proposals);
+  const segments = buildHighlightSegments(current.narrative, current.result.proposals);
+  const readiness = resolveConfirmReadiness(groups, selections);
+
+  function handleConfirm() {
+    if (!readiness.ready) return;
+    onConfirmed(confirmReadBack(current, readiness.actions));
+  }
+
+  return (
+    <main className="read-back">
+      <h1 className="read-back__heading">Here&rsquo;s what I&rsquo;d write</h1>
+
+      <p className="read-back__narrative">
+        {segments.map((segment, i) =>
+          segment.proposalIndexes.length === 0 ? (
+            <span key={i}>{segment.text}</span>
+          ) : (
+            <mark
+              key={i}
+              className={
+                segment.proposalIndexes.length > 1 ? "read-back__mark read-back__mark--multi" : "read-back__mark"
+              }
+            >
+              {segment.text}
+            </mark>
+          ),
+        )}
+      </p>
+      <button type="button" className="read-back__edit-toggle" onClick={startEditing}>
+        Edit narrative
+      </button>
 
       <div className="read-back__panel">
         <h2 className="read-back__panel-heading">What I&rsquo;d write from this</h2>
@@ -134,7 +147,9 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
               <li key={group.fieldId} className="read-back__panel-row">
                 <span className="read-back__panel-label">{fieldLabel(group.fieldId)}</span>
                 {group.proposals.length === 1 ? (
-                  <span className="read-back__panel-value">{describeProposalValue(group.proposals[0].action)}</span>
+                  <span className="read-back__panel-value">
+                    {describeProposalValue(group.proposals[0].action, fieldOf(group.fieldId))}
+                  </span>
                 ) : (
                   <div
                     className="read-back__panel-choices"
@@ -149,7 +164,7 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
                           checked={selections.get(group.fieldId) === proposal}
                           onChange={() => handleSelect(group.fieldId, proposal)}
                         />
-                        {describeProposalValue(proposal.action)}
+                        {describeProposalValue(proposal.action, fieldOf(group.fieldId))}
                       </label>
                     ))}
                   </div>

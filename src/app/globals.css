@@ -292,13 +292,15 @@ h3 {
   resize: vertical;
 }
 
-.start-surface__composer:focus-visible {
+.start-surface__composer:focus-visible,
+.read-back__edit-composer:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
   border-color: var(--accent-wilson);
 }
 
-.start-surface__composer:disabled {
+.start-surface__composer:disabled,
+.read-back__edit-composer:disabled {
   opacity: 0.6;
 }
 

@@ -4,6 +4,7 @@
 // the quote-to-span mapping the issue itself names as the correctness risk.
 import { describe, expect, it } from "vitest";
 import { initTalkSession } from "./talk";
+import type { FormFieldSpec } from "./form-3500-fields";
 import type { NarrativeProposal, NarrativeExtractResult } from "./narrative-extract";
 import type { ReadBackHandoff } from "./start-surface";
 import {
@@ -48,6 +49,18 @@ describe("findQuoteSpan", () => {
 
   it("reports not-found for a quote that normalizes to empty", () => {
     expect(findQuoteSpan("Started amoxicillin.", "...")).toEqual({ status: "not-found" });
+  });
+
+  it("stays aligned to the original text even where NFKC would change the character count", () => {
+    // "…" (U+2026, one code point) expands to "..." (three) under NFKC —
+    // exactly the case that used to shift every later span by two
+    // characters, since the old map indexed into the NFKC'd string while
+    // callers sliced the raw one (reviewer pass, finding).
+    const narrative = "She felt fine… then started amoxicillin for the infection.";
+    const result = findQuoteSpan(narrative, "started amoxicillin");
+    expect(result.status).toBe("unique");
+    if (result.status !== "unique") throw new Error("expected unique");
+    expect(narrative.slice(result.start, result.end)).toBe("started amoxicillin");
   });
 });
 
@@ -104,6 +117,15 @@ describe("groupProposalsByField", () => {
     const groups = groupProposalsByField(proposals);
     expect(groups).toEqual([{ fieldId: "a", proposals }]);
   });
+
+  it("dedupes two proposals that agree on the same field's value, so agreeing evidence never blocks confirm", () => {
+    // extraction-validator.ts's own documented case: "multiple pieces of
+    // supporting context become multiple candidates, not one candidate
+    // with a bag of evidence" — two quotes both supporting the SAME value
+    // are corroboration, not a conflict (reviewer pass, finding).
+    const proposals = [proposal("a", "hives", "broke out in hives"), proposal("a", "hives", "hives all over")];
+    expect(groupProposalsByField(proposals)).toEqual([{ fieldId: "a", proposals: [proposals[0]] }]);
+  });
 });
 
 describe("resolveConfirmReadiness", () => {
@@ -128,13 +150,26 @@ describe("resolveConfirmReadiness", () => {
 });
 
 describe("describeProposalValue", () => {
-  it("shows the literal value for an answer action", () => {
+  it("shows the literal value for an answer action on a non-fixed-choice field", () => {
     expect(describeProposalValue({ fieldId: "a", type: "answer", value: "45" })).toBe("45");
   });
 
   it("describes mark_unknown and decline in plain language", () => {
     expect(describeProposalValue({ fieldId: "a", type: "mark_unknown" })).toBe("Unknown");
     expect(describeProposalValue({ fieldId: "a", type: "decline" })).toBe("Declined to answer");
+  });
+
+  it("shows a checkbox proposal as Yes/No, never the raw true/false the manifest requires internally", () => {
+    const checkboxField: FormFieldSpec = {
+      id: "cb",
+      section: "A",
+      pdfFieldName: "f.cb[0]",
+      label: "cb",
+      type: "checkbox",
+      required: false,
+    };
+    expect(describeProposalValue({ fieldId: "cb", type: "answer", value: "true" }, checkboxField)).toBe("Yes");
+    expect(describeProposalValue({ fieldId: "cb", type: "answer", value: "false" }, checkboxField)).toBe("No");
   });
 });
 
@@ -173,5 +208,20 @@ describe("confirmReadBack", () => {
     // mutates its input.
     expect(result).not.toBe(handoff.session);
     expect(handoff.session.record.a).toEqual({ state: "unasked" });
+  });
+
+  it("never applies repeat decisions from the narrative pass, even when the extraction result carries them", () => {
+    // Issue #43's amended AC: repeat decisions are out of scope for this
+    // surface — Follow-ups' existing loop asks normally regardless of
+    // what the narrative implied. confirmReadBack must ignore
+    // handoff.result.repeatDecisions entirely, not just happen to be
+    // called with an empty batch in every other test here.
+    const handoff = handoffWith({
+      proposals: [],
+      repeatDecisions: [{ repeatGroup: "suspect-product", count: 2 }],
+      rejected: [],
+    });
+    const result = confirmReadBack(handoff, []);
+    expect(result.repeatCounts).toEqual(handoff.session.repeatCounts);
   });
 });

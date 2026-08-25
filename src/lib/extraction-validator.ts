@@ -155,64 +155,32 @@ function isLegalFixedChoiceValue(field: FormFieldSpec, value: string): boolean {
   return true;
 }
 
-const PUNCT_RE = /[.,!?;:'"’‘“”—–…-]/;
-
-export interface NormalizedAlignment {
-  normalized: string;
-  // map[i] = index into `source` of the character that produced
-  // normalized[i] — read-back.ts's quote highlighter uses this to recover
-  // an original-text span from a match found in normalized space.
-  // Multiple normalized characters may share one source index (a
-  // toLowerCase() expansion, or a collapsed whitespace run) — never the
-  // reverse, so every normalized position resolves to a real, valid
-  // source position, just not always a maximally-precise one. Assumes
-  // NFKC doesn't change codepoint count for the input, true for the plain
-  // typed/dictated English text this composer expects; where that breaks,
-  // the practical effect is a missed highlight, which "ambiguous or
-  // unlocatable quotes produce NO highlight" already treats as acceptable
-  // rather than a correctness bug.
-  map: number[];
-  source: string;
-}
+// The character class only, not a compiled RegExp — read-back.ts's quote
+// highlighter needs the identical set of characters this validator
+// treats as noise (so it strips exactly what grounding already ignored,
+// not a second hand-derived copy that could drift), but as a *non*-global
+// RegExp for a repeated single-character `.test()`, where a `/g` flag's
+// stateful `lastIndex` would go stale and start returning false forever.
+// This string builds both flavors from one source.
+export const PUNCT_CHARS = "[.,!?;:'\"’‘“”—–…-]";
 
 // Unicode NFKC, case-fold, whitespace-collapse, strip common sentence
 // punctuation (including curly/smart quotes, which speech-to-text and
 // model output disagree on far more often than straight quotes) —
 // deliberately not fuzzy or stemmed. Loosening this further would let a
 // proposal pass on something close to, but not actually, what the
-// clinician said. Alignment-preserving so read-back.ts's highlighter can
-// use the identical rule this validator grounds proposals against,
-// rather than a second, hand-derived copy that could silently drift.
-export function normalizeWithAlignment(text: string): NormalizedAlignment {
-  const source = text.normalize("NFKC");
-  const chars: string[] = [];
-  const map: number[] = [];
-  let pendingSpace = false;
-  let started = false;
-  for (let i = 0; i < source.length; i++) {
-    const raw = source[i];
-    if (PUNCT_RE.test(raw)) continue;
-    const lower = raw.toLowerCase();
-    if (/\s/.test(lower)) {
-      if (started) pendingSpace = true;
-      continue;
-    }
-    if (pendingSpace) {
-      chars.push(" ");
-      map.push(i);
-      pendingSpace = false;
-    }
-    for (const ch of lower) {
-      chars.push(ch);
-      map.push(i);
-    }
-    started = true;
-  }
-  return { normalized: chars.join(""), map, source };
-}
-
+// clinician said. Whole-string transforms, not a per-character loop: JS's
+// `toLowerCase()` on a full string correctly applies Unicode's
+// context-sensitive casing (e.g. Greek final sigma) and handles
+// surrogate-pair (astral-plane) characters, neither of which a
+// character-by-character version gets right (reviewer pass, finding).
 function normalize(text: string): string {
-  return normalizeWithAlignment(text).normalized;
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(new RegExp(PUNCT_CHARS, "g"), "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function clinicianTurnText(transcript: TalkTurn[], turnIndex: number): string | null {
