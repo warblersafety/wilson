@@ -24,23 +24,28 @@ refreshes it.
   every PR at the first push, draft while review and fixes are in
   progress; ready means merging is the only step left.
 - `staging` — human-facing preview. Steve promotes `dev → staging` via a
-  promotion PR that Claude prepares with a plain summary. Promotion PRs
-  **open as draft** (`gh pr create --draft` — opening one ready is a
-  defect, not a shortcut). Steve flips ready and merges after spending
-  whatever review depth he chooses; Claude never flips a promotion PR
-  to ready, so for promotion PRs the ready flip is itself the record
-  that Steve decided — review run or skipped. When his review lane
-  returns zero findings, the session that observed the run records that
-  outcome as a PR comment quoting the tool's summary — an observed
-  result, never an invocation or replication of his lane; absent both
-  findings and a record comment, the review is treated as not yet
-  run. Vercel preview deploy is wired: every push to `staging` deploys
-  automatically, gated behind Vercel Authentication like every other
-  preview URL.
-- `main` — production. Steve promotes `staging → main`. Vercel production
-  deploy is wired: every push to `main` deploys automatically and is
-  publicly visible (Hobby plan protects preview URLs only, not
-  production).
+  promotion PR that Claude prepares — the same rules apply to every
+  promotion PR, `staging → main` included (see `main` below): a plain
+  summary, a title describing the whole rollup rather than inherited
+  from whichever unit happened to merge last, and **opened as draft**
+  (`gh pr create --draft` — opening one ready is a defect, not a
+  shortcut). Steve flips ready and merges after spending whatever
+  review depth he chooses; Claude never flips a promotion PR to ready,
+  so for promotion PRs the ready flip is itself the record that Steve
+  decided — review run or skipped, since everything in it already
+  passed its own review individually on the way into `dev`. When his
+  review lane returns zero findings, the session that observed the run
+  records that outcome as a PR comment quoting the tool's summary — an
+  observed result, never an invocation or replication of his lane;
+  absent both findings and a record comment, the review is treated as
+  not yet run. Vercel preview deploy is wired: every push to `staging`
+  deploys automatically, gated behind Vercel Authentication like every
+  other preview URL.
+- `main` — production. Steve promotes `staging → main` the same way as
+  `dev → staging` above — a promotion PR Claude prepares and drafts,
+  never flips to ready. Vercel production deploy is wired: every push
+  to `main` deploys automatically and is publicly visible (Hobby plan
+  protects preview URLs only, not production).
 - **Before preparing the first promotion PR**, confirm `gh repo view --json
   deleteBranchOnMerge` reports `false`. A promotion PR's head *is* a
   long-lived branch, so with the setting on, merging `staging → main`
