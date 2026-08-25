@@ -155,17 +155,30 @@ function isLegalFixedChoiceValue(field: FormFieldSpec, value: string): boolean {
   return true;
 }
 
+// The character class only, not a compiled RegExp — read-back.ts's quote
+// highlighter needs the identical set of characters this validator
+// treats as noise (so it strips exactly what grounding already ignored,
+// not a second hand-derived copy that could drift), but as a *non*-global
+// RegExp for a repeated single-character `.test()`, where a `/g` flag's
+// stateful `lastIndex` would go stale and start returning false forever.
+// This string builds both flavors from one source.
+export const PUNCT_CHARS = "[.,!?;:'\"’‘“”—–…-]";
+
 // Unicode NFKC, case-fold, whitespace-collapse, strip common sentence
 // punctuation (including curly/smart quotes, which speech-to-text and
 // model output disagree on far more often than straight quotes) —
 // deliberately not fuzzy or stemmed. Loosening this further would let a
 // proposal pass on something close to, but not actually, what the
-// clinician said.
+// clinician said. Whole-string transforms, not a per-character loop: JS's
+// `toLowerCase()` on a full string correctly applies Unicode's
+// context-sensitive casing (e.g. Greek final sigma) and handles
+// surrogate-pair (astral-plane) characters, neither of which a
+// character-by-character version gets right (reviewer pass, finding).
 function normalize(text: string): string {
   return text
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[.,!?;:'"’‘“”—–…-]/g, "")
+    .replace(new RegExp(PUNCT_CHARS, "g"), "")
     .replace(/\s+/g, " ")
     .trim();
 }
