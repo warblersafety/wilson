@@ -11,15 +11,20 @@
 // as far as "landed on read-back with a result in hand"; nothing here
 // writes to a record.
 import type { NarrativeExtractResult } from "./narrative-extract";
-import { initTalkSession, type TalkSession } from "./talk";
+import type { TalkSession } from "./talk";
 
 // A cost/latency bound, not a clinical one — generous for a dictated
 // opening narrative (a few paragraphs at most) while keeping a worst-case
 // extraction call's input bounded.
 export const MAX_NARRATIVE_LENGTH = 6000;
 
+// The `{ok:true}` arm carries the already-trimmed text — both call sites
+// that validate (this module's own resolveStartSubmit, and the
+// submitNarrative Server Action, which validates independently since a
+// Server Action is a public endpoint no client-side check actually
+// guards) need it next, so neither has to re-trim (reviewer pass, finding).
 export type NarrativeValidation =
-  | { ok: true }
+  | { ok: true; trimmed: string }
   | { ok: false; reason: "empty" | "too-long"; message: string };
 
 export function validateNarrative(narrative: string): NarrativeValidation {
@@ -36,7 +41,7 @@ export function validateNarrative(narrative: string): NarrativeValidation {
         `(currently ${trimmed.length.toLocaleString()}).`,
     };
   }
-  return { ok: true };
+  return { ok: true, trimmed };
 }
 
 export interface ReadBackHandoff {
@@ -61,19 +66,27 @@ export type StartSubmitOutcome = { landed: true; handoff: ReadBackHandoff } | { 
 // does, since this is the hand-off point the whole six-surface rebuild
 // hinges on. Bounds input before ever calling `submit`, matching the AC's
 // "friendly in-place message... never a raw server error."
+//
+// Takes `session` from the caller rather than constructing one itself
+// (reviewer pass, finding): every other orchestration function here
+// (processTurn/startTalk, submitTurn/submitNarrative) takes a session as a
+// parameter, and Wizard.tsx's freshStep() shows "when does a session
+// begin" is a container-level decision, not a leaf validation module's to
+// make — the Read-back surface's (Issue #43) "edits re-enter extraction"
+// path (design.md) will need to pass an in-hand session through this same
+// function, not a forced-fresh one.
 export async function resolveStartSubmit(
   narrative: string,
+  session: TalkSession,
   submit: NarrativeSubmitFn,
 ): Promise<StartSubmitOutcome> {
   const validation = validateNarrative(narrative);
   if (!validation.ok) {
     return { landed: false, message: validation.message };
   }
-  const trimmed = narrative.trim();
-  const session = initTalkSession();
-  const outcome = await submit(session, trimmed);
+  const outcome = await submit(session, validation.trimmed);
   if (!outcome.ok) {
     return { landed: false, message: outcome.message };
   }
-  return { landed: true, handoff: { session, narrative: trimmed, result: outcome.result } };
+  return { landed: true, handoff: { session, narrative: validation.trimmed, result: outcome.result } };
 }

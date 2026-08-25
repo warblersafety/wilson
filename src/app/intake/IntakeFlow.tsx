@@ -4,6 +4,14 @@
 // container role Wizard.tsx plays for the topic-by-topic loop it will
 // eventually be reached through. Only "start" and "read-back" exist yet —
 // Issues #43-#45 add the rest as they land; this doesn't pre-build them.
+//
+// Deliberately not wired to session-storage.ts yet (reviewer pass, noted):
+// Wizard.tsx persists/rehydrates a TalkSession on every step, but that
+// helper's shape is scoped to Issue #32's wizard and doesn't fit
+// IntakeSurface/ReadBackHandoff as-is — a reload here loses the
+// in-progress narrative or a landed extraction with no warning. Picking
+// the right persisted shape needs to see what Issues #43-#45 actually
+// carry, not guess now; filed as a follow-up rather than designed here.
 import { useState } from "react";
 import type { ReadBackHandoff } from "@/lib/start-surface";
 import { StartSurface } from "./StartSurface";

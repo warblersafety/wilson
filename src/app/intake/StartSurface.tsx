@@ -7,6 +7,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { submitNarrative } from "@/app/actions";
 import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
+import { initTalkSession } from "@/lib/talk";
 
 interface StartSurfaceProps {
   onLanded: (handoff: ReadBackHandoff) => void;
@@ -23,7 +24,7 @@ export function StartSurface({ onLanded }: StartSurfaceProps) {
     e.preventDefault();
     setSubmitError(null);
     startTransition(async () => {
-      const outcome = await resolveStartSubmit(narrative, submitNarrative);
+      const outcome = await resolveStartSubmit(narrative, initTalkSession(), submitNarrative);
       if (outcome.landed) {
         onLanded(outcome.handoff);
       } else {
