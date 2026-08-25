@@ -1,0 +1,32 @@
+# Live sweep of the narrative-extraction fixture corpus (Issue #41) against
+# the real Claude Sonnet 5 API, billed to the wilson-evals Anthropic
+# workspace. Skips the corpus's two adversarial fixtures — see
+# fixtures/narrative-extraction/cases.ts.
+#
+# workflow_dispatch only, deliberately — same reasoning as eval-extraction.yml:
+# a push-triggered eval workflow "fails nothing — it simply starts billing"
+# (lucy's docs/SECRETS-AND-COSTS.md). The free, no-API-calls check
+# (`npm run eval:narrative-dry`, which — unlike eval-extraction's own dry
+# mode — already proves full accepted/rejected/repeatDecisions correctness
+# against a scripted fake model) already runs on every PR via ci.yml; this
+# is the separately-triggered, real-money sense-check that a live model's
+# output roughly reproduces that same coverage.
+name: eval-narrative-extraction
+
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Live narrative extraction sweep
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run eval:narrative

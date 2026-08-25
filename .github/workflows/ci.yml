@@ -59,6 +59,11 @@ jobs:
       # separate, workflow_dispatch-only job (eval-extraction.yml).
       - name: Extraction eval — dry structural check
         run: npm run eval:dry
+      # Also no API calls, but unlike the dry check above this one proves
+      # full accepted/rejected/repeatDecisions correctness — each fixture's
+      # scripted response runs through the real validator (Issue #41).
+      - name: Narrative extraction eval — dry structural + validator check
+        run: npm run eval:narrative-dry
 
   python:
     runs-on: ubuntu-latest

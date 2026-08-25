@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3500-fields";
-import { TOPICS, initRepeatCounts, nextStep, reopenTopic, setRepeatCount, topicStatuses } from "./topics";
+import {
+  TOPICS,
+  initRepeatCounts,
+  isValidRepeatCount,
+  narrativePassFields,
+  nextStep,
+  reopenTopic,
+  setRepeatCount,
+  topicStatuses,
+} from "./topics";
 
 const SECTION_ORDER = Object.keys(FORM_3500_SECTIONS) as FormSection[];
 
@@ -159,6 +168,50 @@ describe("setRepeatCount", () => {
         { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
       ]),
     ).toThrow(/no topics/);
+  });
+});
+
+// Issue #41: a non-throwing sibling for validating a CANDIDATE repeat count
+// before deciding whether to accept it — setRepeatCount's own throw is
+// right for an actual write attempt (a real system-configuration bug), but
+// wrong for "is this proposed count plausible" (an ordinary, expected
+// rejection outcome, not a crash).
+describe("isValidRepeatCount", () => {
+  it("accepts a count within the group's real range", () => {
+    expect(isValidRepeatCount("suspect-product", 1)).toBe(true);
+    expect(isValidRepeatCount("suspect-product", 2)).toBe(true);
+  });
+
+  it("rejects a count above the group's real max instance count", () => {
+    // suspect-product's real max is 2 (Issue #16)
+    expect(isValidRepeatCount("suspect-product", 3)).toBe(false);
+  });
+
+  it("accepts the real max for a group with a larger max", () => {
+    // concomitant-medication's real max is 10 (Issue #16)
+    expect(isValidRepeatCount("concomitant-medication", 10)).toBe(true);
+    expect(isValidRepeatCount("concomitant-medication", 11)).toBe(false);
+  });
+
+  it("rejects a count below 1", () => {
+    expect(isValidRepeatCount("suspect-product", 0)).toBe(false);
+    expect(isValidRepeatCount("suspect-product", -1)).toBe(false);
+  });
+
+  it("rejects a non-integer count", () => {
+    expect(isValidRepeatCount("suspect-product", 1.5)).toBe(false);
+  });
+
+  it("rejects NaN", () => {
+    expect(isValidRepeatCount("suspect-product", NaN)).toBe(false);
+  });
+
+  it("returns false, not a thrown error, for a topics list with none of the group's topics", () => {
+    expect(
+      isValidRepeatCount("suspect-product", 1, [
+        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+      ]),
+    ).toBe(false);
   });
 });
 
@@ -488,5 +541,81 @@ describe("reopenTopic", () => {
   it("throws on a field id not present in the given fields list", () => {
     const t = topic("only", ["ghost"]);
     expect(() => reopenTopic({}, t, [])).toThrow(/no such field/);
+  });
+});
+
+// Issue #41: the narrative-extraction pass's field targets — unlike
+// nextStep(), which surfaces only text/date fields for the single next
+// step, this surfaces every still-open field (any type) across every
+// non-repeat topic and repeat-instance-1, in one shot.
+describe("narrativePassFields", () => {
+  it("includes unresolved text/date/checkbox/enum fields alike — unlike nextStep(), fixed-choice fields are in scope here", () => {
+    const fields = [field("t", "text"), field("d", "date"), field("cb", "checkbox"), field("en", "enum")];
+    const topics = [topic("only", ["t", "d", "cb", "en"])];
+    const record = recordOf({
+      t: { state: "unasked" },
+      d: { state: "unasked" },
+      cb: { state: "unasked" },
+      en: { state: "unasked" },
+    });
+    expect(narrativePassFields(record, topics, fields).map((f) => f.id)).toEqual(["t", "d", "cb", "en"]);
+  });
+
+  it("excludes fields already resolved, of any state", () => {
+    const fields = [field("a", "text"), field("b", "text"), field("c", "text"), field("d", "text")];
+    const topics = [topic("only", ["a", "b", "c", "d"])];
+    const record = recordOf({
+      a: { state: "unasked" },
+      b: { state: "answered" },
+      c: { state: "unknown" },
+      d: { state: "declined" },
+    });
+    expect(narrativePassFields(record, topics, fields).map((f) => f.id)).toEqual(["a"]);
+  });
+
+  it("includes repeat-instance-1 fields, unresolved", () => {
+    const fields = [field("p1", "text")];
+    const topics = [topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    const record = recordOf({ p1: { state: "unasked" } });
+    expect(narrativePassFields(record, topics, fields).map((f) => f.id)).toEqual(["p1"]);
+  });
+
+  it("excludes repeat-instance-2+ fields even when unresolved — the pass never attributes fields to a specific later instance", () => {
+    const fields = [field("p1", "text"), field("p2", "text")];
+    const topics = [
+      topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g2", ["p2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ p1: { state: "unasked" }, p2: { state: "unasked" } });
+    expect(narrativePassFields(record, topics, fields).map((f) => f.id)).toEqual(["p1"]);
+  });
+
+  it("preserves topic and field order", () => {
+    const fields = [field("z", "text"), field("a", "text"), field("m", "text")];
+    const topics = [topic("second", ["a"]), topic("first", ["z", "m"])];
+    const record = recordOf({ a: { state: "unasked" }, z: { state: "unasked" }, m: { state: "unasked" } });
+    expect(narrativePassFields(record, topics, fields).map((f) => f.id)).toEqual(["a", "z", "m"]);
+  });
+
+  it("throws on a field id not present in the given fields list", () => {
+    const topics = [topic("only", ["ghost"])];
+    expect(() => narrativePassFields({}, topics, [])).toThrow(/no such field/);
+  });
+
+  it("throws on a field id missing from the given record", () => {
+    const fields = [field("t", "text")];
+    const topics = [topic("only", ["t"])];
+    expect(() => narrativePassFields({}, topics, fields)).toThrow(/record missing field id/);
+  });
+
+  it("against the real manifest: returns a non-trivial subset spanning multiple sections, none of them repeat-instance-2+", () => {
+    const result = narrativePassFields(initAgenda(), TOPICS, FORM_3500_FIELDS);
+    const sections = new Set(result.map((f) => f.section));
+    expect(result.length).toBeGreaterThan(50);
+    expect(sections.size).toBeGreaterThan(1);
+    const fieldsInRepeat2Plus = new Set(
+      TOPICS.filter((t) => t.repeatInstance !== null && t.repeatInstance > 1).flatMap((t) => t.fieldIds),
+    );
+    expect(result.some((f) => fieldsInRepeat2Plus.has(f.id))).toBe(false);
   });
 });

@@ -21,7 +21,7 @@ import type { TalkTurn } from "../lib/talk";
 // type only, with no runtime values of its own to import). A third repeat
 // group added there is picked up here automatically; a hand-typed
 // z.enum([...]) would otherwise silently under-enumerate.
-const REPEAT_GROUPS = Array.from(
+export const REPEAT_GROUPS = Array.from(
   new Set(TOPICS.map((t) => t.repeatGroup).filter((g): g is RepeatGroup => g !== null)),
 ) as [RepeatGroup, ...RepeatGroup[]];
 
@@ -72,7 +72,10 @@ Only ever propose a repeatDecision when you were actually told this is a repeat-
 - A quote from anywhere but a CLINICIAN turn.
 - More than one repeatDecision per turn.`;
 
-const QuoteSchema = z.object({
+// Shared with src/prompts/narrative-extractor.ts (Issue #41) — a quote is
+// the same shape regardless of which extraction job is asking for one, and
+// REPEAT_GROUPS above is derived from TOPICS itself, not job-specific.
+export const QuoteSchema = z.object({
   turnIndex: z.number().int().describe("Index into the numbered transcript below, pointing at a CLINICIAN turn."),
   text: z.string().describe("A contiguous, verbatim span copied from that turn's text."),
 });

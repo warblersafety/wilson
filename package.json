@@ -10,7 +10,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "eval:dry": "tsx scripts/eval-extraction.ts --dry",
-    "eval:extraction": "tsx scripts/eval-extraction.ts"
+    "eval:extraction": "tsx scripts/eval-extraction.ts",
+    "eval:narrative-dry": "tsx scripts/eval-narrative-extraction.ts --dry",
+    "eval:narrative": "tsx scripts/eval-narrative-extraction.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

@@ -72,6 +72,22 @@ export interface ExtractResult {
 
 export type ExtractFn = (session: TalkSession, message: string) => Promise<ExtractResult>;
 
+// The one write path from a validated proposal to the record — applyAction()
+// is pure and throws before returning anything on an invalid proposal, so a
+// reduce that throws partway through never lets a partially-applied record
+// escape this function. Shared by processTurn() below and, for the
+// narrative-extraction pass (Issue #41), the confirmed-batch apply step
+// design.md calls for — one write path, not two, per its own Architecture
+// table ("Assembly/Export... Deterministic mapping").
+export function applyProposedActions(record: AgendaRecord, actions: ProposedAction[]): AgendaRecord {
+  return actions.reduce((rec, proposal) => {
+    if (proposal.type === "answer") {
+      return applyAction(rec, proposal.fieldId, { type: "answer" }, proposal.value);
+    }
+    return applyAction(rec, proposal.fieldId, { type: proposal.type });
+  }, record);
+}
+
 // Receives the whole session (transcript + record + repeatCounts), not
 // just the fields being asked about — matching ExtractFn's shape, and
 // avoiding a second breaking signature change once a real, transcript-
@@ -122,11 +138,6 @@ export async function processTurn(
   deps: Deps & { extract: ExtractFn },
 ): Promise<TalkStep> {
   const { actions, repeatDecision } = await deps.extract(session, message);
-  // applyAction() is pure — it never mutates its input and throws before
-  // returning anything on an invalid proposal — so a reduce that throws
-  // partway through never lets a partially-applied record escape this
-  // function. No separate atomicity handling needed.
-  //
   // A proposal against an already-resolved field (e.g. a clinician
   // volunteering "actually, make that 45") is intentionally applied
   // directly via "answer" with no `reopen` step required — `reopen` is
@@ -136,12 +147,7 @@ export async function processTurn(
   // whether a proposal is actually correct is the Extractor's job
   // (design.md), not this orchestrator's — it trusts what `extract`
   // returns, same as it trusts `applyAction`'s existing validation.
-  const record = actions.reduce((rec, proposal) => {
-    if (proposal.type === "answer") {
-      return applyAction(rec, proposal.fieldId, { type: "answer" }, proposal.value);
-    }
-    return applyAction(rec, proposal.fieldId, { type: proposal.type });
-  }, session.record);
+  const record = applyProposedActions(session.record, actions);
   // setRepeatCount() throws on an out-of-range count, same as applyAction()
   // throws on an invalid field action — an invalid repeatDecision fails the
   // whole turn rather than writing a bad count, matching the "never
