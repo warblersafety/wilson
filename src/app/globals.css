@@ -1,15 +1,114 @@
+@import "./brand-tokens.css";
+
+/*
+ * Everything Warbler's system does not contain, wilson has to name for
+ * itself — same split lucy uses: brand-tokens.css stays a verbatim
+ * transcription, local decisions live here (#40 AC-3, AC-4).
+ */
+:root {
+  /* brand-tokens.css declares --font-body/--font-display as bare family
+     names, which resolve to nothing until bound to the faces next/font
+     hosts from this app's own origin (see layout.tsx). */
+  --font-body: var(--font-hanken), system-ui, sans-serif;
+  --font-display: var(--font-schibsted), system-ui, sans-serif;
+
+  /*
+   * The upstream palette has no error/alert/danger color — a marketing
+   * site never needed one. Reused rather than reinvented: lucy already
+   * derived one against this same base palette (navy text on white,
+   * cream/slate surfaces) by holding saturation and lightness from its
+   * predecessor and rotating hue toward navy — 9.01:1 on white, 8.15:1 on
+   * its own background — and that derivation has nothing lucy-specific in
+   * it, so a second, independently-invented red would just be arbitrary.
+   */
+  --danger: #8c1d2f;
+  --danger-bg: #fcf1f3;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  background: var(--surface-page);
+  color: var(--text-body);
+  font-family: var(--font-body);
 }
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* --- app shell ------------------------------------------------------------ */
+
+.shell__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  height: 56px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--header-scrim);
+  backdrop-filter: var(--blur-header);
+}
+
+.shell__brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.shell__brand-accent {
+  color: var(--text-eyebrow);
+}
+
+.shell__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-hairline);
+  flex: none;
+}
+
+.shell__product {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.shell__product-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-wilson);
+  flex: none;
+}
+
+.shell__tagline {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+/* --- wizard (v1, pre-#40; un-touched beyond fitting under the header) ---- */
 
 .wizard-layout {
   display: flex;
-  min-height: 100vh;
+  min-height: calc(100vh - 56px);
 }
 
 .sidebar {

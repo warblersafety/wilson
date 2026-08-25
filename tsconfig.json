@@ -20,6 +20,8 @@
   "include": [
     "src/app/**/*.ts",
     "src/app/**/*.tsx",
+    "src/components/**/*.ts",
+    "src/components/**/*.tsx",
     "next.config.ts",
     "next-env.d.ts",
     ".next/types/**/*.ts",
