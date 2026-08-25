@@ -1,39 +1,44 @@
 "use client";
 
 // Owns which of the six design.md surfaces is on screen, the same
-// container role Wizard.tsx plays for the topic-by-topic loop it will
-// eventually be reached through. Only "start" and "read-back" exist yet —
-// Issues #43-#45 add the rest as they land; this doesn't pre-build them.
+// container role Wizard.tsx plays for the topic-by-topic loop it now
+// hands off into. "review"/"open-fields"/"ready" don't exist yet — Issue
+// #45 adds them as it lands; this doesn't pre-build them.
 //
-// Deliberately not wired to session-storage.ts yet (reviewer pass, noted):
-// Wizard.tsx persists/rehydrates a TalkSession on every step, but that
-// helper's shape is scoped to Issue #32's wizard and doesn't fit
-// IntakeSurface/ReadBackHandoff as-is — a reload here loses the
-// in-progress narrative or a landed extraction with no warning. Picking
-// the right persisted shape needs to see what Issues #43-#45 actually
-// carry, not guess now; filed as a follow-up rather than designed here.
+// The follow-ups step reuses Wizard.tsx as-is (Issue #44 only adds
+// transcript visibility to it, per design.md — the loop itself already
+// exists) rather than building a second throwaway placeholder: confirming
+// on Read-back persists the resulting session via session-storage.ts,
+// the same mechanism Wizard.tsx already hydrates from on mount, so no
+// change to Wizard.tsx itself was needed. This also narrows
+// warblersafety/wilson#56 (filed by #42's reviewer pass): a reload after
+// reaching follow-ups now survives via v1's existing persistence — only
+// the pre-confirm Start/Read-back draft state remains unpersisted.
 import { useState } from "react";
-import type { ReadBackHandoff } from "@/lib/start-surface";
+import { ReadBack } from "./ReadBack";
 import { StartSurface } from "./StartSurface";
+import { saveSession } from "@/lib/session-storage";
+import type { ReadBackHandoff } from "@/lib/start-surface";
+import { Wizard } from "../wizard/Wizard";
 
-type IntakeSurface = { kind: "start" } | { kind: "read-back"; handoff: ReadBackHandoff };
+type IntakeSurface = { kind: "start" } | { kind: "read-back"; handoff: ReadBackHandoff } | { kind: "follow-ups" };
 
 export function IntakeFlow() {
   const [surface, setSurface] = useState<IntakeSurface>({ kind: "start" });
 
+  if (surface.kind === "follow-ups") {
+    return <Wizard />;
+  }
+
   if (surface.kind === "read-back") {
-    // The real Read-back surface (quote-paired proposal panel, confirm/edit)
-    // is Issue #43's build. This just proves Start's routing lands here
-    // with a real extraction result in hand — nothing is written yet.
-    const { result } = surface.handoff;
     return (
-      <main className="start-surface">
-        <h1 className="start-surface__heading">Read-back</h1>
-        <p>
-          {result.proposals.length} proposal{result.proposals.length === 1 ? "" : "s"} found from what you
-          wrote. The read-back review (Issue #43) isn&rsquo;t built yet.
-        </p>
-      </main>
+      <ReadBack
+        handoff={surface.handoff}
+        onConfirmed={(session) => {
+          saveSession(window.localStorage, session);
+          setSurface({ kind: "follow-ups" });
+        }}
+      />
     );
   }
 

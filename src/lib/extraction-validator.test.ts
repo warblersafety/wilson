@@ -3,6 +3,7 @@ import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { TalkTurn } from "./talk";
 import {
   ALL_FIELD_TYPES,
+  normalizeWithAlignment,
   validateCandidates,
   validateRepeatCandidate,
   type ExtractionCandidate,
@@ -14,6 +15,32 @@ const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
 const ENUM_FIELD = FORM_3500_FIELDS.find((f) => f.type === "enum")!;
 const CHECKBOX_FIELD = FORM_3500_FIELDS.find((f) => f.type === "checkbox")!;
 const FIELDS: FormFieldSpec[] = [TEXT_FIELD, DATE_FIELD, ENUM_FIELD, CHECKBOX_FIELD];
+
+describe("normalizeWithAlignment", () => {
+  it("maps every normalized character back to a real position in the source text", () => {
+    const { normalized, map, source } = normalizeWithAlignment("Foo,   Bar!");
+    expect(normalized).toBe("foo bar");
+    expect(map.length).toBe(normalized.length);
+    // A collapsed whitespace run is attributed to the character that ends
+    // it (index 7, "B") rather than to any one of the three source spaces
+    // it replaces — a harmless approximation for span-finding, not a bug:
+    // the letters' own positions (0,1,2 for "Foo"; 8,9 for "ar") are exact.
+    expect(map).toEqual([0, 1, 2, 7, 7, 8, 9]);
+    expect([0, 1, 2, 8, 9].map((i) => source[i].toLowerCase())).toEqual(["f", "o", "o", "a", "r"]);
+  });
+
+  it("drops leading/trailing whitespace the same way trim() does, with no dangling map entries", () => {
+    const { normalized, map } = normalizeWithAlignment("  foo  ");
+    expect(normalized).toBe("foo");
+    expect(map.length).toBe(3);
+  });
+
+  it("normalizes to empty for punctuation-only input, with an empty map", () => {
+    const { normalized, map } = normalizeWithAlignment("...");
+    expect(normalized).toBe("");
+    expect(map).toEqual([]);
+  });
+});
 
 describe("ALL_FIELD_TYPES", () => {
   it("names exactly the four real field types — a runtime companion to the satisfies-based compile-time check", () => {

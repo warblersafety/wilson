@@ -344,3 +344,201 @@ h3 {
   font-size: var(--type-fine-size);
   line-height: var(--type-fine-line);
 }
+
+/* --- read-back (Issue #43) -------------------------------------------------- */
+
+.read-back {
+  max-width: var(--measure-page);
+  margin: 0 auto;
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.read-back__heading {
+  margin: 0;
+}
+
+.read-back__narrative {
+  margin: 0;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  white-space: pre-wrap;
+}
+
+.read-back__mark {
+  background: var(--accent-flash);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+
+.read-back__mark--multi {
+  background: var(--accent-ring);
+}
+
+.read-back__edit-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: var(--type-ui-size);
+  padding: 0;
+}
+
+.read-back__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.read-back__edit-composer {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-field);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: vertical;
+}
+
+.read-back__edit-actions {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.read-back__edit-actions button {
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+}
+
+.read-back__edit-actions button[type="submit"] {
+  border: none;
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.read-back__edit-actions button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.read-back__edit-actions button[type="button"] {
+  border: 1px solid var(--border-panel);
+  background: var(--surface-page);
+  color: var(--text-body);
+}
+
+.read-back__panel {
+  padding: var(--pad-card);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+}
+
+.read-back__panel-heading {
+  margin: 0 0 var(--space-7);
+}
+
+.read-back__panel-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.read-back__panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.read-back__panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.read-back__panel-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.read-back__panel-label {
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+}
+
+.read-back__panel-value {
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+.read-back__panel-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.read-back__panel-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--type-ui-size);
+}
+
+.read-back__hint {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.read-back__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.read-back__confirm {
+  align-self: flex-start;
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.read-back__confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
