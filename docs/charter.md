@@ -114,12 +114,16 @@ end-to-end through the six surfaces of `docs/design.md`'s "Interaction
 model and UI": dictate or type the opening narrative; see a read-back
 whose panel pairs every proposal with its supporting quote, with
 nothing written to the record before confirmation (test-asserted);
-answer follow-ups conversationally, chips only at the repeat
-decisions; review field-led cards; see open fields with their reasons
-(a dialog over review); export the PDF — with v1's
+answer follow-ups conversationally, with chips only at the repeat
+decisions and the one-tap "I don't have that" / "rather not say"
+affordances on field asks; review field-led cards; see open fields
+with their reasons (a dialog over review); export the PDF — with v1's
 field-mapping tests still green. Proven by the narrative-extraction
 fixture corpus (including the real-quote/fabricated-value adversarial
 case) and a scripted end-to-end flow test over the reference case
-against a fake model; visual polish stays per-unit manual-check notes.
-The rebuild is the six units filed 2026-08-25; this condition is met
-when all are merged and that flow test passes.
+against a fake model, which proves the state transitions; surface
+shape (chip inventory, dialog-vs-page) is proven by the per-unit
+mockup side-by-sides the manual-check notes carry under design.md's
+fidelity rule. The rebuild is the six units filed 2026-08-25 plus the
+report-chrome unit the 2026-08-25 amendment added (#67); this
+condition is met when all are merged and that flow test passes.
