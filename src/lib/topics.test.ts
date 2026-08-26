@@ -3,11 +3,14 @@ import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "./form-3500-fields";
 import {
   TOPICS,
+  currentTopicProgress,
   initRepeatCounts,
   isValidRepeatCount,
   narrativePassFields,
   nextStep,
+  openFollowUpFields,
   reopenTopic,
+  repeatGroupOfLaterInstanceField,
   setRepeatCount,
   topicStatuses,
 } from "./topics";
@@ -249,18 +252,29 @@ function recordOf(entries: Record<string, { state: "unasked" | "answered" | "unk
 }
 
 describe("nextStep", () => {
-  it("returns the first topic with an unresolved text/date field", () => {
+  it("returns the first topic with an unresolved field, of any type — text, date, checkbox, or enum alike", () => {
     const fields = [field("cb", "checkbox"), field("t", "text")];
     const topics = [topic("checkbox-only", ["cb"]), topic("has-text", ["t"])];
     const record = recordOf({ cb: { state: "unasked" }, t: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["t"] });
+    // Issue #44 supersedes the old text/date-only filter (design.md:
+    // "checkbox/enum fields are ordinary conversational asks") — a
+    // checkbox-only topic is no longer skipped, it's the very next ask.
+    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["cb"] });
   });
 
-  it("skips a topic that's entirely checkbox/enum — zero conversational step for it", () => {
+  it("no longer skips a topic that's entirely checkbox/enum — it surfaces as an ordinary ask (Issue #44 supersedes the old skip)", () => {
     const fields = [field("cb1", "checkbox"), field("cb2", "enum"), field("t", "text")];
     const topics = [topic("all-choice", ["cb1", "cb2"]), topic("has-text", ["t"])];
     const record = recordOf({ cb1: { state: "unasked" }, cb2: { state: "unasked" }, t: { state: "unasked" } });
+    const step = nextStep(record, initRepeatCounts(), topics, fields);
+    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["cb1", "cb2"] });
+  });
+
+  it("still skips a topic once every field — any type — is already resolved", () => {
+    const fields = [field("cb", "checkbox"), field("t", "text")];
+    const topics = [topic("checkbox-only", ["cb"]), topic("has-text", ["t"])];
+    const record = recordOf({ cb: { state: "answered" }, t: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
     expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["t"] });
   });
@@ -376,15 +390,61 @@ describe("nextStep", () => {
     expect(() => nextStep(record, { "suspect-product": NaN }, topics, fields)).toThrow();
   });
 
-  it("against the real manifest: the very first step of a fresh session is patient-basics's text/date fields", () => {
+  it("against the real manifest: the very first step of a fresh session is patient-basics, fields of every type included", () => {
     const step = nextStep(initAgenda(), initRepeatCounts());
     expect(step.kind).toBe("topic");
     if (step.kind === "topic") {
       expect(step.topic.id).toBe("patient-basics");
       expect(step.fieldIds).toContain("Page1.SecA_Patient.PatientIdentifier");
-      // AgeYears/SexM/etc. are checkbox fields — never surfaced here.
-      expect(step.fieldIds).not.toContain("Page1.SecA_Patient.AgeYears");
+      // Issue #44 supersedes the old text/date-only filter — AgeYears is a
+      // checkbox field and is now surfaced right alongside the text ones.
+      expect(step.fieldIds).toContain("Page1.SecA_Patient.AgeYears");
     }
+  });
+
+  it("against the real manifest: the dechallenge/rechallenge response topic — entirely checkbox, never asked before Issue #44 — now produces a topic step", () => {
+    // suspect-product-1-response bundles Prod1AbatedYes/No/NA and
+    // Prod1ReappearYes/No/NA — six checkbox fields, zero text/date —
+    // design.md names this topic explicitly as one nextStep()'s old
+    // filter skipped outright ("the dechallenge/rechallenge... blocks...
+    // are never asked at all").
+    const responseTopic = TOPICS.find((t) => t.id === "suspect-product-1-response")!;
+    let record = initAgenda();
+    for (const t of TOPICS) {
+      if (t.id === responseTopic.id) break;
+      record = t.fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "decline" }), record);
+    }
+    // No repeat-decision needed to get here: every topic between the start
+    // and this one (inclusive of suspect-product-1-response itself) is
+    // instance 1, asked unconditionally — the repeat-decision gate only
+    // appears once the walk reaches an instance-2+ topic.
+    const step = nextStep(record, initRepeatCounts());
+    expect(step).toEqual({
+      kind: "topic",
+      topic: responseTopic,
+      fieldIds: responseTopic.fieldIds,
+    });
+  });
+
+  it("against the real manifest: the reporter 'about you' topic — mostly checkbox, never asked before Issue #44 — now produces a topic step", () => {
+    // reporter-about-you bundles ProYes/ProNo/ManuComp/UserFac/DistImp/
+    // IdentityNo/Packer (checkbox) alongside Occupation (enum) — no
+    // text/date fields at all, so nextStep()'s old filter skipped it too.
+    const aboutYouTopic = TOPICS.find((t) => t.id === "reporter-about-you")!;
+    let record = initAgenda();
+    for (const t of TOPICS) {
+      if (t.id === aboutYouTopic.id) break;
+      record = t.fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "decline" }), record);
+    }
+    let counts = initRepeatCounts();
+    counts = setRepeatCount(counts, "suspect-product", 1);
+    counts = setRepeatCount(counts, "concomitant-medication", 1);
+    const step = nextStep(record, counts);
+    expect(step).toEqual({
+      kind: "topic",
+      topic: aboutYouTopic,
+      fieldIds: aboutYouTopic.fieldIds,
+    });
   });
 
   it("against the real manifest: a fully-resolved record with all repeat groups decided at 1 reaches done", () => {
@@ -489,23 +549,46 @@ describe("topicStatuses", () => {
 // conversational step, the same Extractor/grounding path a first answer
 // goes through.
 describe("reopenTopic", () => {
-  it("sends a topic's resolved text/date fields back to unasked, clearing their value", () => {
+  it("sends a topic's resolved fields back to unasked, RETAINING whatever value they carried", () => {
     const fields = [field("t", "text"), field("d", "date")];
     const t = topic("only", ["t", "d"]);
+    // recordOf's own helper gives every "answered" entry value "x";
+    // "declined" carries no value, matching applyAction's real contract.
     const record = recordOf({ t: { state: "answered" }, d: { state: "declined" } });
     const reopened = reopenTopic(record, t, fields);
-    expect(reopened.t).toEqual({ state: "unasked" });
-    expect(reopened.d).toEqual({ state: "unasked" });
+    expect(reopened.t).toEqual({ state: "unasked", value: "x" });
+    expect(reopened.d).toEqual({ state: "unasked", value: undefined });
   });
 
-  it("leaves the topic's checkbox/enum fields untouched", () => {
+  // Issue #44 supersedes the old exclusion: the checkbox/enum widget panel
+  // that made these "directly editable in place" no longer exists (design.md:
+  // "the conversational re-ask is their only edit path"), so reopenTopic()
+  // must reopen fixed-choice fields too, or an answered-but-wrong checkbox
+  // would be permanently uncorrectable.
+  it("reopens the topic's checkbox/enum fields too — an answered checkbox is reachable through the reopen path", () => {
     const fields = [field("cb", "checkbox"), field("en", "enum"), field("t", "text")];
     const t = topic("only", ["cb", "en", "t"]);
     const record = recordOf({ cb: { state: "answered" }, en: { state: "answered" }, t: { state: "answered" } });
     const reopened = reopenTopic(record, t, fields);
-    expect(reopened.cb).toEqual(record.cb);
-    expect(reopened.en).toEqual(record.en);
-    expect(reopened.t).toEqual({ state: "unasked" });
+    expect(reopened.cb).toEqual({ state: "unasked", value: "x" });
+    expect(reopened.en).toEqual({ state: "unasked", value: "x" });
+    expect(reopened.t).toEqual({ state: "unasked", value: "x" });
+  });
+
+  it("against the real manifest: reopening a topic makes nextStep() surface its checkbox fields as an ordinary ask again", () => {
+    const outcomeTopic = TOPICS.find((t) => t.id === "event-outcome")!;
+    let record = initAgenda();
+    for (const t of TOPICS) {
+      record = t.fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "decline" }), record);
+    }
+    let counts = initRepeatCounts();
+    counts = setRepeatCount(counts, "suspect-product", 1);
+    counts = setRepeatCount(counts, "concomitant-medication", 1);
+    expect(nextStep(record, counts)).toEqual({ kind: "done" });
+
+    const reopened = reopenTopic(record, outcomeTopic);
+    const step = nextStep(reopened, counts);
+    expect(step).toEqual({ kind: "topic", topic: outcomeTopic, fieldIds: outcomeTopic.fieldIds });
   });
 
   it("leaves other topics' fields untouched", () => {
@@ -513,7 +596,7 @@ describe("reopenTopic", () => {
     const topics = [topic("first", ["a"]), topic("second", ["b"])];
     const record = recordOf({ a: { state: "answered" }, b: { state: "answered" } });
     const reopened = reopenTopic(record, topics[0], fields);
-    expect(reopened.a).toEqual({ state: "unasked" });
+    expect(reopened.a).toEqual({ state: "unasked", value: "x" });
     expect(reopened.b).toEqual(record.b);
   });
 
@@ -617,5 +700,190 @@ describe("narrativePassFields", () => {
       TOPICS.filter((t) => t.repeatInstance !== null && t.repeatInstance > 1).flatMap((t) => t.fieldIds),
     );
     expect(result.some((f) => fieldsInRepeat2Plus.has(f.id))).toBe(false);
+  });
+});
+
+// Issue #44's widened follow-up sweep (design.md "Follow-up turns are mined
+// for everything still open"): the field-target set for the PER-TURN
+// extractor, mined on every ordinary follow-up message — not narrativePassFields()'s
+// once-at-the-opening-narrative set, and not nextStep()'s single "what's
+// asked right now" set. Deliberately carries its own predicate rather than
+// reusing isResolved() (which narrativePassFields()/nextStep() both use) —
+// "open" here is wider: `unasked` OR `unknown`, per design.md's own bullet.
+describe("openFollowUpFields", () => {
+  it("includes unasked fields", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "unasked" } });
+    expect(openFollowUpFields(record, topics, fields).map((f) => f.id)).toEqual(["a"]);
+  });
+
+  it("includes unknown fields — wider than isResolved()'s unasked-only test", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "unknown" } });
+    expect(openFollowUpFields(record, topics, fields).map((f) => f.id)).toEqual(["a"]);
+  });
+
+  it("excludes answered fields", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "answered" } });
+    expect(openFollowUpFields(record, topics, fields)).toEqual([]);
+  });
+
+  it("excludes declined fields", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "declined" } });
+    expect(openFollowUpFields(record, topics, fields)).toEqual([]);
+  });
+
+  it("includes fields of every type — checkbox/enum are in scope, same as the narrative pass", () => {
+    const fields = [field("t", "text"), field("cb", "checkbox"), field("en", "enum")];
+    const topics = [topic("only", ["t", "cb", "en"])];
+    const record = recordOf({ t: { state: "unasked" }, cb: { state: "unknown" }, en: { state: "unasked" } });
+    expect(openFollowUpFields(record, topics, fields).map((f) => f.id)).toEqual(["t", "cb", "en"]);
+  });
+
+  it("includes repeat-instance-1 fields, unresolved", () => {
+    const fields = [field("p1", "text")];
+    const topics = [topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    const record = recordOf({ p1: { state: "unknown" } });
+    expect(openFollowUpFields(record, topics, fields).map((f) => f.id)).toEqual(["p1"]);
+  });
+
+  it("excludes repeat-instance-2+ fields even when unasked or unknown — the sweep never attributes to a specific later instance", () => {
+    const fields = [field("p1", "text"), field("p2", "text")];
+    const topics = [
+      topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g2", ["p2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ p1: { state: "unknown" }, p2: { state: "unknown" } });
+    expect(openFollowUpFields(record, topics, fields).map((f) => f.id)).toEqual(["p1"]);
+  });
+
+  it("throws on a field id not present in the given fields list", () => {
+    const topics = [topic("only", ["ghost"])];
+    expect(() => openFollowUpFields({}, topics, [])).toThrow(/no such field/);
+  });
+
+  it("throws on a field id missing from the given record", () => {
+    const fields = [field("t", "text")];
+    const topics = [topic("only", ["t"])];
+    expect(() => openFollowUpFields({}, topics, fields)).toThrow(/record missing field id/);
+  });
+
+  it("against the real manifest: a mostly-declined record still surfaces its unknown fields, spanning multiple types", () => {
+    let record = initAgenda();
+    for (const f of FORM_3500_FIELDS) {
+      record = applyAction(record, f.id, { type: "decline" });
+    }
+    // Reopen a handful of fields to "unknown" (of different types) —
+    // isResolved() would call these resolved and hide them; the widened
+    // sweep must not.
+    const targets = [
+      "Page1.SecA_Patient.PatientIdentifier", // text
+      "Page1.SecA_Patient.AgeYears", // checkbox
+      "Page7.SecG_Reporter.Occupation", // enum
+    ];
+    for (const id of targets) {
+      record = applyAction(record, id, { type: "reopen" });
+      record = applyAction(record, id, { type: "mark_unknown" });
+    }
+    const result = openFollowUpFields(record, TOPICS, FORM_3500_FIELDS).map((f) => f.id);
+    expect(new Set(result)).toEqual(new Set(targets));
+  });
+});
+
+// Issue #44: recognizes a field id that belongs to a repeat group's
+// instance 2+ (never instance 1, which is ordinary and always in scope) —
+// the widened sweep's own way of telling "the clinician volunteered a
+// later instance" apart from "this field doesn't exist" or "this is an
+// ordinary open field."
+describe("repeatGroupOfLaterInstanceField", () => {
+  it("returns null for a non-repeat field", () => {
+    const topics = [topic("only", ["a"])];
+    expect(repeatGroupOfLaterInstanceField("a", topics)).toBeNull();
+  });
+
+  it("returns null for a repeat group's instance 1 — ordinary and always in scope", () => {
+    const topics = [topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
+    expect(repeatGroupOfLaterInstanceField("p1", topics)).toBeNull();
+  });
+
+  it("returns the group for instance 2+", () => {
+    const topics = [
+      topic("g1", ["p1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g2", ["p2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    expect(repeatGroupOfLaterInstanceField("p2", topics)).toBe("suspect-product");
+  });
+
+  it("returns null for a field id not present in any topic", () => {
+    const topics = [topic("only", ["a"])];
+    expect(repeatGroupOfLaterInstanceField("ghost", topics)).toBeNull();
+  });
+
+  it("against the real manifest: a concomitant-medication instance-5 field resolves to concomitant-medication", () => {
+    expect(repeatGroupOfLaterInstanceField("Page6.SecF_Other.Table1.Row5.Prod5")).toBe("concomitant-medication");
+  });
+
+  it("against the real manifest: suspect-product instance 1's own fields are null", () => {
+    expect(repeatGroupOfLaterInstanceField("Page4.Prod1.Prod1Name")).toBeNull();
+  });
+});
+
+// Issue #44 AC-1: "a topic-progress line from real agenda state" above the
+// current ask — the report chrome's own curated nine-row rollup is #67's
+// scope (design.md), so this is deliberately the flat, real TOPICS walk
+// (topicStatuses() itself), not a re-derived collapsed view.
+describe("currentTopicProgress", () => {
+  it("reports the current topic's own position and the total topic count", () => {
+    const fields = [field("a", "text"), field("b", "text")];
+    const topics = [topic("first", ["a"]), topic("second", ["b"])];
+    const record = recordOf({ a: { state: "declined" }, b: { state: "unasked" } });
+    expect(currentTopicProgress(record, initRepeatCounts(), topics, fields)).toEqual({
+      topic: topics[1],
+      index: 1,
+      total: 2,
+    });
+  });
+
+  it("reports index 0 on a fresh session", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "unasked" } });
+    expect(currentTopicProgress(record, initRepeatCounts(), topics, fields)).toEqual({
+      topic: topics[0],
+      index: 0,
+      total: 1,
+    });
+  });
+
+  it("returns null once nextStep() reaches done — nothing currently open to report", () => {
+    const fields = [field("a", "text")];
+    const topics = [topic("only", ["a"])];
+    const record = recordOf({ a: { state: "declined" } });
+    expect(currentTopicProgress(record, initRepeatCounts(), topics, fields)).toBeNull();
+  });
+
+  it("points at the next-instance topic while a repeat-decision is pending", () => {
+    const fields = [field("f1", "text"), field("f2", "text")];
+    const topics = [
+      topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 }),
+      topic("g-2", ["f2"], { repeatGroup: "suspect-product", repeatInstance: 2 }),
+    ];
+    const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
+    expect(currentTopicProgress(record, initRepeatCounts(), topics, fields)).toEqual({
+      topic: topics[1],
+      index: 1,
+      total: 2,
+    });
+  });
+
+  it("against the real manifest: a fresh session reports patient-basics at index 0 of 34", () => {
+    const progress = currentTopicProgress(initAgenda(), initRepeatCounts());
+    expect(progress).toEqual({ topic: TOPICS[0], index: 0, total: 34 });
   });
 });

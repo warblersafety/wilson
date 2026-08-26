@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { TOPICS, initRepeatCounts, type NextStep, type Topic } from "./topics";
-import { askDeterministic, MAX_FIELDS_PER_ASK, PHRASING_OVERRIDES } from "./ask";
+import {
+  ASK_OPTIONS_INLINE_MAX,
+  REPEAT_GROUP_LABELS,
+  askDeterministic,
+  fieldPhrase,
+  MAX_FIELDS_PER_ASK,
+  PHRASING_OVERRIDES,
+} from "./ask";
 import type { TalkSession } from "./talk";
 
 const STUB_SESSION: TalkSession = {
@@ -132,9 +139,10 @@ describe("askDeterministic", () => {
     );
   });
 
-  it("covers exactly the eleven fields identified as needing an override (six at filing, five more found by actually running the output before and after review)", () => {
+  it("covers exactly the thirteen fields identified as needing an override (six at filing, five more found by actually running the output before and after review, two more — Defects and IdentityNo — once Issue #44 started phrasing checkbox fields)", () => {
     expect(Object.keys(PHRASING_OVERRIDES).sort()).toEqual(
       [
+        "Page1.SecA_Patient.Defects",
         "Page2.SecB_Adverse.DescEvent",
         "Page3.Sec6Data.OtherHistory",
         "Page3.TestDataTable.ReturnDate",
@@ -146,6 +154,7 @@ describe("askDeterministic", () => {
         "Page6.SecE_Device.ImplantDate",
         "Page6.SecE_Device.ManuName",
         "Page6.SecE_Device.ReprocInfo",
+        "Page7.SecG_Reporter.IdentityNo",
       ].sort(),
     );
   });
@@ -175,5 +184,128 @@ describe("askDeterministic", () => {
     await expect(
       askDeterministic(topicStep(PATIENT_BASICS, []), STUB_SESSION),
     ).rejects.toThrow();
+  });
+});
+
+// Issue #44 AC: fixed-choice (checkbox/enum) fields are ordinary
+// conversational asks now, answered by typed/dictated text rather than a
+// widget — so the ask itself must carry their legal options, or a
+// clinician has no way to know the vocabulary that will actually
+// validate.
+describe("fieldPhrase — checkbox/enum option-aware phrasing (Issue #44)", () => {
+  it("appends a yes/no suffix to a checkbox field's phrase", () => {
+    const field: FormFieldSpec = {
+      id: "cb",
+      section: "B",
+      pdfFieldName: "f.cb[0]",
+      label: "Outcome: Hospitalization",
+      type: "checkbox",
+      required: false,
+    };
+    expect(fieldPhrase(field)).toBe("the hospitalization (yes or no)");
+  });
+
+  it("appends a slash-joined option list to a small enum field's phrase", () => {
+    const field: FormFieldSpec = {
+      id: "en",
+      section: "D",
+      pdfFieldName: "f.en[0]",
+      label: "Frequency",
+      type: "enum",
+      required: false,
+      options: [" ", "BID", "Daily", "Other"],
+    };
+    expect(fieldPhrase(field)).toBe("the frequency (BID / Daily / Other)");
+  });
+
+  it("never lets an enum's blank placeholder or a disallowed value leak into the phrased options", () => {
+    const field = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1StrengthUnit")!;
+    const phrase = fieldPhrase(field);
+    expect(phrase).not.toMatch(/\(\s*\/|\/\s*\)/); // no leading/trailing empty slot from the blank option
+    expect(phrase).not.toContain("AS NECESSARY - AN");
+  });
+
+  it("omits the option suffix entirely for an enum field past ASK_OPTIONS_INLINE_MAX options", () => {
+    // Country (~275 legal options): spelling out every one would replace
+    // the question with a wall of text nobody could answer from. The
+    // clinician answers in plain text either way — the Extractor performs
+    // the same referential mapping it already does for ordinary text
+    // fields ("the water pill" -> furosemide), checked mechanically
+    // against the full legal list regardless of what's shown here.
+    const field = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1Country")!;
+    expect((field.options?.length ?? 0)).toBeGreaterThan(ASK_OPTIONS_INLINE_MAX);
+    expect(fieldPhrase(field)).not.toContain("(");
+  });
+
+  it("no field's phrase — including the new option suffix — contains a comma, checkbox/enum included", () => {
+    for (const f of FORM_3500_FIELDS) {
+      if (f.type !== "checkbox" && f.type !== "enum") continue;
+      expect(fieldPhrase(f), f.id).not.toContain(",");
+    }
+  });
+
+  it("smoke test: every real checkbox/enum field across all 34 topics phrases without throwing, non-empty, no embedded comma, no raw manifest identifier", async () => {
+    const RAW_FIELD_PATH = /^Page\d+\./;
+    const RAW_OPT_CODE = /\/Opt\d/i;
+    const fieldsById = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
+    for (const topic of TOPICS) {
+      const fixedChoiceIds = topic.fieldIds.filter((id) => {
+        const type = fieldsById.get(id)?.type;
+        return type === "checkbox" || type === "enum";
+      });
+      for (const fieldId of fixedChoiceIds) {
+        const reply = await askDeterministic(topicStep(topic, [fieldId]), STUB_SESSION);
+        expect(reply.length, fieldId).toBeGreaterThan(0);
+        expect(reply, fieldId).not.toContain(",");
+        expect(reply, fieldId).not.toMatch(RAW_FIELD_PATH);
+        expect(reply, fieldId).not.toMatch(RAW_OPT_CODE);
+      }
+    }
+  });
+
+  it("against the real manifest: the dechallenge/rechallenge topic (all checkbox, unreachable before Issue #44) phrases cleanly", async () => {
+    const responseTopic = TOPICS.find((t) => t.id === "suspect-product-1-response")!;
+    const reply = await askDeterministic(topicStep(responseTopic, responseTopic.fieldIds), STUB_SESSION);
+    expect(reply).toContain("yes or no");
+  });
+});
+
+describe("REPEAT_GROUP_LABELS", () => {
+  it("is exported for reuse (Issue #44's sweep-acknowledgment phrasing)", () => {
+    expect(REPEAT_GROUP_LABELS["suspect-product"]).toBe("suspect product");
+    expect(REPEAT_GROUP_LABELS["concomitant-medication"]).toBe("concomitant medication");
+  });
+});
+
+// Issue #44: a repeat-decision ask surfaces a hint when the clinician
+// already volunteered a later instance earlier in the conversation
+// (recorded on session.volunteeredRepeats by processTurn() — see
+// talk.test.ts and followup-sweep.test.ts for how it gets there).
+describe("askDeterministic — volunteered-later-instance hint on a repeat-decision ask (Issue #44)", () => {
+  it("adds a hint when the session recorded a volunteered later instance for this group", async () => {
+    const session: TalkSession = { ...STUB_SESSION, volunteeredRepeats: { "suspect-product": true } };
+    const reply = await askDeterministic(
+      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
+      session,
+    );
+    expect(reply).toContain("Was there another suspect product?");
+    expect(reply.length).toBeGreaterThan("Was there another suspect product?".length);
+  });
+
+  it("adds no hint when nothing was volunteered for this group", async () => {
+    const reply = await askDeterministic(
+      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
+      STUB_SESSION,
+    );
+    expect(reply).toBe("Was there another suspect product?");
+  });
+
+  it("adds no hint for a DIFFERENT group's volunteered mention", async () => {
+    const session: TalkSession = { ...STUB_SESSION, volunteeredRepeats: { "concomitant-medication": true } };
+    const reply = await askDeterministic(
+      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
+      session,
+    );
+    expect(reply).toBe("Was there another suspect product?");
   });
 });

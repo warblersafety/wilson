@@ -39,7 +39,7 @@
 // here: that's real interpretation work for the not-yet-built Extractor,
 // the same boundary Issue #13 already drew for checkbox/enum fields.
 import { applyAction, type AgendaRecord } from "./agenda";
-import { isResolved } from "./field-state";
+import { isResolved, type FieldState } from "./field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
 export type RepeatGroup = "suspect-product" | "concomitant-medication";
@@ -598,6 +598,15 @@ export function initRepeatCounts(): RepeatCounts {
   return {};
 }
 
+// Exported as repeatGroupCapacity: Issue #44's count-follow-through chips
+// ("how many in total?") need the same real max this function already
+// computes for range-checking, to build the actual list of valid totals
+// to offer — not a second, hand-derived copy of "how many slots does
+// this group have."
+export function repeatGroupCapacity(group: RepeatGroup, topics: Topic[] = TOPICS): number {
+  return maxInstance(group, topics);
+}
+
 function maxInstance(group: RepeatGroup, topics: Topic[]): number {
   const instances = topics
     .filter((t) => t.repeatGroup === group)
@@ -665,10 +674,13 @@ export type NextStep =
 // Decides what the Talker asks about next, walking topics in their
 // existing array order (already section-by-section, A through G, and
 // instance-1-before-instance-2 within a repeating group — see
-// topics.test.ts). Only text/date fields are ever surfaced: checkbox/enum
-// fields resolve via direct UI selection (Issue #13's scoping), so a
-// topic that's entirely checkbox/enum needs no conversational step at
-// all and is skipped outright.
+// topics.test.ts). Every field type is surfaced (Issue #44 supersedes
+// Issue #13's old text/date-only scoping, design.md's "checkbox/enum
+// fields are ordinary conversational asks"): a topic with unresolved
+// checkbox/enum fields is an ordinary ask like any other, phrased with
+// its legal options by the deterministic AskFn (src/lib/ask.ts) rather
+// than resolved through a persistent widget panel, which no longer
+// exists anywhere in this app.
 export function nextStep(
   record: AgendaRecord,
   repeatCounts: RepeatCounts,
@@ -708,8 +720,10 @@ export function nextStep(
       if (!Object.hasOwn(record, fieldId)) {
         throw new Error(`nextStep: record missing field id: ${fieldId}`);
       }
-      const isTextOrDate = field.type === "text" || field.type === "date";
-      return isTextOrDate && !isResolved(record[fieldId].state);
+      // Every field type is unresolved-checked now (Issue #44) — `field`
+      // itself is still looked up above only to keep the "is this id real"
+      // guard, not to filter by type as this used to.
+      return !isResolved(record[fieldId].state);
     });
     if (unresolvedFieldIds.length > 0) {
       return { kind: "topic", topic, fieldIds: unresolvedFieldIds };
@@ -753,12 +767,19 @@ export function topicStatuses(
 // The review-stage edit path (design.md, Issue #34): field-state.ts's
 // `reopen` action already re-enters the state machine rather than
 // patching a value directly — this is its one caller. Sends a topic's
-// *resolved* text/date fields back to `unasked`; checkbox/enum fields are
-// left alone since those are already directly editable in place
-// (TopicFields, Issue #32) and never need a conversational re-ask.
-// nextStep()'s own serial walk then picks the topic back up as a normal
-// "topic" step, going through the same Extractor/grounding check a first
-// answer does.
+// *resolved* fields, of every type, back to `unasked`. Checkbox/enum
+// fields were once left alone here on the theory that they were "already
+// directly editable in place" through a persistent widget panel
+// (TopicFields, Issue #32) — Issue #44 deleted that panel entirely
+// (design.md: checkbox/enum fields are ordinary conversational asks, no
+// standing widget section anywhere), so the conversational re-ask this
+// function drives is now their ONLY edit path; without reopening them
+// too, an answered-but-wrong checkbox would be permanently
+// uncorrectable. applyAction()'s own "reopen" transition retains each
+// field's prior value until a replacement is written (agenda.ts) — this
+// function relies on that rather than re-implementing it. nextStep()'s
+// own serial walk then picks the topic back up as a normal "topic" step,
+// going through the same Extractor/grounding check a first answer does.
 export function reopenTopic(
   record: AgendaRecord,
   topic: Topic,
@@ -766,15 +787,13 @@ export function reopenTopic(
 ): AgendaRecord {
   const fieldsById = new Map(fields.map((f) => [f.id, f]));
   return topic.fieldIds.reduce((rec, fieldId) => {
-    const field = fieldsById.get(fieldId);
-    if (!field) {
+    if (!fieldsById.has(fieldId)) {
       throw new Error(`reopenTopic: no such field in the given fields list: ${fieldId}`);
     }
     if (!Object.hasOwn(rec, fieldId)) {
       throw new Error(`reopenTopic: record missing field id: ${fieldId}`);
     }
-    const isTextOrDate = field.type === "text" || field.type === "date";
-    if (isTextOrDate && isResolved(rec[fieldId].state)) {
+    if (isResolved(rec[fieldId].state)) {
       return applyAction(rec, fieldId, { type: "reopen" });
     }
     return rec;
@@ -783,9 +802,17 @@ export function reopenTopic(
 
 // Every field the narrative-extraction pass (Issue #41) may target: every
 // non-repeat topic, plus instance 1 of each repeat group, still unresolved
-// — any field type, unlike nextStep()'s text/date-only walk, since
-// design.md's "Extraction scope" puts checkbox/enum fields in scope for
-// this pass specifically.
+// — any field type, per design.md's "Extraction scope" ("checkbox/enum
+// fields are in scope for the narrative pass"). nextStep() also now takes
+// every field type (Issue #44 superseded its old text/date-only walk), so
+// type is no longer what distinguishes this function from that one — the
+// real differences are that this sweeps every currently-reachable topic
+// in ONE shot rather than nextStep()'s single next-step answer, and that
+// it uses isResolved()'s unasked-only test rather than the WIDER
+// unasked-or-unknown predicate the follow-up sweep uses (see
+// openFollowUpFields() below, which deliberately does NOT reuse this
+// function or isResolved() — design.md is explicit that the widened pass
+// carries its own predicate).
 //
 // Deliberately excludes repeat-instance 2+ unconditionally (there is no
 // repeatCounts parameter to widen it) — the pass never attributes fields
@@ -821,6 +848,99 @@ export function narrativePassFields(
     }
   }
   return result;
+}
+
+// The widened per-turn follow-up sweep's own predicate (Issue #44,
+// design.md: "open means state `unasked` or `unknown` — deliberately
+// wider than isResolved()'s unasked-only test that nextStep() and
+// narrativePassFields() use; the widened pass carries its own predicate
+// rather than reusing theirs"). A field the clinician already marked
+// `unknown` stays a legitimate target: a later turn volunteering that
+// value should be able to fill it, not just newly-`unasked` fields.
+// `answered`/`declined` fields are still excluded from "open" — those
+// are clinician-established states this sweep never targets for a
+// direct write; a proposal that reaches one anyway is handled downstream
+// as a correction offer, never folded into what this function calls
+// open (see src/lib/followup-sweep.ts).
+function isOpenForFollowUp(state: FieldState): boolean {
+  return state === "unasked" || state === "unknown";
+}
+
+// Same repeat-instance-2+ exclusion and eligible-topic walk as
+// narrativePassFields() above, deliberately NOT shared code with it — the
+// predicate is the one thing design.md requires to be genuinely separate,
+// and duplicating this small walk keeps that requirement visible at the
+// call site rather than hidden behind a shared helper a future edit could
+// accidentally widen in both places at once.
+export function openFollowUpFields(
+  record: AgendaRecord,
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): FormFieldSpec[] {
+  const fieldsById = new Map(fields.map((f) => [f.id, f]));
+  const eligibleTopics = topics.filter((t) => t.repeatInstance === null || t.repeatInstance === 1);
+
+  const result: FormFieldSpec[] = [];
+  for (const topic of eligibleTopics) {
+    for (const fieldId of topic.fieldIds) {
+      const field = fieldsById.get(fieldId);
+      if (!field) {
+        throw new Error(`openFollowUpFields: no such field in the given fields list: ${fieldId}`);
+      }
+      if (!Object.hasOwn(record, fieldId)) {
+        throw new Error(`openFollowUpFields: record missing field id: ${fieldId}`);
+      }
+      if (isOpenForFollowUp(record[fieldId].state)) {
+        result.push(field);
+      }
+    }
+  }
+  return result;
+}
+
+// Recognizes a field id that belongs to a repeat group's instance 2+
+// (never instance 1, which is ordinary and always in scope) — the
+// widened follow-up sweep's way of telling "the clinician volunteered a
+// LATER instance" (design.md: "a volunteered later instance surfaces as
+// a repeat-count proposal the clinician answers at the group's normal
+// 'was there another?' decision... never attributed by the sweep") apart
+// from an ordinary open field or an unknown field id. Returns null for
+// both "not a repeat field at all" and "instance 1" on purpose — callers
+// only need the single yes/no "is this a later instance" question, and a
+// null either way keeps that check a single comparison rather than two.
+export function repeatGroupOfLaterInstanceField(fieldId: string, topics: Topic[] = TOPICS): RepeatGroup | null {
+  const topic = topics.find((t) => t.fieldIds.includes(fieldId));
+  if (!topic || topic.repeatGroup === null || topic.repeatInstance === null) return null;
+  return topic.repeatInstance > 1 ? topic.repeatGroup : null;
+}
+
+export interface TopicProgress {
+  topic: Topic;
+  // 0-based position of the current topic within `topics`' own array
+  // order — the flat, real topic walk (34 entries today), not the report
+  // chrome's curated nine-row section/repeat-group rollup, which is #67's
+  // own scope (design.md: "each row's state computed from its constituent
+  // fields' actual states... it is part of the decided model and builds
+  // as its own unit"). This is deliberately the simpler, already-true
+  // number, not a hand-collapsed stand-in for that later unit's rail.
+  index: number;
+  total: number;
+}
+
+// The Follow-ups surface's topic-progress line (Issue #44 AC-1: "a
+// topic-progress line from real agenda state") — built on topicStatuses()
+// itself (one call), the same shared helper the sidebar reads from,
+// rather than a second done/current/upcoming computation.
+export function currentTopicProgress(
+  record: AgendaRecord,
+  repeatCounts: RepeatCounts,
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): TopicProgress | null {
+  const statuses = topicStatuses(record, repeatCounts, topics, fields);
+  const index = statuses.findIndex((entry) => entry.status === "current");
+  if (index === -1) return null; // "done" — nothing currently open to report
+  return { topic: statuses[index].topic, index, total: statuses.length };
 }
 
 function currentTopicIdFor(step: NextStep, topics: Topic[]): string | null {

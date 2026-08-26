@@ -393,6 +393,85 @@ describe("validateCandidates", () => {
   });
 });
 
+// Issue #44's citation-pool rule (design.md: "the citation pool is the
+// current turn only, enforced in the validator (a turn-index constraint),
+// never just the prompt... a proposal the narrative pass missed... could
+// re-enter turns later citing the narrative and be written with no
+// read-back pairing" — this resolves #59). `currentTurnIndex` is an
+// OPTIONAL 5th/4th parameter (validateCandidates/validateRepeatCandidate
+// respectively): omitted, both functions behave exactly as before (every
+// test above this point exercises the unconstrained default and must keep
+// passing unmodified) — the narrative-extraction pass has only ever had
+// one clinician turn to cite anyway, so it has no need to pass this.
+describe("validateCandidates — currentTurnIndex constraint (Issue #44, resolves #59)", () => {
+  it("accepts a candidate whose quote cites exactly the current turn", () => {
+    const transcript = transcriptWith("first answer", "42 years old");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 3, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "answer", value: "42" }]);
+  });
+
+  it("rejects a candidate citing an EARLIER clinician turn, with a named reason distinct from quote_not_found", () => {
+    const transcript = transcriptWith("42 years old", "and the lot number is 8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      // Real, grounded quote — just from the WRONG (earlier) turn. Index 1
+      // is the first clinician turn; the current turn is index 3.
+      quote: { turnIndex: 1, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
+
+  it("rejects a candidate citing the opening narrative (turn 0) once follow-up turns exist", () => {
+    const transcript: TalkTurn[] = [
+      { role: "clinician", text: "42-year-old woman, amoxicillin for sinusitis." },
+      { role: "talker", text: "What's the lot number?" },
+      { role: "clinician", text: "8834" },
+    ];
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 0, text: "42-year-old woman" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 2);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
+
+  it("is unconstrained when currentTurnIndex is omitted — any real clinician-turn citation is still accepted", () => {
+    const transcript = transcriptWith("42 years old", "and the lot number is 8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 1, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "answer", value: "42" }]);
+  });
+
+  it("checks turn-index before quote-grounding — a wrong-turn citation is rejected even when its text isn't grounded there either", () => {
+    const transcript = transcriptWith("42 years old", "8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "x",
+      quote: { turnIndex: 1, text: "something never said anywhere" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
+});
+
 describe("validateRepeatCandidate", () => {
   it("accepts a repeat-group decision whose quote is a real clinician turn", () => {
     const transcript = transcriptWith("yes, there was a second one, lisinopril");
@@ -471,6 +550,57 @@ describe("validateRepeatCandidate", () => {
     expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
       accepted: false,
       reason: "wrong_repeat_group",
+    });
+  });
+
+  // Issue #44's citation-pool rule applies here too — a repeat-decision
+  // candidate is grounded the same way any other proposal is.
+  describe("currentTurnIndex constraint (Issue #44, resolves #59)", () => {
+    it("accepts a candidate whose quote cites exactly the current turn", () => {
+      const transcript = transcriptWith("no, that's the only one", "yes, there was a second one");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 3, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product", 3)).toEqual({ accepted: true });
+    });
+
+    it("rejects a candidate citing an earlier clinician turn, with a named reason distinct from quote_not_found", () => {
+      const transcript = transcriptWith("yes, there was a second one", "8834");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 1, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product", 3)).toEqual({
+        accepted: false,
+        reason: "quote_outside_current_turn",
+      });
+    });
+
+    it("checks the group match, then turn-index, then quote grounding — in that order", () => {
+      const transcript = transcriptWith("yes, there was a second one");
+      const wrongGroup: RepeatCandidate = {
+        repeatGroup: "concomitant-medication",
+        count: 2,
+        quote: { turnIndex: 0, text: "not the current turn either" },
+      };
+      // Wrong group wins even though the turn index is also wrong.
+      expect(validateRepeatCandidate(transcript, wrongGroup, "suspect-product", 1)).toEqual({
+        accepted: false,
+        reason: "wrong_repeat_group",
+      });
+    });
+
+    it("is unconstrained when currentTurnIndex is omitted", () => {
+      const transcript = transcriptWith("yes, there was a second one");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 1, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({ accepted: true });
     });
   });
 });
