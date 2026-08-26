@@ -31,7 +31,13 @@
 // loss; the clinician lands back where they were.
 import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
-import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
+import {
+  clearIntakeDraft,
+  clearIntakeState,
+  resolveResumeSurface,
+  saveSession,
+  type IntakeDraft,
+} from "@/lib/session-storage";
 import type { ReadBackHandoff } from "@/lib/start-surface";
 import { startTalk, type TalkSession } from "@/lib/talk";
 import { ReadBack } from "./ReadBack";
@@ -40,9 +46,11 @@ import { Review } from "./Review";
 import { StartSurface } from "./StartSurface";
 import { Wizard } from "../wizard/Wizard";
 
+type ReadBackDraft = Extract<IntakeDraft, { kind: "read-back" }>;
+
 type IntakeSurface =
-  | { kind: "start" }
-  | { kind: "read-back"; handoff: ReadBackHandoff }
+  | { kind: "start"; initialNarrative: string }
+  | { kind: "read-back"; handoff: ReadBackHandoff; restored?: ReadBackDraft }
   | { kind: "follow-ups" }
   | { kind: "review"; session: TalkSession }
   | { kind: "ready"; session: TalkSession };
@@ -50,24 +58,61 @@ type IntakeSurface =
 async function handToFollowUps(session: TalkSession): Promise<void> {
   const step = await startTalk(session, { ask: askDeterministic });
   saveSession(window.localStorage, step.session);
+  // The draft has served its purpose the moment a session exists —
+  // resolveResumeSurface() would prefer the session anyway, but leaving an
+  // unconfirmed narrative behind after it has been superseded is state
+  // nothing will ever read again (Issue #72).
+  clearIntakeDraft(window.localStorage);
 }
 
 export function IntakeFlow() {
-  const [surface, setSurface] = useState<IntakeSurface>({ kind: "start" });
+  const [surface, setSurface] = useState<IntakeSurface | null>(null);
 
+  // Storage is read once, on mount, client-side only (session-storage
+  // reads window.localStorage, unavailable during Next's server render —
+  // the same reason Wizard.tsx hydrates inside an effect rather than an
+  // initial state). Which surface to resume is DERIVED from what is
+  // stored rather than stored itself, so a pointer can never disagree
+  // with the data it points at (src/lib/session-storage.ts).
   useEffect(() => {
-    if (loadSession(window.localStorage)) {
+    const resumed = resolveResumeSurface(window.localStorage);
+    if (resumed.kind === "follow-ups") {
       setSurface({ kind: "follow-ups" });
+    } else if (resumed.kind === "read-back") {
+      setSurface({ kind: "read-back", handoff: resumed.draft.handoff, restored: resumed.draft });
+    } else {
+      setSurface({ kind: "start", initialNarrative: resumed.narrative });
     }
   }, []);
+
+  if (surface === null) {
+    // Held back until storage has been read, rather than rendering an
+    // empty Start surface and correcting it a frame later. Start and
+    // Read-back seed their state from props on first mount, so a
+    // corrected prop would arrive too late to be read — and a composer
+    // that paints empty before filling with the clinician's own recovered
+    // draft reads as "it lost my work" for exactly as long as it is
+    // wrong. Deliberately unwrapped by the chrome for the same reason
+    // Wizard's own loading branch is: nothing about the record is known
+    // yet, so any chrome here would be asserting something (reviewer
+    // pass, PR #75, finding F10).
+    return (
+      <main className="intake-loading">
+        <p>Loading…</p>
+      </main>
+    );
+  }
 
   if (surface.kind === "ready") {
     return (
       <Ready
         session={surface.session}
         onStartOver={() => {
-          clearSession(window.localStorage);
-          setSurface({ kind: "start" });
+          // One function that means "wipe" — the session AND any draft
+          // (src/lib/session-storage.ts). Two calls here would be a place
+          // for a future third persisted shape to be forgotten.
+          clearIntakeState(window.localStorage);
+          setSurface({ kind: "start", initialNarrative: "" });
         }}
       />
     );
@@ -97,6 +142,7 @@ export function IntakeFlow() {
     return (
       <ReadBack
         handoff={surface.handoff}
+        restored={surface.restored}
         onConfirmed={(session) => {
           void handToFollowUps(session).then(() => setSurface({ kind: "follow-ups" }));
         }}
@@ -104,5 +150,10 @@ export function IntakeFlow() {
     );
   }
 
-  return <StartSurface onLanded={(handoff) => setSurface({ kind: "read-back", handoff })} />;
+  return (
+    <StartSurface
+      initialNarrative={surface.initialNarrative}
+      onLanded={(handoff) => setSurface({ kind: "read-back", handoff })}
+    />
+  );
 }
