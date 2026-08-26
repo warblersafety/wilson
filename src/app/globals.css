@@ -269,34 +269,56 @@ h3 {
 }
 
 /* --- transcript (Issue #44) --------------------------------------------- */
+/* Screen 04's chat-thread treatment: tight bubbles (lucy's own
+   --type-bubble-size/line, never used in wilson's v1 wizard until this
+   unit), a topic-progress line above the thread, and the CURRENT ask
+   rendered separately (see .ask-form__reply/.repeat-decision__reply
+   below) as the one prominent, accent-filled bubble — wilson's teal
+   (--accent-wilson) where the mockup's own screenshot shows lucy's
+   yellow, per design.md's Design system section ("wilson takes its
+   designated accent... where lucy takes the yellow"). */
+
+.transcript-panel {
+  margin: 0 0 var(--space-7);
+}
+
+.transcript-panel__progress {
+  margin: 0 0 var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+}
 
 .transcript {
   list-style: none;
-  margin: 0 0 var(--space-9);
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   max-height: 280px;
   overflow-y: auto;
 }
 
 .transcript__turn p {
   margin: 0;
-  padding: var(--space-4) var(--space-6);
-  border-radius: var(--radius-lg);
-  font-size: var(--type-copy-size);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--type-bubble-size);
+  line-height: var(--type-bubble-line);
   max-width: 80%;
 }
 
 .transcript__turn--clinician p {
   margin-left: auto;
-  background: var(--accent-flash);
+  background: var(--surface-neutral);
   color: var(--text-body);
 }
 
 .transcript__turn--talker p {
-  background: var(--surface-neutral);
+  background: var(--surface-well);
   color: var(--text-prose);
 }
 
@@ -314,9 +336,30 @@ h3 {
   gap: var(--space-5);
 }
 
+/* The current ask — the one prominent bubble above the composer (screen
+   04's own layout authority), distinct from the plain-text history above
+   it. */
 .ask-form__reply {
   margin: 0;
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-lg);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
   font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  max-width: 80%;
+}
+
+.ask-form__corrections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.ask-form__hint {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
 }
 
 .ask-form__composer {
@@ -383,9 +426,18 @@ h3 {
   gap: var(--space-5);
 }
 
+/* Same prominent-bubble treatment as .ask-form__reply — a repeat-decision
+   is also "the current ask", just answered by chips instead of the
+   composer. */
 .repeat-decision__reply {
   margin: 0;
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-lg);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
   font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  max-width: 80%;
 }
 
 .repeat-decision__prompt {

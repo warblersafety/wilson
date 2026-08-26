@@ -1,15 +1,30 @@
-# Live sweep of the Extractor fixture corpus (Issue #22) against the real
-# Claude Sonnet 5 API, billed to the wilson-evals Anthropic workspace.
+# Live Sonnet 5 calls against the real API, billed to the wilson-evals
+# Anthropic workspace. Two modes, chosen at dispatch time:
 #
-# workflow_dispatch only, deliberately — no push or schedule trigger.
-# Matches the lesson recorded in lucy's own docs/SECRETS-AND-COSTS.md: a
-# push-triggered eval workflow "fails nothing — it simply starts billing."
-# The free, no-API-calls structural check (`npm run eval:dry`) already runs
-# on every PR via ci.yml; this is the separately-triggered, real-money job.
+#   mode: sweep (default) — the Extractor fixture corpus (Issue #22),
+#     `npm run eval:extraction`.
+#   mode: cost — Issue #44's widened-vs-narrow per-turn cost proof,
+#     `npm run cost:widened` (design.md's "Cost posture": a measured
+#     cached-vs-uncached comparison against the pre-widening baseline).
+#
+# workflow_dispatch only, deliberately — no push or schedule trigger, for
+# either mode. Matches the lesson recorded in lucy's own
+# docs/SECRETS-AND-COSTS.md: a push-triggered eval workflow "fails
+# nothing — it simply starts billing." The free, no-API-calls structural
+# checks (`npm run eval:dry`, `npm run eval:narrative-dry`) already run on
+# every PR via ci.yml; this is the separately-triggered, real-money job.
 name: eval-extraction
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "sweep (extraction fixture corpus) or cost (widened vs narrow per-turn cost comparison)"
+        type: choice
+        options:
+          - sweep
+          - cost
+        default: sweep
 
 jobs:
   eval:
@@ -21,7 +36,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Live extraction sweep
+      - name: Run (${{ inputs.mode }})
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: npm run eval:extraction
+        run: |
+          if [ "${{ inputs.mode }}" = "cost" ]; then
+            npm run cost:widened
+          else
+            npm run eval:extraction
+          fi

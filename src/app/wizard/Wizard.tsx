@@ -4,16 +4,14 @@
 // driven entirely by the real nextStep()/TOPICS, not hardcoded per-topic.
 import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
-import { isResolved } from "@/lib/field-state";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { nextStep, reopenTopic, topicStatuses, type Topic } from "@/lib/topics";
+import { currentTopicProgress, nextStep, reopenTopic, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
 import { PdfReview } from "./PdfReview";
 import { RepeatDecision } from "./RepeatDecision";
 import { Sidebar } from "./Sidebar";
-import { TopicFields } from "./TopicFields";
 import { Transcript } from "./Transcript";
 
 // No model call — askDeterministic never touches the network, so this is
@@ -24,9 +22,9 @@ async function freshStep(): Promise<TalkStep> {
 
 export function Wizard() {
   const [current, setCurrent] = useState<TalkStep | null>(null);
-  // Disables TopicFields' checkbox/enum widgets while an AskForm submission
-  // is in flight: both write from their own session snapshot, so a checkbox
-  // edit that resolves after a slower Server Action response would
+  // Disables AskForm/RepeatDecision's chip affordances while a submission
+  // is in flight: both write from their own session snapshot, so a chip
+  // tap that resolves after a slower Server Action response would
   // otherwise get silently clobbered when the stale response lands.
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -70,13 +68,14 @@ export function Wizard() {
   }
 
   // The review-stage edit path (Issue #34): reopenTopic() sends the
-  // topic's resolved text/date fields back to `unasked`, so nextStep()'s
-  // own serial walk picks it back up as a normal "topic" step — the same
-  // AskForm/Extractor path a first answer goes through, not a raw patch.
-  // Shares stepForSession() with TopicFields'/RepeatDecision's chip
-  // writes (no transcript turn appended here, matching topic.ts's own
-  // "current" definition — a reopen isn't a new answer) rather than
-  // routing through processTurn().
+  // topic's resolved fields — every type, since Issue #44 deleted the
+  // checkbox/enum widget panel that used to make those "directly editable
+  // in place" — back to `unasked`, so nextStep()'s own serial walk picks
+  // it back up as a normal "topic" step, the same AskForm/Extractor path
+  // a first answer goes through, not a raw patch. Shares stepForSession()
+  // with RepeatDecision's chip writes (no transcript turn appended here,
+  // matching topic.ts's own "current" definition — a reopen isn't a new
+  // answer) rather than routing through processTurn().
   async function handleEditTopic(topic: Topic) {
     if (!current) return;
     try {
@@ -98,47 +97,18 @@ export function Wizard() {
   }
 
   const { session, nextStep: step } = current;
-
-  // Every topic nextStep() has already walked past ("done") gets its
-  // checkbox/enum widgets shown here too — nextStep() itself skips any
-  // topic with zero unresolved text/date fields in a single pass (a
-  // checkbox/enum-only topic never becomes its own conversational "topic"
-  // step), so restricting this to just the current step's topic would
-  // leave those topics' fields permanently unreachable. The "current"
-  // topic's fields are included only when the step kind is actually
-  // "topic" — during a pending repeat-decision, topicStatuses() points at
-  // the next instance's topic, which isn't confirmed to exist yet.
-  //
-  // Also included: any topic with at least one resolved field, regardless
-  // of its computed status. Reopening an *earlier* topic (Issue #34's
-  // review-stage edit) moves nextStep()'s walk back to it, and
-  // topicStatuses()'s index-based done/current/upcoming split then
-  // relabels every later topic "upcoming" even though its fields are
-  // still answered — this clause keeps those topics' widgets on screen
-  // through that transient state instead of hiding already-entered data.
-  const visibleTopics = topicStatuses(session.record, session.repeatCounts)
-    .filter(
-      (entry) =>
-        entry.status === "done" ||
-        (entry.status === "current" && step.kind === "topic") ||
-        entry.topic.fieldIds.some((id) => isResolved(session.record[id].state)),
-    )
-    .map((entry) => entry.topic);
+  // The Follow-ups surface's topic-progress line (Issue #44 AC-1): the
+  // real, currently-open topic's position among the flat topic walk — the
+  // report chrome's curated nine-row rollup (design.md) is #67's own
+  // scope, not reproduced here. null once nextStep() reaches "done" (the
+  // done-state render below has nothing to show a progress line for).
+  const progress = currentTopicProgress(session.record, session.repeatCounts);
 
   return (
     <div className="wizard-layout">
       <Sidebar session={session} />
       <main className="wizard">
-        <Transcript turns={session.transcript} />
-        {visibleTopics.map((topic) => (
-          <TopicFields
-            key={topic.id}
-            topic={topic}
-            current={current}
-            onChange={handleStep}
-            disabled={isSubmitting}
-          />
-        ))}
+        <Transcript turns={session.transcript} progress={progress} />
         {step.kind === "topic" && (
           <AskForm current={current} onSubmitted={handleStep} onPendingChange={setIsSubmitting} />
         )}

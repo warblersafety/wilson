@@ -12,7 +12,8 @@
     "eval:dry": "tsx scripts/eval-extraction.ts --dry",
     "eval:extraction": "tsx scripts/eval-extraction.ts",
     "eval:narrative-dry": "tsx scripts/eval-narrative-extraction.ts --dry",
-    "eval:narrative": "tsx scripts/eval-narrative-extraction.ts"
+    "eval:narrative": "tsx scripts/eval-narrative-extraction.ts",
+    "cost:widened": "tsx scripts/cost-widened-turn.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

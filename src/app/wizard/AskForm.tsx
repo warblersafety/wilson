@@ -16,17 +16,22 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { submitTurn } from "@/app/actions";
 import { Chip } from "@/components/Chip";
+import { fieldPhrase } from "@/lib/ask";
 import { friendlyFailureMessage, applyActionToFields, widgetTurnText } from "@/lib/chip-grammar";
-import type { TalkSession, TalkStep } from "@/lib/talk";
+import type { CorrectionOffer } from "@/lib/followup-sweep";
+import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
+import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
+
+const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
 
 interface AskFormProps {
   current: TalkStep;
   onSubmitted: (next: TalkStep) => void;
-  // Reports pending state upward so the parent can disable TopicFields'
-  // checkbox/enum widgets while a submission is in flight — otherwise a
-  // checkbox edit resolving mid-request gets silently clobbered when this
-  // form's (now-stale) response lands.
+  // Reports pending state upward so the parent can disable other chip
+  // affordances while a submission is in flight — otherwise a chip tap
+  // resolving mid-request gets silently clobbered when this form's (now-
+  // stale) response lands.
   onPendingChange?: (pending: boolean) => void;
 }
 
@@ -59,8 +64,8 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
 
   // "I don't have that" / "rather not say" dismiss the whole bundled
   // topic ask in one tap — a deterministic direct write (applyAction via
-  // stepForSession), same as TopicFields' chip writes, not a submission
-  // that needs the real Extractor to interpret.
+  // stepForSession), same as RepeatDecision's chip writes, not a
+  // submission that needs the real Extractor to interpret.
   async function handleDismiss(action: "mark_unknown" | "decline", answerLabel: string) {
     if (fieldIds.length === 0) return;
     setError(null);
@@ -84,9 +89,53 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     }
   }
 
+  // One-tap correction accept (Issue #44, design.md: "one tap to accept
+  // (a deterministic write through the normal path, recorded in the
+  // transcript)"). The turn's reply already states the offer in full
+  // ("you said X for <field> — it's recorded as Y; replace it?") — the
+  // chip itself just needs to name which field it applies to, for a
+  // clinician juggling more than one offer at once.
+  async function handleAcceptCorrection(offer: CorrectionOffer) {
+    setError(null);
+    onPendingChange?.(true);
+    try {
+      const field = FIELDS_BY_ID.get(offer.fieldId);
+      const label = field ? fieldPhrase(field) : offer.fieldId;
+      const nextSession: TalkSession = {
+        ...current.session,
+        record: applyProposedActions(current.session.record, [offer.action]),
+        transcript: [
+          ...current.session.transcript,
+          { role: "clinician", text: widgetTurnText(`Replace ${label}?`, "Yes, replace it"), source: "widget" },
+        ],
+      };
+      onSubmitted(await stepForSession(nextSession));
+    } catch (err) {
+      setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
+    } finally {
+      onPendingChange?.(false);
+    }
+  }
+
   return (
     <form className="ask-form" onSubmit={handleSubmit}>
       <p className="ask-form__reply">{current.reply}</p>
+      {current.correctionOffers && current.correctionOffers.length > 0 && (
+        <div className="ask-form__corrections" role="group" aria-label="Correction offers">
+          {current.correctionOffers.map((offer) => {
+            const field = FIELDS_BY_ID.get(offer.fieldId);
+            const label = field ? fieldPhrase(field) : offer.fieldId;
+            return (
+              <Chip
+                key={offer.fieldId}
+                label={`Replace ${label}`}
+                disabled={busy}
+                onClick={() => void handleAcceptCorrection(offer)}
+              />
+            );
+          })}
+        </div>
+      )}
       <textarea
         className="ask-form__composer"
         value={message}
@@ -96,6 +145,9 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         aria-label="Your answer"
         rows={3}
       />
+      <p className="ask-form__hint">
+        Answer more than one topic at once if it&rsquo;s easier — I&rsquo;ll sort out where everything goes.
+      </p>
       <div className="ask-form__actions">
         <button type="submit" disabled={busy || message.trim().length === 0}>
           {isPending ? "Sending…" : "Send"}
