@@ -6,11 +6,10 @@ import { useEffect, useState } from "react";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { askDeterministic } from "@/lib/ask";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
-import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { currentTopicProgress, reopenTopic, type Topic } from "@/lib/topics";
+import { initTalkSession, startTalk, type TalkSession, type TalkStep } from "@/lib/talk";
+import { currentTopicProgress } from "@/lib/topics";
 import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
-import { PdfReview } from "./PdfReview";
 import { RepeatDecision } from "./RepeatDecision";
 import { Transcript } from "./Transcript";
 
@@ -20,14 +19,21 @@ async function freshStep(): Promise<TalkStep> {
   return startTalk(initTalkSession(), { ask: askDeterministic });
 }
 
-export function Wizard() {
+interface WizardProps {
+  // Hands the finished session to IntakeFlow, which routes it to Review
+  // (Issue #45). Required, not optional: the "done" branch this replaces
+  // used to render the review/export step itself, and a missing hand-off
+  // would strand a clinician on a surface with nothing left to ask.
+  onDone: (session: TalkSession) => void;
+}
+
+export function Wizard({ onDone }: WizardProps) {
   const [current, setCurrent] = useState<TalkStep | null>(null);
   // Disables AskForm/RepeatDecision's chip affordances while a submission
   // is in flight: both write from their own session snapshot, so a chip
   // tap that resolves after a slower Server Action response would
   // otherwise get silently clobbered when the stale response lands.
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,35 +62,20 @@ export function Wizard() {
     };
   }, []);
 
+  // Hands off to Review the moment nothing is left to ask (Issue #45).
+  // Keyed on the derived step rather than fired from handleStep(), so it
+  // covers BOTH paths that reach "done": a live answer that resolves the
+  // last topic, and mount-time hydration of a stored session that was
+  // already finished (a reload on Review or Ready lands here, since only
+  // the session persists, never which surface was showing). Both converge
+  // on the same `current` state, so one effect covers both.
+  useEffect(() => {
+    if (current?.nextStep.kind === "done") onDone(current.session);
+  }, [current, onDone]);
+
   function handleStep(next: TalkStep) {
     setCurrent(next);
     saveSession(window.localStorage, next.session);
-  }
-
-  async function handleStartOver() {
-    clearSession(window.localStorage);
-    setCurrent(await freshStep());
-  }
-
-  // The review-stage edit path (Issue #34): reopenTopic() sends the
-  // topic's resolved fields — every type, since Issue #44 deleted the
-  // checkbox/enum widget panel that used to make those "directly editable
-  // in place" — back to `unasked`, so nextStep()'s own serial walk picks
-  // it back up as a normal "topic" step, the same AskForm/Extractor path
-  // a first answer goes through, not a raw patch. Shares stepForSession()
-  // with RepeatDecision's chip writes (no transcript turn appended here,
-  // matching topic.ts's own "current" definition — a reopen isn't a new
-  // answer) rather than routing through processTurn().
-  async function handleEditTopic(topic: Topic) {
-    if (!current) return;
-    try {
-      const record = reopenTopic(current.session.record, topic);
-      const step = await stepForSession({ ...current.session, record });
-      setEditError(null);
-      handleStep(step);
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Could not reopen that topic.");
-    }
   }
 
   if (!current) {
@@ -128,24 +119,10 @@ export function Wizard() {
             disabled={isSubmitting}
           />
         )}
-        {step.kind === "done" && (
-          <div className="wizard__done">
-            <p>{current.reply}</p>
-            {editError && (
-              <p className="wizard__edit-error" role="alert">
-                {editError}
-              </p>
-            )}
-            <PdfReview
-              record={session.record}
-              onEditTopic={(topic) => void handleEditTopic(topic)}
-              disabled={isSubmitting}
-            />
-            <button type="button" onClick={() => void handleStartOver()}>
-              Start over
-            </button>
-          </div>
-        )}
+        {/* "done" renders nothing: the effect above is already handing
+            this session to Review, one tick away. Showing the previous
+            step's ask for that tick would be worse than a blank — it
+            reads as a question the clinician still has to answer. */}
       </main>
     </ReportChrome>
   );

@@ -1,0 +1,96 @@
+"use client";
+
+// The Open-fields dialog (Issue #45) — design.md's surface 5, "presented
+// as a dialog over the Review surface (screen 06), not a separate page —
+// it is enumerated as a surface because it carries its own rules and
+// state, not its own screen." All of its derivation lives in
+// src/lib/open-fields.ts; this renders it.
+//
+// The nudge never gates: "Finish as it stands" is always present and
+// always enabled, and there is no code path anywhere in this component or
+// its module that consults the entry count before allowing it — see
+// summarizeOpenFields()'s canFinishAsIs tripwire and its test.
+import { Dialog } from "@/components/Dialog";
+import type { AgendaRecord } from "@/lib/agenda";
+import { openFieldEntries, rowForField } from "@/lib/open-fields";
+import type { CuratedRow } from "@/lib/report-chrome";
+import type { RepeatCounts } from "@/lib/topics";
+
+interface OpenFieldsDialogProps {
+  record: AgendaRecord;
+  repeatCounts: RepeatCounts;
+  rows: CuratedRow[];
+  // Reopens the row a given open field belongs to — the same reopen path
+  // Review's own per-card Edit uses, at the same granularity, so this
+  // dialog adds no second way to edit anything.
+  onAnswer: (row: CuratedRow) => void;
+  onFinishAsIs: () => void;
+  onDismiss: () => void;
+}
+
+// Derived from the count, never hardcoded — screen 06's own "Three fields
+// are still open." is written for its three-entry sample.
+function heading(count: number): string {
+  return count === 1 ? "1 field is still open." : `${count} fields are still open.`;
+}
+
+export function OpenFieldsDialog({
+  record,
+  repeatCounts,
+  rows,
+  onAnswer,
+  onFinishAsIs,
+  onDismiss,
+}: OpenFieldsDialogProps) {
+  const entries = openFieldEntries(record, repeatCounts);
+
+  return (
+    <Dialog labelledBy="open-fields-heading" onDismiss={onDismiss}>
+      <h2 id="open-fields-heading" className="dialog__heading">
+        {heading(entries.length)}
+      </h2>
+      <p className="dialog__body">
+        Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them
+        now, or finish as it stands.
+      </p>
+
+      <ul className="open-fields__list">
+        {entries.map((entry) => {
+          const row = rowForField(entry.fieldId, rows);
+          return (
+            <li key={entry.fieldId} className="open-fields__entry">
+              <span className="open-fields__label">{entry.label}</span>
+              <span className={`open-fields__reason open-fields__reason--${entry.reasonKind}`}>{entry.reason}</span>
+              {/* No row means no reopen path to offer — the entry is still
+                  listed, because hiding an open field would be the one
+                  dishonest thing this dialog could do. */}
+              {row && (
+                <button type="button" className="open-fields__answer" onClick={() => onAnswer(row)}>
+                  Answer
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Enumerated deviation from screen 06: its primary "Fill these
+          now" has no separate action here. Each entry's own "Answer" IS
+          the fill affordance, and a bulk version of it would reopen every
+          resolved field of every row carrying an open field — with one
+          unknown lot number, the whole ~40-field suspect-product card
+          gets re-asked. The button keeps the mockup's slot and weighting
+          as the way back to Review, where every card's Edit also lives;
+          "Finish as it stands" keeps the secondary link's position, so
+          the layout still nudges toward filling rather than finishing. */}
+      <div className="dialog__actions">
+        <button type="button" className="dialog__primary" onClick={onDismiss}>
+          Back to review
+        </button>
+        <button type="button" className="dialog__secondary" onClick={onFinishAsIs}>
+          Finish as it stands
+        </button>
+      </div>
+    </Dialog>
+  );
+}
