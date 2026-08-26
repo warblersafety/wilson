@@ -232,4 +232,156 @@ describe("createExtractFn", () => {
     const call = parseSpy.mock.calls[0][0] as { messages: Array<{ content: string }> };
     expect(call.messages[0].content).toContain("[1] CLINICIAN: the new message");
   });
+
+  // ---------------------------------------------------------------------
+  // Issue #44's widened per-turn sweep — the same createExtractFn(), now
+  // extracting against the open field set rather than just the current
+  // ask, with write policy delegated to classifyFollowUpActions() and the
+  // reply prefix to describeFollowUpSweep() (both proven independently,
+  // API-free, in followup-sweep.test.ts). These tests prove the WIRING:
+  // that extract.ts actually calls them with the right inputs.
+  // ---------------------------------------------------------------------
+  describe("widened follow-up sweep (Issue #44)", () => {
+    it("accepts a checkbox/enum candidate — the old ['text','date'] default no longer applies", async () => {
+      const checkboxField = field("cb", "checkbox");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "cb", kind: "value", value: "true", quote: { turnIndex: 1, text: "hospitalized overnight" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [TOPIC], [FIELD_A, FIELD_B, checkboxField]);
+      const session = sessionWith({ record: { a: { state: "unasked" }, b: { state: "unasked" }, cb: { state: "unasked" } } });
+      const result = await extract(session, "hospitalized overnight");
+      expect(result.actions).toEqual([{ fieldId: "cb", type: "answer", value: "true" }]);
+    });
+
+    it("writes an unasked field OUTSIDE the current ask and names it in replyPrefix — no invisible write", async () => {
+      const outOfAsk = field("c", "text");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "c", kind: "value", value: "lisinopril", quote: { turnIndex: 1, text: "lisinopril" } }],
+          repeatDecision: null,
+        }),
+      );
+      // TOPIC only asks about "a"/"b" — "c" belongs to a different topic
+      // entirely but is still `unasked`, so it's in the open set.
+      const extract = createExtractFn(client, [TOPIC], [FIELD_A, FIELD_B, outOfAsk]);
+      const session = sessionWith({ record: { a: { state: "unasked" }, b: { state: "unasked" }, c: { state: "unasked" } } });
+      const result = await extract(session, "also, lisinopril");
+      expect(result.actions).toEqual([{ fieldId: "c", type: "answer", value: "lisinopril" }]);
+      expect(result.replyPrefix).toContain("lisinopril");
+    });
+
+    it("turns a candidate for an already-answered field into a correctionOffer, never a direct write", async () => {
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "a", kind: "value", value: "45", quote: { turnIndex: 1, text: "actually, make that 45" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [TOPIC], FIELDS);
+      const session = sessionWith({ record: { a: { state: "answered", value: "42" }, b: { state: "unasked" } } });
+      const result = await extract(session, "actually, make that 45");
+      expect(result.actions).toEqual([]);
+      expect(result.correctionOffers).toEqual([
+        { fieldId: "a", action: { fieldId: "a", type: "answer", value: "45" }, currentState: "answered", currentValue: "42" },
+      ]);
+      expect(result.replyPrefix).toContain("45");
+    });
+
+    it("a candidate for a repeat-instance-2+ field writes nothing and is recorded as a volunteered group", async () => {
+      // REPEAT_TOPIC_1/REPEAT_TOPIC_2 (module-level, above) are instance
+      // 1/2 of "suspect-product", over fields "a"/"b" respectively — "b"
+      // is `unasked` (instance 1 not yet decided), so it's in the open
+      // set, but it belongs to a later instance the sweep must never
+      // attribute a direct write to.
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "b", kind: "value", value: "lisinopril", quote: { turnIndex: 1, text: "lisinopril" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [REPEAT_TOPIC_1, REPEAT_TOPIC_2], [FIELD_A, FIELD_B]);
+      const session = sessionWith({ record: { a: { state: "unasked" }, b: { state: "unasked" } } });
+      const result = await extract(session, "she's also on lisinopril");
+      expect(result.actions).toEqual([]);
+      expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
+    });
+
+    it("rejects a candidate citing an earlier turn than the current one — never written, never offered", async () => {
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "b", kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [TOPIC], FIELDS);
+      // Two prior turns already in the transcript — the candidate above
+      // cites turnIndex 1 (the FIRST clinician turn), but the current
+      // message will land at index 3.
+      const session: TalkSession = {
+        transcript: [
+          { role: "talker", text: "first question" },
+          { role: "clinician", text: "42" },
+          { role: "talker", text: "second question" },
+        ],
+        record: unaskedRecordFor(["a", "b"]),
+        repeatCounts: initRepeatCounts(),
+      };
+      const result = await extract(session, "no comment on that");
+      expect(result.actions).toEqual([]);
+      expect(result.correctionOffers).toBeUndefined();
+    });
+
+    it("collapses two candidates for the same field into a collision — writes neither, reply asks which", async () => {
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: "a", kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } },
+            { fieldId: "a", kind: "value", value: "45", quote: { turnIndex: 1, text: "45" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [TOPIC], FIELDS);
+      const result = await extract(sessionWith(), "42, or was it 45");
+      expect(result.actions).toEqual([]);
+      expect(result.replyPrefix?.toLowerCase()).toContain("which");
+    });
+
+    it("passes the full field manifest (not just openFields) to validateCandidates, via the ALL_FIELD_TYPES default", async () => {
+      // A candidate for "c" (not part of TOPIC's fields, and not in the
+      // open set either — already answered) must still be checked against
+      // the real manifest, not silently dropped as unknown_field, since a
+      // correction to an answered field is exactly what this validates.
+      const answeredField = field("c", "text");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "c", kind: "value", value: "new value", quote: { turnIndex: 1, text: "new value" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [TOPIC], [FIELD_A, FIELD_B, answeredField]);
+      const session = sessionWith({
+        record: { a: { state: "unasked" }, b: { state: "unasked" }, c: { state: "answered", value: "old value" } },
+      });
+      const result = await extract(session, "new value");
+      expect(result.correctionOffers).toEqual([
+        { fieldId: "c", action: { fieldId: "c", type: "answer", value: "new value" }, currentState: "answered", currentValue: "old value" },
+      ]);
+    });
+
+    it("uses the widened (full-manifest) system prompt, not the narrow EXTRACTOR_SYSTEM", async () => {
+      const parseSpy = vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({ candidates: [], repeatDecision: null }),
+      );
+      const extract = createExtractFn(client, [TOPIC], FIELDS);
+      await extract(sessionWith(), "hello");
+      const call = parseSpy.mock.calls[0][0] as { system: Array<{ text: string; cache_control?: unknown }> };
+      expect(call.system[0].text).toContain("## Full field manifest");
+      expect(call.system[0].text).toContain("a (text)");
+      expect(call.system[0].cache_control).toEqual({ type: "ephemeral" });
+    });
+  });
 });
