@@ -228,8 +228,18 @@ export function buildFollowUpExtractorSystem(
 // every turn, defeating the cache). design.md is explicit that the open
 // set belongs in the suffix, "never carved out of the prefix" — this
 // function never touches buildFollowUpExtractorSystem()'s output.
+//
+// `askFieldIds` names what this turn's own ask actually phrased — the
+// caller's job to compute (src/lib/extract.ts's `askFieldIds`, sliced to
+// MAX_FIELDS_PER_ASK), not this function's: re-slicing step.fieldIds in
+// here would risk drifting from the SAME cap classifyFollowUpActions()
+// uses to decide in-ask vs. out-of-ask (extract.ts is the one place that
+// must agree with itself). Using the raw, uncapped step.fieldIds instead
+// used to tell the model this turn asked about fields the clinician was
+// never actually shown a question about (reviewer pass on PR #64).
 export function buildFollowUpUserContent(
   step: NextStep,
+  askFieldIds: string[],
   openFields: FormFieldSpec[],
   transcript: TalkTurn[],
 ): string {
@@ -237,7 +247,7 @@ export function buildFollowUpUserContent(
   const openBlock = `Fields open this turn (unasked or previously marked unknown — prioritize these; full details are in the manifest above):\n${openFields.map((f) => `- ${f.id}`).join("\n") || "(none)"}`;
 
   if (step.kind === "topic") {
-    return `${transcriptBlock}\n\n${openBlock}\n\nThis turn's own ask named: ${step.fieldIds.join(", ")}. Propose field candidates grounded in the clinician's latest message — for any field in the full manifest above, not only the open list, if they clearly addressed it. This is not a repeat-group question — propose no repeatDecision.`;
+    return `${transcriptBlock}\n\n${openBlock}\n\nThis turn's own ask named: ${askFieldIds.join(", ")}. Propose field candidates grounded in the clinician's latest message — for any field in the full manifest above, not only the open list, if they clearly addressed it. This is not a repeat-group question — propose no repeatDecision.`;
   }
 
   if (step.kind === "repeat-decision") {

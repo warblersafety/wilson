@@ -18,6 +18,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { applyAction, initAgenda, type AgendaRecord } from "../src/lib/agenda";
+import { MAX_FIELDS_PER_ASK } from "../src/lib/ask";
 import { FORM_3500_FIELDS } from "../src/lib/form-3500-fields";
 import { TOPICS, initRepeatCounts, nextStep, openFollowUpFields } from "../src/lib/topics";
 import type { TalkTurn } from "../src/lib/talk";
@@ -173,7 +174,12 @@ async function main(): Promise<void> {
 
   const wideSystem = buildFollowUpExtractorSystem(FORM_3500_FIELDS);
   const openFields = openFollowUpFields(record, TOPICS, FORM_3500_FIELDS);
-  const wideUser = buildFollowUpUserContent(step, openFields, fullTranscript);
+  // Same cap src/lib/extract.ts's real call site applies — this script's
+  // whole point is to measure the ACTUAL production prompt shape, so it
+  // must build the user content the same way extract.ts does, capped
+  // askFieldIds included (src/prompts/extractor.ts's buildFollowUpUserContent).
+  const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+  const wideUser = buildFollowUpUserContent(step, askFieldIds, openFields, fullTranscript);
 
   console.log(`model: ${EXTRACTOR_MODEL}`);
   console.log(`narrow system prompt: ${narrowSystem.length} chars | wide system prompt: ${wideSystem.length} chars`);

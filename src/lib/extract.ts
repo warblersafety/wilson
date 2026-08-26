@@ -66,11 +66,29 @@ export function createExtractFn(
     // carved out of the cached system prompt (design.md's cost posture).
     const openFields = openFollowUpFields(session.record, topics, fields);
 
+    // .slice(0, MAX_FIELDS_PER_ASK), not the raw step.fieldIds: nextStep()
+    // itself doesn't cap a "topic" step's fieldIds (most real topics have
+    // more than MAX_FIELDS_PER_ASK unresolved fields — patient-basics has
+    // 19), but askDeterministic() only ever phrases the first
+    // MAX_FIELDS_PER_ASK of them into the visible question. Using the
+    // uncapped list would silently classify a candidate for the 4th+
+    // field as "in-ask" (no announcement needed) even though the
+    // clinician was never actually shown a question about it this turn —
+    // exactly the invisible write design.md's rule forbids. Computed
+    // before the model call (not just before classifyFollowUpActions()
+    // below) because it's now the single source for BOTH: what
+    // classifyFollowUpActions() treats as in-ask, and what the per-turn
+    // prompt itself tells the model this turn's ask named
+    // (buildFollowUpUserContent() below) — passing the same value to both
+    // is what keeps them from drifting apart (reviewer pass on PR #64;
+    // the prompt used to interpolate step.fieldIds directly, uncapped).
+    const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+
     const response = await client.messages.parse({
       model: EXTRACTOR_MODEL,
       max_tokens: 4096,
       system: [{ type: "text", text: buildFollowUpExtractorSystem(fields, topics), cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildFollowUpUserContent(step, openFields, transcript) }],
+      messages: [{ role: "user", content: buildFollowUpUserContent(step, askFieldIds, openFields, transcript) }],
       output_config: { format: zodOutputFormat(EXTRACTION_RESPONSE_SCHEMA) },
     });
 
@@ -91,16 +109,8 @@ export function createExtractFn(
     // gets written, offered, or turned into a suggestion.
     const { accepted } = validateCandidates(transcript, parsed.candidates, fields, ALL_FIELD_TYPES, currentTurnIndex);
 
-    // .slice(0, MAX_FIELDS_PER_ASK), not the raw step.fieldIds: nextStep()
-    // itself doesn't cap a "topic" step's fieldIds (most real topics have
-    // more than MAX_FIELDS_PER_ASK unresolved fields — patient-basics has
-    // 19), but askDeterministic() only ever phrases the first
-    // MAX_FIELDS_PER_ASK of them into the visible question. Using the
-    // uncapped list here would silently classify a candidate for the 4th+
-    // field as "in-ask" (no announcement needed) even though the
-    // clinician was never actually shown a question about it this turn —
-    // exactly the invisible write design.md's rule forbids.
-    const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+    // askFieldIds computed above, before the model call — see its own
+    // comment for why this is the single source shared with the prompt.
     const classified = classifyFollowUpActions(accepted, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 

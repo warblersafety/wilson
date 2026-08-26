@@ -190,52 +190,63 @@ describe("buildFollowUpUserContent", () => {
 
   it("for a topic step, includes the numbered transcript", () => {
     const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
-    const content = buildFollowUpUserContent(step, FIELDS, TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("[0] TALKER: Tell me about the patient.");
     expect(content).toContain("[1] CLINICIAN: 42 years old, born on 3/15.");
   });
 
   it("for a topic step, instructs the model to cite only the current (last) turn", () => {
     const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
-    const content = buildFollowUpUserContent(step, FIELDS, TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content.toLowerCase()).toMatch(/current turn|last turn|latest message/);
   });
 
   it("for a topic step, lists the given open fields by id", () => {
     const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
-    const content = buildFollowUpUserContent(step, FIELDS, TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("a");
     expect(content).toContain("b");
   });
 
-  it("for a topic step, names which fields this turn's own ask covered", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
-    const content = buildFollowUpUserContent(step, [FIELDS[0]], TRANSCRIPT);
-    expect(content).toContain("a");
+  // Issue #64 reviewer pass, finding 5 [Low-mod]: this used to interpolate
+  // step.fieldIds directly (uncapped) instead of taking the caller's own
+  // capped askFieldIds — the SAME cap askDeterministic() (src/lib/ask.ts)
+  // applies to what's actually phrased into the visible question, and
+  // that src/lib/extract.ts's classifyFollowUpActions() applies to what
+  // counts as in-ask. Proven here against a step whose fieldIds is wider
+  // than what was actually asked.
+  it("for a topic step, names only the caller's capped askFieldIds — never the topic step's own (possibly wider) fieldIds", () => {
+    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a", "b"] };
+    const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
+    // The sentence names exactly "a", full stop — not "a, b" (step's own
+    // fieldIds) and not a bare "a" that merely happens to be a substring
+    // of something wider.
+    expect(content).toContain("This turn's own ask named: a.");
+    expect(content).not.toContain("This turn's own ask named: a, b");
   });
 
   it("for a topic step, tells the model this is not a repeat-group question", () => {
     const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
-    const content = buildFollowUpUserContent(step, FIELDS, TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toMatch(/not a repeat-group question/i);
   });
 
   it("for a repeat-decision step, names the group and prior instance", () => {
     const step: NextStep = { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 };
-    const content = buildFollowUpUserContent(step, [], TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, [], [], TRANSCRIPT);
     expect(content).toContain("suspect-product");
     expect(content).toContain("instance 1");
   });
 
   it("for a repeat-decision step, still allows ordinary field candidates alongside the repeatDecision", () => {
     const step: NextStep = { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 };
-    const content = buildFollowUpUserContent(step, [], TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, [], [], TRANSCRIPT);
     expect(content.toLowerCase()).toMatch(/also propose|ordinary field candidates/);
   });
 
   it("for a done step, tells the model to propose nothing", () => {
     const step: NextStep = { kind: "done" };
-    const content = buildFollowUpUserContent(step, [], TRANSCRIPT);
+    const content = buildFollowUpUserContent(step, [], [], TRANSCRIPT);
     expect(content).toMatch(/propose nothing/i);
   });
 });
