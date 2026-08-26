@@ -9,10 +9,12 @@ import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
 import { nextStep, reopenTopic, topicStatuses, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
-import { stepForRecord } from "./direct-step";
+import { stepForSession } from "./direct-step";
 import { PdfReview } from "./PdfReview";
+import { RepeatDecision } from "./RepeatDecision";
 import { Sidebar } from "./Sidebar";
 import { TopicFields } from "./TopicFields";
+import { Transcript } from "./Transcript";
 
 // No model call — askDeterministic never touches the network, so this is
 // safe to run on both the initial mount and every reload.
@@ -71,14 +73,15 @@ export function Wizard() {
   // topic's resolved text/date fields back to `unasked`, so nextStep()'s
   // own serial walk picks it back up as a normal "topic" step — the same
   // AskForm/Extractor path a first answer goes through, not a raw patch.
-  // Shares stepForRecord() with TopicFields' writeField() (no transcript
-  // turn appended, matching topic.ts's own "current" definition) rather
-  // than routing through processTurn().
+  // Shares stepForSession() with TopicFields'/RepeatDecision's chip
+  // writes (no transcript turn appended here, matching topic.ts's own
+  // "current" definition — a reopen isn't a new answer) rather than
+  // routing through processTurn().
   async function handleEditTopic(topic: Topic) {
     if (!current) return;
     try {
       const record = reopenTopic(current.session.record, topic);
-      const step = await stepForRecord(current.session, record);
+      const step = await stepForSession({ ...current.session, record });
       setEditError(null);
       handleStep(step);
     } catch (err) {
@@ -126,6 +129,7 @@ export function Wizard() {
     <div className="wizard-layout">
       <Sidebar session={session} />
       <main className="wizard">
+        <Transcript turns={session.transcript} />
         {visibleTopics.map((topic) => (
           <TopicFields
             key={topic.id}
@@ -135,8 +139,18 @@ export function Wizard() {
             disabled={isSubmitting}
           />
         ))}
-        {(step.kind === "topic" || step.kind === "repeat-decision") && (
+        {step.kind === "topic" && (
           <AskForm current={current} onSubmitted={handleStep} onPendingChange={setIsSubmitting} />
+        )}
+        {step.kind === "repeat-decision" && (
+          <RepeatDecision
+            session={session}
+            repeatGroup={step.repeatGroup}
+            afterInstance={step.afterInstance}
+            reply={current.reply}
+            onChange={handleStep}
+            disabled={isSubmitting}
+          />
         )}
         {step.kind === "done" && (
           <div className="wizard__done">

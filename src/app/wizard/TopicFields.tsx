@@ -1,18 +1,30 @@
 "use client";
 
-// Direct-selection widgets for a topic's checkbox/enum fields (Issue #32).
-// Writes go straight through applyAction() + nextStep() — no model call,
-// no transcript turn appended, so the parent constructs the new TalkStep
-// itself rather than routing through talk.ts's processTurn()/respond()
-// (which always appends a talker turn).
+// Checkbox/enum widgets for a topic's fixed-choice fields (Issue #32),
+// rendered as lucy's chip grammar (Issue #44): yes/no chips for checkbox,
+// one choice chip per legal option for enum (below CHIP_LIST_MAX — see
+// its own comment), plus the always-present "Not sure"/"Skip" affordances
+// writing the existing `unknown`/`declined` states. Writes go through
+// applyAction() + stepForSession() directly (no model call), now
+// appending a transcript turn per tap so the visible history has no gaps
+// between typed and tapped answers.
 import { useState } from "react";
+import { Chip } from "@/components/Chip";
 import { applyAction } from "@/lib/agenda";
+import { friendlyFailureMessage, widgetTurnText } from "@/lib/chip-grammar";
+import type { FieldAction } from "@/lib/field-state";
 import { DISALLOWED_ENUM_VALUES, FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
 import type { Topic } from "@/lib/topics";
-import type { TalkStep } from "@/lib/talk";
-import { stepForRecord } from "./direct-step";
+import type { TalkSession, TalkStep } from "@/lib/talk";
+import { stepForSession } from "./direct-step";
 
 const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
+
+// Past this many options, a flat chip wall is worse than a native
+// <select> — see the enum branch below for the actual fields this
+// affects (route, unit, country) and why. Every other real enum field
+// (max 13 options) stays comfortably under it.
+const CHIP_LIST_MAX = 15;
 
 interface TopicFieldsProps {
   topic: Topic;
@@ -30,14 +42,26 @@ export function TopicFields({ topic, current, onChange, disabled = false }: Topi
 
   if (fields.length === 0) return null;
 
-  async function writeField(fieldId: string, value: string) {
+  async function writeField(
+    field: FormFieldSpec,
+    action: FieldAction,
+    value: string | undefined,
+    answerLabel: string,
+  ) {
     try {
-      const record = applyAction(session.record, fieldId, { type: "answer" }, value);
-      const step = await stepForRecord(session, record);
+      const record = applyAction(session.record, field.id, action, value);
+      const nextSession: TalkSession = {
+        ...session,
+        record,
+        transcript: [
+          ...session.transcript,
+          { role: "clinician", text: widgetTurnText(field.label, answerLabel), source: "widget" },
+        ],
+      };
       setError(null);
-      onChange(step);
+      onChange(await stepForSession(nextSession));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that.");
+      setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     }
   }
 
@@ -51,48 +75,113 @@ export function TopicFields({ topic, current, onChange, disabled = false }: Topi
       )}
       {fields.map((field) => {
         const entry = session.record[field.id];
+        const notSurePressed = entry.state === "unknown";
+        const skipPressed = entry.state === "declined";
+        const notSureSkip = (
+          <>
+            <Chip
+              label="Not sure"
+              pressed={notSurePressed}
+              onClick={() => void writeField(field, { type: "mark_unknown" }, undefined, "Not sure")}
+            />
+            <Chip
+              label="Skip"
+              pressed={skipPressed}
+              onClick={() => void writeField(field, { type: "decline" }, undefined, "Skip")}
+            />
+          </>
+        );
+
         if (field.type === "checkbox") {
-          const checked = entry.state === "answered" && entry.value === "true";
+          const yesPressed = entry.state === "answered" && entry.value === "true";
+          const noPressed = entry.state === "answered" && entry.value === "false";
           return (
-            <label key={field.id} className="topic-field topic-field--checkbox">
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => void writeField(field.id, e.target.checked ? "true" : "false")}
-              />
-              {field.label}
-            </label>
+            <div key={field.id} className="topic-field topic-field--checkbox">
+              <span className="topic-field__label">{field.label}</span>
+              <div className="topic-field__chips">
+                <Chip
+                  label="Yes"
+                  pressed={yesPressed}
+                  onClick={() => void writeField(field, { type: "answer" }, "true", "Yes")}
+                />
+                <Chip
+                  label="No"
+                  pressed={noPressed}
+                  onClick={() => void writeField(field, { type: "answer" }, "false", "No")}
+                />
+                {notSureSkip}
+              </div>
+            </div>
           );
         }
 
-        // enum: the manifest's own blank option (a literal " ", not "") is
-        // the "unselected" placeholder — selecting it is a no-op (an
-        // "answered" entry must carry a non-blank value, per
-        // scripts/fill-3500.py's own check). Read straight from the
-        // manifest rather than assumed as "", so a controlled <select>'s
-        // value always matches a real <option>, however that placeholder
-        // is spelled.
+        // The manifest's own blank option (a literal " ", not "") is the
+        // "unselected" placeholder — never a real choice, so it's simply
+        // not offered as a chip (unlike the removed <select>, a chip
+        // widget has no need for an empty default option to begin with).
         const disallowed = DISALLOWED_ENUM_VALUES[field.id];
-        const options = (field.options ?? []).filter((option) => !disallowed?.has(option));
-        const blankOption = options.find((option) => option.trim().length === 0) ?? "";
-        const value = entry.state === "answered" ? (entry.value ?? blankOption) : blankOption;
+        const options = (field.options ?? []).filter(
+          (option) => !disallowed?.has(option) && option.trim().length > 0,
+        );
+        const selectedOption = entry.state === "answered" ? entry.value : undefined;
+
+        // A flat chip wall stops being the more usable widget somewhere
+        // past a dozen-ish options — this manifest's longest lists
+        // (country ~275, route ~68, unit ~42) would render hundreds of
+        // individually-tappable buttons, discovered by actually looking
+        // at the rendered page (manual check), not by inspection. Every
+        // other real enum field tops out at 13 (occupation), comfortably
+        // under this threshold, so the fallback is a true edge case, not
+        // the common path. The select's own options are still the same
+        // human-readable manifest strings chips would have shown — this
+        // changes only which widget renders the choice, not what "no raw
+        // manifest strings" (AC) requires.
+        if (options.length > CHIP_LIST_MAX) {
+          return (
+            <div key={field.id} className="topic-field topic-field--enum">
+              <label className="topic-field__label" htmlFor={`select-${field.id}`}>
+                {field.label}
+              </label>
+              <div className="topic-field__select-row">
+                <select
+                  id={`select-${field.id}`}
+                  className="topic-field__select"
+                  value={selectedOption ?? ""}
+                  onChange={(e) => {
+                    if (e.target.value.length === 0) return;
+                    void writeField(field, { type: "answer" }, e.target.value, e.target.value);
+                  }}
+                >
+                  <option value="" disabled>
+                    Choose…
+                  </option>
+                  {options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                {notSureSkip}
+              </div>
+            </div>
+          );
+        }
+
         return (
-          <label key={field.id} className="topic-field topic-field--enum">
-            {field.label}
-            <select
-              value={value}
-              onChange={(e) => {
-                if (e.target.value.trim().length === 0) return;
-                void writeField(field.id, e.target.value);
-              }}
-            >
+          <div key={field.id} className="topic-field topic-field--enum">
+            <span className="topic-field__label">{field.label}</span>
+            <div className="topic-field__chips">
               {options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
+                <Chip
+                  key={option}
+                  label={option}
+                  pressed={selectedOption === option}
+                  onClick={() => void writeField(field, { type: "answer" }, option, option)}
+                />
               ))}
-            </select>
-          </label>
+              {notSureSkip}
+            </div>
+          </div>
         );
       })}
     </fieldset>

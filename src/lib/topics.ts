@@ -598,6 +598,15 @@ export function initRepeatCounts(): RepeatCounts {
   return {};
 }
 
+// Exported as repeatGroupCapacity: Issue #44's count-follow-through chips
+// ("how many in total?") need the same real max this function already
+// computes for range-checking, to build the actual list of valid totals
+// to offer — not a second, hand-derived copy of "how many slots does
+// this group have."
+export function repeatGroupCapacity(group: RepeatGroup, topics: Topic[] = TOPICS): number {
+  return maxInstance(group, topics);
+}
+
 function maxInstance(group: RepeatGroup, topics: Topic[]): number {
   const instances = topics
     .filter((t) => t.repeatGroup === group)

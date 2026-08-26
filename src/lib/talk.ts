@@ -35,6 +35,15 @@ export type TalkRole = "clinician" | "talker";
 export interface TalkTurn {
   role: TalkRole;
   text: string;
+  // Present only for a chip-driven write (Issue #44: repeat-decision or
+  // checkbox/enum widget tap, "I don't have that"/"rather not say"),
+  // never for a typed/spoken turn. Lets Transcript.tsx render a tapped
+  // answer distinctly rather than as invented clinician prose — lucy's
+  // own Transcript.tsx does the same for the identical reason ("a
+  // machine-composed line reading as patient speech"). Optional and
+  // additive: every existing session predates this field and is still a
+  // valid TalkSession with it absent.
+  source?: "widget";
 }
 
 export interface TalkSession {
