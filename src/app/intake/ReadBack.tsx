@@ -4,7 +4,7 @@
 // UI", surface 2: the trust moment. Nothing here writes to the record
 // until "Looks right" — see src/lib/read-back.ts for the write step and
 // the quote-highlighting logic this component only renders.
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { submitNarrative } from "@/app/actions";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
@@ -15,7 +15,9 @@ import {
   describeProposalValue,
   groupProposalsByField,
   resolveConfirmReadiness,
+  restoreSelections,
 } from "@/lib/read-back";
+import { saveIntakeDraft } from "@/lib/session-storage";
 import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
 import type { TalkSession } from "@/lib/talk";
 import { currentTopicProgress } from "@/lib/topics";
@@ -42,16 +44,51 @@ const READ_BACK_EMPTY_STATE = {
 
 interface ReadBackProps {
   handoff: ReadBackHandoff;
+  // State recovered from a previous visit (Issue #72) — collision choices
+  // and any open narrative edit. Seeds initial state only; IntakeFlow
+  // holds this surface back until storage has been read, so there is no
+  // later change to react to.
+  restored?: {
+    selectedProposalIndexes: Record<string, number>;
+    editing: boolean;
+    draftNarrative: string;
+  };
   onConfirmed: (session: TalkSession) => void;
 }
 
-export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
+export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {
   const [current, setCurrent] = useState(handoff);
-  const [selections, setSelections] = useState<Map<string, NarrativeProposal>>(new Map());
-  const [editing, setEditing] = useState(false);
-  const [draftNarrative, setDraftNarrative] = useState(handoff.narrative);
+  const [selections, setSelections] = useState<Map<string, NarrativeProposal>>(() =>
+    restoreSelections(handoff, restored?.selectedProposalIndexes),
+  );
+  const [editing, setEditing] = useState(restored?.editing ?? false);
+  const [draftNarrative, setDraftNarrative] = useState(restored?.draftNarrative ?? handoff.narrative);
   const [reExtractError, setReExtractError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Persisted on every change, so a reload here resumes the same panel
+  // with the same choices and the same open edit (#56). The record is
+  // deliberately NOT part of what changes: this surface writes nothing
+  // until "Looks right", and the persisted handoff carries the same
+  // untouched record it arrived with, so a reload is not a route around
+  // the read-back gate.
+  useEffect(() => {
+    saveIntakeDraft(window.localStorage, {
+      kind: "read-back",
+      handoff: current,
+      selectedProposalIndexes: Object.fromEntries(
+        [...selections].flatMap(([fieldId, proposal]) => {
+          const index = current.result.proposals.indexOf(proposal);
+          // A selection from a superseded extraction has no index in the
+          // current one; dropping it returns that field to "needs a
+          // choice" rather than persisting a dangling reference.
+          return index === -1 ? [] : [[fieldId, index] as const];
+        }),
+      ),
+      editing,
+      draftNarrative,
+    });
+  }, [current, selections, editing, draftNarrative]);
 
   function handleSelect(fieldId: string, proposal: NarrativeProposal) {
     setSelections((prev) => new Map(prev).set(fieldId, proposal));

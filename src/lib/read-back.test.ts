@@ -14,6 +14,7 @@ import {
   findQuoteSpan,
   groupProposalsByField,
   resolveConfirmReadiness,
+  restoreSelections,
 } from "./read-back";
 
 function proposal(fieldId: string, value: string, quoteText: string, turnIndex = 0): NarrativeProposal {
@@ -223,5 +224,58 @@ describe("confirmReadBack", () => {
     });
     const result = confirmReadBack(handoff, []);
     expect(result.repeatCounts).toEqual(handoff.session.repeatCounts);
+  });
+});
+
+describe("restoreSelections", () => {
+  // The property this whole store-by-index scheme exists for, and the one
+  // a store-by-value implementation silently breaks: ReadBack checks a
+  // radio with `selections.get(fieldId) === proposal`, where `proposal`
+  // comes from groupProposalsByField(). An equal-but-different object
+  // renders unchecked while the choice is really held — the app looking
+  // like it lost an answer it hadn't (reviewer pass, PR #80, finding 5:
+  // this was previously asserted only where it couldn't fail).
+  const AGE = "Page1.SecA_Patient.AgeValue";
+  const NAME = "Page4.Prod1.Prod1Name";
+
+  function handoffWith(proposals: NarrativeProposal[]): ReadBackHandoff {
+    return {
+      session: initTalkSession(),
+      narrative: "42-year-old, chart says forty-three, amoxicillin",
+      result: { proposals, repeatDecisions: [], rejected: [] },
+    };
+  }
+
+  const AGE_42 = proposal(AGE, "42", "42-year-old");
+  const AGE_43 = proposal(AGE, "43", "forty-three");
+  const PRODUCT = proposal(NAME, "amoxicillin", "amoxicillin");
+
+  it("returns the very object the panel renders, not an equal copy", () => {
+    const handoff = handoffWith([AGE_42, AGE_43, PRODUCT]);
+    const selections = restoreSelections(handoff, { [AGE]: 1 });
+    const ageGroup = groupProposalsByField(handoff.result.proposals).find((g) => g.fieldId === AGE)!;
+    expect(selections.get(AGE)).toBe(ageGroup.proposals[1]);
+    // …which is what makes the restored choice actually confirmable.
+    const readiness = resolveConfirmReadiness(groupProposalsByField(handoff.result.proposals), selections);
+    expect(readiness.ready).toBe(true);
+    if (!readiness.ready) throw new Error("expected ready");
+    expect(readiness.actions).toContainEqual({ fieldId: AGE, type: "answer", value: "43" });
+  });
+
+  it("ignores an index pointing at another field's proposal", () => {
+    const handoff = handoffWith([AGE_42, AGE_43, PRODUCT]);
+    const selections = restoreSelections(handoff, { [AGE]: 2 });
+    expect(selections.has(AGE)).toBe(false);
+    // The collision therefore reads as unresolved, which is the safe
+    // direction — the clinician re-picks rather than confirming a value
+    // they never chose.
+    const readiness = resolveConfirmReadiness(groupProposalsByField(handoff.result.proposals), selections);
+    expect(readiness.ready).toBe(false);
+  });
+
+  it("ignores an out-of-range index, and an absent map", () => {
+    const handoff = handoffWith([AGE_42, AGE_43]);
+    expect(restoreSelections(handoff, { [AGE]: 9 }).size).toBe(0);
+    expect(restoreSelections(handoff, undefined).size).toBe(0);
   });
 });

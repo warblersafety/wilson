@@ -1508,3 +1508,15 @@ h3 {
   font-size: var(--type-fine-size);
   line-height: var(--type-fine-line);
 }
+
+/* --- intake hydration gap (Issue #72) ------------------------------------
+   Shown only while IntakeFlow reads storage to decide which surface to
+   resume. Deliberately unwrapped by the report chrome, matching
+   .wizard's own loading branch — nothing about the record is known yet,
+   so chrome here would assert something untrue for as long as it shows. */
+
+.intake-loading {
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  color: var(--text-muted);
+  font-size: var(--type-copy-size);
+}

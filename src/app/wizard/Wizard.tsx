@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { askDeterministic } from "@/lib/ask";
-import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
+import { clearIntakeState, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkSession, type TalkStep } from "@/lib/talk";
 import { currentTopicProgress } from "@/lib/topics";
 import { AskForm } from "./AskForm";
@@ -51,7 +51,15 @@ export function Wizard({ onDone }: WizardProps) {
         // manifest/topic map (nextStep()'s documented "missing field id"
         // throw) would otherwise leave the wizard stuck on "Loading…"
         // forever — fail forward into a fresh session instead.
-        clearSession(window.localStorage);
+        //
+        // clearIntakeState, not clearSession: this is the "stored state is
+        // unusable, start clean" path, and clearing only the session left
+        // any pre-confirmation draft standing. IntakeFlow's own resume
+        // then falls through to that draft on the next reload and throws
+        // the clinician back to a Read-back they already confirmed, with
+        // their follow-up answers gone (reviewer pass, PR #80, finding 4 —
+        // this is the exact case clearIntakeState exists to prevent).
+        clearIntakeState(window.localStorage);
         step = await freshStep();
       }
       if (!cancelled) setCurrent(step);
