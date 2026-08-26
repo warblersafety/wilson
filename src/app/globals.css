@@ -956,6 +956,78 @@ h3 {
   text-align: right;
 }
 
+/* --- the value <- quote pairing (Issue #73, #60) -------------------------
+   design.md: a value paired with a quote "must present it as a reading of
+   the quote". The reading sits under its value, quieter than it — the
+   value is what wilson would write, the quote is the clinician's own words
+   it was read from, and the visual order says so. */
+
+.read-back__panel-reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  text-align: right;
+}
+
+.read-back__reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+  max-width: 34em;
+}
+
+/* Three states, and each has to be distinguishable from the other two —
+   "this appears twice so I can't point at which" and "I can't match this
+   at all" are different claims about how far to trust the reading, and
+   collapsing them would hide the second behind the first (AC). Grounded is
+   the quiet default: it is the normal case and needs no badge. */
+.read-back__reading--ambiguous .read-back__reading-framing,
+.read-back__reading--unlocatable .read-back__reading-framing {
+  color: var(--gold-700);
+  font-weight: var(--weight-semibold);
+}
+
+.read-back__reading--unlocatable .read-back__reading-framing {
+  color: var(--danger);
+}
+
+.read-back__reading-note {
+  font-size: var(--type-panel-micro-size);
+  font-style: italic;
+  color: var(--text-subtle);
+}
+
+.read-back__panel-count {
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+/* Error blocks carry a retry now (Issue #73, closes #63), so they are a
+   block rather than a bare paragraph. */
+.read-back__error-message,
+.start-surface__error-message {
+  margin: 0 0 var(--space-4);
+}
+
+.read-back__error button,
+.start-surface__error button {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
 .read-back__panel-choices {
   display: flex;
   flex-direction: column;

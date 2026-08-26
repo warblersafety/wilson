@@ -3,6 +3,7 @@
 // itself (Issue #42) stays untested directly, same convention as every
 // other src/app/wizard component; what's provable without a DOM lives here.
 import { describe, expect, it, vi } from "vitest";
+import { friendlyFailureMessage } from "./chip-grammar";
 import type { NarrativeExtractResult } from "./narrative-extract";
 import { initTalkSession, type TalkSession } from "./talk";
 import {
@@ -92,9 +93,69 @@ describe("resolveStartSubmit", () => {
     expect(session).toBe(callerSession);
   });
 
-  it("surfaces the submit failure message without landing", async () => {
+  it("surfaces a submit failure without landing, in friendly copy", async () => {
+    // Issue #42 asserted the raw message was passed through verbatim.
+    // That is the behaviour #63 filed against — see the failure-kinds
+    // block below for why it changed and what replaced it. The property
+    // this case still holds is the one #42 cared about: a failed submit
+    // never lands, and the clinician is told something.
     const submit = vi.fn<NarrativeSubmitFn>(async () => ({ ok: false, message: "extraction broke" }));
     const outcome = await resolveStartSubmit("amoxicillin, hives", initTalkSession(), submit);
-    expect(outcome).toEqual({ landed: false, message: "extraction broke" });
+    expect(outcome.landed).toBe(false);
+    if (outcome.landed) throw new Error("expected a failure");
+    expect(outcome.message.length).toBeGreaterThan(0);
+    expect(outcome.message).not.toContain("extraction broke");
+  });
+});
+
+describe("failure kinds (Issue #73, closes #63)", () => {
+  // #44 shipped the friendly-copy-with-retry standard but scoped it to its
+  // own surface; Start and Read-back still rendered whatever the server
+  // action threw — an SDK error string, straight to a clinician.
+  //
+  // The trap this avoids: resolveStartSubmit carries TWO kinds of failure
+  // through one channel. Wilson's own validation copy is specific and
+  // actionable ("that's too long, here's the limit"); the server's is a
+  // raw exception. Wrapping both in friendlyFailureMessage would replace
+  // a genuinely useful message with a generic one — so the two are
+  // distinguished, not blanket-wrapped.
+  const session = initTalkSession();
+
+  it("passes wilson's own validation copy through verbatim, and marks it not-retryable", async () => {
+    const tooLong = "x".repeat(MAX_NARRATIVE_LENGTH + 1);
+    const outcome = await resolveStartSubmit(tooLong, session, async () => {
+      throw new Error("submit should never be called for invalid input");
+    });
+    expect(outcome.landed).toBe(false);
+    if (outcome.landed) throw new Error("expected a failure");
+    expect(outcome.reason).toBe("invalid");
+    const validation = validateNarrative(tooLong);
+    if (validation.ok) throw new Error("expected the over-length narrative to be rejected");
+    expect(outcome.message).toBe(validation.message);
+    // Specific and actionable, not swapped for the generic line.
+    expect(outcome.message).not.toBe(friendlyFailureMessage("anything"));
+  });
+
+  it("replaces a raw server error with friendly copy, and marks it retryable", async () => {
+    const outcome = await resolveStartSubmit("a real narrative about a rash", session, async () => ({
+      ok: false as const,
+      message: "AnthropicError: 429 rate_limit_error request_id=req_abc123",
+    }));
+    expect(outcome.landed).toBe(false);
+    if (outcome.landed) throw new Error("expected a failure");
+    expect(outcome.reason).toBe("failed");
+    expect(outcome.message).toBe(friendlyFailureMessage("AnthropicError: 429"));
+    // The whole point: nothing from the raw error reaches the clinician.
+    expect(outcome.message).not.toContain("Anthropic");
+    expect(outcome.message).not.toContain("429");
+    expect(outcome.message).not.toContain("req_abc123");
+  });
+
+  it("still lands on success", async () => {
+    const outcome = await resolveStartSubmit("a real narrative about a rash", session, async () => ({
+      ok: true as const,
+      result: { proposals: [], repeatDecisions: [], rejected: [] },
+    }));
+    expect(outcome.landed).toBe(true);
   });
 });

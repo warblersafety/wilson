@@ -9,7 +9,7 @@ import { submitNarrative } from "@/app/actions";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { initAgenda } from "@/lib/agenda";
 import { clearIntakeDraft, saveIntakeDraft } from "@/lib/session-storage";
-import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
+import { START_COPY, resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
 import { initTalkSession } from "@/lib/talk";
 import { initRepeatCounts } from "@/lib/topics";
 
@@ -33,7 +33,7 @@ interface StartSurfaceProps {
 
 export function StartSurface({ initialNarrative = "", onLanded }: StartSurfaceProps) {
   const [narrative, setNarrative] = useState(initialNarrative);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitFailure, setSubmitFailure] = useState<{ reason: "invalid" | "failed"; message: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Persisted as the clinician types, so a reload mid-dictation resumes
@@ -58,13 +58,13 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setSubmitError(null);
+    setSubmitFailure(null);
     startTransition(async () => {
       const outcome = await resolveStartSubmit(narrative, initTalkSession(), submitNarrative);
       if (outcome.landed) {
         onLanded(outcome.handoff);
       } else {
-        setSubmitError(outcome.message);
+        setSubmitFailure({ reason: outcome.reason, message: outcome.message });
       }
     });
   }
@@ -72,10 +72,10 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
   return (
     <ReportChrome record={EMPTY_RECORD} repeatCounts={EMPTY_REPEAT_COUNTS} currentTopicId={null}>
       <main className="start-surface">
-        <h1 className="start-surface__heading">Report an adverse event</h1>
+        <h1 className="start-surface__heading">{START_COPY.heading}</h1>
         <div className="start-surface__questions">
-          <p>What&rsquo;s the suspect product, and what reaction did the patient have?</p>
-          <p>When did it happen, and what was the outcome?</p>
+          <p>{START_COPY.firstQuestion}</p>
+          <p>{START_COPY.secondQuestion}</p>
         </div>
         <form onSubmit={handleSubmit} className="start-surface__form">
           <textarea
@@ -83,8 +83,8 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
             value={narrative}
             onChange={(e) => setNarrative(e.target.value)}
             disabled={isPending}
-            placeholder="Dictate or type what happened…"
-            aria-label="Adverse event narrative"
+            placeholder={START_COPY.composerPlaceholder}
+            aria-label={START_COPY.composerLabel}
             rows={10}
           />
           {!validation.ok && validation.reason === "too-long" && (
@@ -93,12 +93,22 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
             </p>
           )}
           <button type="submit" disabled={isPending || !validation.ok}>
-            {isPending ? "Reading through what you wrote…" : "Submit"}
+            {isPending ? START_COPY.submitPending : START_COPY.submitCta}
           </button>
-          {submitError && (
-            <p className="start-surface__error" role="alert">
-              {submitError}
-            </p>
+          {submitFailure && (
+            <div className="start-surface__error" role="alert">
+              <p className="start-surface__error-message">{submitFailure.message}</p>
+              {/* Retry only where retrying means something: an over-length
+                  narrative needs an edit first, and a "Try again" beside
+                  copy that says "shorten this" would invite the clinician
+                  to press it and fail identically (src/lib/start-surface.ts's
+                  `reason`). */}
+              {submitFailure.reason === "failed" && (
+                <button type="button" onClick={handleSubmit} disabled={isPending}>
+                  {START_COPY.retryCta}
+                </button>
+              )}
+            </div>
           )}
         </form>
         {/* The whole data path, in order: voice, draft, submitted text,
@@ -114,12 +124,7 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
             you sign off", which implied wilson files the report once you
             do; it never does, and a clinician who believed it could sign
             off and never send the report at all. */}
-        <p className="start-surface__privacy">
-          wilson never hears your voice — dictation happens on your device, and only text you approve is
-          sent. Your text stays in this browser, on this device, until you start over. Submitted text is
-          processed by wilson&rsquo;s model provider to help fill out the report. wilson fills the form and
-          hands it back to you — it never files anything with FDA on your behalf.
-        </p>
+        <p className="start-surface__privacy">{START_COPY.privacy}</p>
       </main>
     </ReportChrome>
   );

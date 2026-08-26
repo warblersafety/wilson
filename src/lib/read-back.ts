@@ -148,6 +148,107 @@ function actionsEqual(a: ProposedAction, b: ProposedAction): boolean {
   return a.type === "answer" && b.type === "answer" ? a.value === b.value : true;
 }
 
+// --- the value <- quote pairing the panel renders (Issue #73, #60) -------
+//
+// design.md: the read-back confirm "is the correspondence check", and a
+// value paired with a quote "must present it as a reading of the quote".
+// The panel used to show values alone, so the surface whose whole job is
+// letting a clinician verify wilson read them correctly withheld the
+// evidence they would check against — and it rendered an ambiguous-quote
+// proposal identically to a cleanly grounded one, which are different
+// claims about how far to trust the reading.
+//
+// Three statuses, deliberately three and not two: "this quote appears
+// twice in your narrative, so I can't point at which one" and "I can't
+// match this to your words at all" mean different things, and collapsing
+// them would hide the second behind the first.
+export type QuoteReadingStatus = "grounded" | "ambiguous" | "unlocatable";
+
+export interface QuoteReading {
+  status: QuoteReadingStatus;
+  quoteText: string;
+  // The reading itself, e.g. `read from “admitted her overnight”`.
+  framing: string;
+  // Why this reading is less than solid — null when it is grounded.
+  note: string | null;
+}
+
+// The panel's own clinician-facing strings, in lib so ready.test.ts's
+// no-submission-claims check and its bare-text coverage guard can reach
+// them (the pattern Issue #45 established for the closing surfaces).
+export const READ_BACK_COPY = {
+  heading: "Here’s what I’d write",
+  editToggle: "Edit narrative",
+  panelHeading: "What I’d write from this",
+  panelEmpty: "Nothing to fill in yet — you can still continue.",
+  confirmCta: "Looks right",
+  reExtractCta: "Re-extract",
+  reExtractPending: "Reading through what you wrote…",
+  cancelCta: "Cancel",
+  narrativeEditLabel: "Edit the narrative",
+  retryCta: "Try again",
+  ambiguousNote: "those words appear more than once, so I can’t point at which one",
+  unlocatableNote: "I couldn’t match that to your exact words above",
+  // The chrome's footer copy for this surface. Object literals in the
+  // component were invisible to ready.test.ts's bare-text guard, which only
+  // sees JSX text — so "this file's copy is under the check" was true of
+  // most of it and quietly not of these (reviewer pass, PR #82, finding 2).
+  emptyStateHeadline: "Transcript ready · 0 fields written",
+  emptyStateNote: "Nothing is written to the form until you approve the transcript.",
+} as const;
+
+function listLabels(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+}
+
+// The collision hint, previously inline and split by an interpolation —
+// which also put it out of the copy guard's reach, and it was wrong
+// (reviewer pass, PR #82, finding 2). It read "both were mentioned, so
+// only one can be kept", which with two colliding FIELDS says one of the
+// two fields gets dropped. Both get a value; what is kept is one candidate
+// per field. Same wrongness with three candidates on one field.
+export function collisionHint(labels: string[]): string {
+  const list = listLabels(labels);
+  return labels.length === 1
+    ? `Choose a value for ${list} before continuing — more than one was mentioned, so only one can be kept.`
+    : `Choose a value for ${list} before continuing — each was mentioned more than once, so only one can be kept for each.`;
+}
+
+// "read from", never a bare quotation: the value is wilson's READING of
+// the clinician's words, not a claim that the value appears in them. The
+// AC names the case that makes this matter — "admitted her overnight" →
+// Outcome: Hospitalization, where the value appears nowhere in the quote.
+// Copy that presented the pair as if it did would misattribute wilson's
+// inference to the clinician.
+export function readingFraming(quoteText: string): string {
+  return `read from “${quoteText}”`;
+}
+
+// One reading per proposal, in the order given. Normalizes the narrative
+// ONCE for the whole batch, unlike findQuoteSpan() — that function's own
+// header points callers checking many quotes here.
+//
+// Uses the same searchNormalized() the highlighting does, so the panel and
+// the marks above it cannot tell different stories: exactly the proposals
+// this reports as grounded are the ones buildHighlightSegments() renders
+// (pinned by test).
+export function quoteReadings(narrative: string, proposals: NarrativeProposal[]): QuoteReading[] {
+  const { normalized, map } = normalizeForMatch(narrative);
+  return proposals.map((proposal) => {
+    const quoteText = proposal.quote.text;
+    const result = searchNormalized(normalized, map, quoteText);
+    const framing = readingFraming(quoteText);
+    if (result.status === "unique") {
+      return { status: "grounded" as const, quoteText, framing, note: null };
+    }
+    if (result.status === "ambiguous") {
+      return { status: "ambiguous" as const, quoteText, framing, note: READ_BACK_COPY.ambiguousNote };
+    }
+    return { status: "unlocatable" as const, quoteText, framing, note: READ_BACK_COPY.unlocatableNote };
+  });
+}
+
 export interface FieldGroup {
   fieldId: string;
   // length 1: applies with no extra interaction. length > 1: two
@@ -162,20 +263,44 @@ export interface FieldGroup {
   proposals: NarrativeProposal[];
 }
 
-export function groupProposalsByField(proposals: NarrativeProposal[]): FieldGroup[] {
+// `narrative` is optional and changes only the TIE-BREAK among agreeing
+// proposals — never which proposals disagree, never the grouping itself.
+//
+// Without it, the first of an equal-action set wins, whatever its quote is
+// worth. That produced a real defect on the trust surface (reviewer pass,
+// PR #82, finding 1): with one candidate citing "Rash" (twice in the
+// narrative, so ambiguous) and another citing "Admitted her overnight"
+// (unique), the panel rendered the ambiguous one under a caution badge
+// while the prose above highlighted the other — a mark no row mentioned,
+// and a warning on a value that a second accepted quote grounds cleanly.
+// It never over-claimed grounding, so it was not a mis-fill; it was worse
+// in a subtler way, teaching the clinician to discount the badge that
+// exists to be trusted.
+//
+// The preference is deliberately narrow — a grounded quote beats one that
+// isn't, and nothing else. Two equally-grounded (or equally-ungrounded)
+// quotes keep the first, so the outcome stays deterministic and the common
+// case does no extra work.
+export function groupProposalsByField(proposals: NarrativeProposal[], narrative?: string): FieldGroup[] {
+  const statuses = narrative === undefined ? null : quoteReadings(narrative, proposals).map((r) => r.status);
   const order: string[] = [];
   const byField = new Map<string, NarrativeProposal[]>();
-  for (const proposal of proposals) {
+  proposals.forEach((proposal, index) => {
     const id = proposal.action.fieldId;
     if (!byField.has(id)) {
       byField.set(id, []);
       order.push(id);
     }
     const existing = byField.get(id)!;
-    if (!existing.some((kept) => actionsEqual(kept.action, proposal.action))) {
+    const duplicateAt = existing.findIndex((kept) => actionsEqual(kept.action, proposal.action));
+    if (duplicateAt === -1) {
       existing.push(proposal);
+      return;
     }
-  }
+    if (statuses === null || statuses[index] !== "grounded") return;
+    const keptStatus = statuses[proposals.indexOf(existing[duplicateAt])];
+    if (keptStatus !== "grounded") existing[duplicateAt] = proposal;
+  });
   return order.map((fieldId) => ({ fieldId, proposals: byField.get(fieldId)! }));
 }
 

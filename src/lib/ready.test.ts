@@ -5,6 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda } from "./agenda";
 import { OPEN_FIELD_REASONS, OPEN_FIELDS_COPY, openFieldsHeading } from "./open-fields";
+import { collisionHint, READ_BACK_COPY, readingFraming } from "./read-back";
+import { START_COPY } from "./start-surface";
 import { PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import {
   formatReadyCounts,
@@ -75,8 +77,16 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
     ...Object.values(PDF_COPY),
     ...Object.values(OPEN_FIELDS_COPY),
     ...Object.values(OPEN_FIELD_REASONS),
+    // Issue #73 extends the same check to the two surfaces #63 covers —
+    // the rule is "anywhere in the UI", and Start's privacy paragraph in
+    // particular is the copy most able to make a claim it shouldn't.
+    ...Object.values(READ_BACK_COPY),
+    ...Object.values(START_COPY),
     openFieldsHeading(1),
     openFieldsHeading(7),
+    readingFraming("admitted her overnight"),
+    collisionHint(["Age"]),
+    collisionHint(["Age", "Outcome"]),
     SIGN_OFF_CTA,
   ];
 
@@ -111,14 +121,26 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
 describe("no clinician-facing literals are left in the closing components", () => {
   // The copy check above is only worth as much as its coverage: a string
   // typed straight into a component is invisible to it. This is the
-  // coverage guard (reviewer pass, PR #78, finding 3) — it reads the three
+  // coverage guard (reviewer pass, PR #78, finding 3) — it reads the
   // component sources and fails on a rendered text literal that is not a
-  // lib constant. Deliberately narrow: it matches only JSX TEXT (`>text<`),
-  // not attributes or class names, so ordinary markup does not trip it.
+  // lib constant. It matches only JSX TEXT (`>text<`), not attributes or
+  // class names, so ordinary markup does not trip it.
+  //
+  // A heuristic, and honest about being one. TypeScript generics produce
+  // `>`…`<` pairs that are not JSX text at all (`useState<Map<string, X>>(()
+  // =>` … `useState<{`), so a candidate carrying code punctuation or a line
+  // break is skipped — which means a future sentence containing brackets or
+  // spanning two source lines would slip past. It under-reports rather than
+  // false-alarms, and the case it exists for is the common one: a plain
+  // sentence typed into JSX instead of added to a lib constant. Verified
+  // against that case rather than assumed to work.
   const COMPONENTS = [
     "src/app/intake/Review.tsx",
     "src/app/intake/Ready.tsx",
     "src/app/intake/OpenFieldsDialog.tsx",
+    // Added by Issue #73, once #63's work put their copy in lib too.
+    "src/app/intake/ReadBack.tsx",
+    "src/app/intake/StartSurface.tsx",
   ];
 
   it.each(COMPONENTS)("%s renders no bare text", async (path) => {
@@ -127,7 +149,8 @@ describe("no clinician-facing literals are left in the closing components", () =
     const withoutComments = source.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/^\s*\/\/.*$/gm, "");
     const bareText = [...withoutComments.matchAll(/>\s*([^<>{}\n][^<>{}]*?)\s*</g)]
       .map((m) => m[1].trim())
-      .filter((text) => /[A-Za-z]{2}/.test(text));
+      .filter((text) => /[A-Za-z]{2}/.test(text))
+      .filter((text) => !/[\n;=()[\]]/.test(text));
     expect(bareText).toEqual([]);
   });
 });
