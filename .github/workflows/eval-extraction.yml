@@ -29,6 +29,16 @@ on:
 jobs:
   eval:
     runs-on: ubuntu-latest
+    # pull-requests: write is for the cost mode's self-recording step
+    # below; contents: read is checkout. The sofa-claude App installation
+    # holds no `actions` permission, so Claude cannot dispatch this
+    # workflow or read its logs — a human clicks "Run workflow", and the
+    # cost table records itself on the branch's PR so the run's result
+    # lands where the acceptance criterion needs it without anyone
+    # copying numbers out of a log.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,7 +51,25 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ "${{ inputs.mode }}" = "cost" ]; then
-            npm run cost:widened
+            npm run cost:widened | tee cost-output.txt
           else
             npm run eval:extraction
+          fi
+      - name: Record cost table on the branch PR
+        if: ${{ inputs.mode == 'cost' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr=$(gh pr list --head "${GITHUB_REF_NAME}" --json number --jq '.[0].number' || true)
+          if [ -n "$pr" ] && [ "$pr" != "null" ]; then
+            {
+              echo "## Cost proof — widened vs narrow per-turn (mode=cost run ${GITHUB_RUN_ID})"
+              echo
+              echo '```'
+              cat cost-output.txt
+              echo '```'
+            } > cost-comment.md
+            gh pr comment "$pr" --body-file cost-comment.md
+          else
+            echo "No open PR for ${GITHUB_REF_NAME}; cost table stays in this log only."
           fi
