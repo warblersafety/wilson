@@ -15,6 +15,7 @@ import {
   describeProposalValue,
   groupProposalsByField,
   resolveConfirmReadiness,
+  restoreSelections,
 } from "@/lib/read-back";
 import { saveIntakeDraft } from "@/lib/session-storage";
 import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
@@ -53,25 +54,6 @@ interface ReadBackProps {
     draftNarrative: string;
   };
   onConfirmed: (session: TalkSession) => void;
-}
-
-// Selections are held by object identity (the radio below checks
-// `selections.get(fieldId) === proposal`), so a restored choice has to
-// resolve to the very object the panel renders — session-storage.ts
-// stores an index into result.proposals for exactly this reason, and
-// groupProposalsByField() passes those objects through by reference.
-// Out-of-range indexes are already dropped on load, so this cannot
-// produce an undefined "choice".
-function restoreSelections(
-  handoff: ReadBackHandoff,
-  indexes: Record<string, number> | undefined,
-): Map<string, NarrativeProposal> {
-  const selections = new Map<string, NarrativeProposal>();
-  for (const [fieldId, index] of Object.entries(indexes ?? {})) {
-    const proposal = handoff.result.proposals[index];
-    if (proposal) selections.set(fieldId, proposal);
-  }
-  return selections;
 }
 
 export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {

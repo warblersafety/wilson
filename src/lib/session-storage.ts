@@ -8,6 +8,7 @@
 // a plain in-memory fake and typechecks under tsconfig.node.json, whose
 // lib list has no "dom" — window.localStorage already satisfies this
 // interface structurally, so call sites pass it directly with no adapter.
+import { FORM_3500_FIELDS } from "./form-3500-fields";
 import type { NarrativeExtractResult } from "./narrative-extract";
 import type { ReadBackHandoff } from "./start-surface";
 import type { TalkSession } from "./talk";
@@ -132,28 +133,67 @@ function isNarrativeExtractResult(value: unknown): value is NarrativeExtractResu
   });
 }
 
+// isTalkSession() checks only that `record` is a non-null object, never
+// its entries — enough for loadSession(), whose one caller (Wizard) wraps
+// hydration in a try/catch and fails forward into a fresh session. The
+// draft has no such net: ReadBack calls currentTopicProgress() on its very
+// FIRST render, before any effect and outside any try, and nextStep()
+// throws "record missing field id" on a record that predates a manifest or
+// topic-map change. With no error boundary anywhere in src/app that is a
+// blank screen — and since nothing cleared the offending draft, every
+// reload reproduced it, leaving the clinician unable to reach Start again
+// without clearing site data (reviewer pass, PR #80, finding 1).
+//
+// So the draft's record must cover the live manifest to load at all. This
+// is criterion 3's "a stored value from an older schema is treated as 'no
+// saved state'" applied where the drift actually lands, and it is the same
+// class of defence Wizard.tsx already documents for the session key —
+// moved earlier, to the guard, because this surface cannot survive the
+// throw.
+function recordCoversManifest(record: unknown): boolean {
+  if (typeof record !== "object" || record === null) return false;
+  return FORM_3500_FIELDS.every((field) => Object.hasOwn(record, field.id));
+}
+
 function isReadBackHandoff(value: unknown): value is ReadBackHandoff {
   if (typeof value !== "object" || value === null) return false;
   const handoff = value as Record<string, unknown>;
   return (
     typeof handoff.narrative === "string" &&
     isTalkSession(handoff.session) &&
+    recordCoversManifest((handoff.session as { record: unknown }).record) &&
     isNarrativeExtractResult(handoff.result)
   );
 }
 
-// An out-of-range index is dropped rather than kept: a stored choice that
-// no longer resolves would leave the panel holding `undefined` as if it
-// were a selection, and resolveConfirmReadiness() would then see a field
-// with no pending flag and no action. Dropping returns that field to
-// "needs a choice", which is the safe direction — the clinician re-picks.
-function sanitizeSelections(raw: unknown, proposalCount: number): Record<string, number> {
+// An index is kept only if it resolves to a proposal FOR THAT FIELD.
+//
+// Out of range is the obvious case: a stored choice that no longer
+// resolves would leave the panel holding `undefined` as if it were a
+// selection, and resolveConfirmReadiness() would then see a field with no
+// pending flag and no action.
+//
+// In-range-but-wrong-field is the case worth spelling out, because it
+// fails silently in both directions at once (reviewer pass, PR #80,
+// finding 3): with proposals [A "42", A "43", B "zzz"] and a stored
+// {A: 2}, field A's "choice" is B's proposal — resolveConfirmReadiness
+// returns ready with B written twice and A dropped entirely, while both
+// of A's radios render unchecked and "Looks right" stays enabled. The
+// screen and the storage disagree, and the clinician is never told. No
+// write this app makes can produce that pairing (every persisted index
+// comes from indexOf against the same result that ships with it, in one
+// atomic setItem), but a silent wrong value is the charter's
+// heaviest-weighted risk and this is one comparison.
+//
+// Dropping returns the field to "needs a choice" — the safe direction,
+// since the clinician simply re-picks.
+function sanitizeSelections(raw: unknown, proposals: NarrativeExtractResult["proposals"]): Record<string, number> {
   if (typeof raw !== "object" || raw === null) return {};
   const result: Record<string, number> = {};
   for (const [fieldId, index] of Object.entries(raw as Record<string, unknown>)) {
-    if (Number.isInteger(index) && (index as number) >= 0 && (index as number) < proposalCount) {
-      result[fieldId] = index as number;
-    }
+    if (!Number.isInteger(index)) continue;
+    const proposal = proposals[index as number];
+    if (proposal?.action.fieldId === fieldId) result[fieldId] = index as number;
   }
   return result;
 }
@@ -182,10 +222,7 @@ export function loadIntakeDraft(storage: StorageLike): IntakeDraft | null {
     return {
       kind: "read-back",
       handoff: draft.handoff,
-      selectedProposalIndexes: sanitizeSelections(
-        draft.selectedProposalIndexes,
-        draft.handoff.result.proposals.length,
-      ),
+      selectedProposalIndexes: sanitizeSelections(draft.selectedProposalIndexes, draft.handoff.result.proposals),
       editing: draft.editing === true,
       draftNarrative: typeof draft.draftNarrative === "string" ? draft.draftNarrative : draft.handoff.narrative,
     };
@@ -228,7 +265,10 @@ export type ResumeSurface =
 //
 // Review and Ready are absent on purpose: they are reached by Follow-ups
 // re-deriving `done` and forwarding through Wizard's onDone (Issue #45),
-// so "follow-ups" already resumes them with no clicks and no data loss.
+// so "follow-ups" already resumes them with no data loss. Exactly: a
+// reload on Review lands back on Review; a reload on Ready lands on
+// Review, one click from where it was — which is why neither needs a
+// persisted shape of its own, not a claim that nothing at all changes.
 export function resolveResumeSurface(storage: StorageLike): ResumeSurface {
   if (loadSession(storage)) return { kind: "follow-ups" };
   const draft = loadIntakeDraft(storage);

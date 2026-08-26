@@ -262,3 +262,29 @@ export function confirmReadBack(handoff: ReadBackHandoff, actions: ProposedActio
     repeatCounts,
   };
 }
+
+// Rebuilds Read-back's collision choices from a restored draft (Issue
+// #72). In lib rather than the component for this module's own stated
+// reason — "provable under vitest's node environment, the component stays
+// a thin wrapper" — and because the property that matters here is not
+// obvious from reading it: ReadBack checks a radio by object IDENTITY
+// (`selections.get(fieldId) === proposal`), so the restored selection has
+// to be the very object groupProposalsByField() hands the radios, not an
+// equal copy. Resolving an index against `handoff.result.proposals` gets
+// that, since grouping passes those objects through by reference.
+//
+// Indexes are already range- and field-checked at load
+// (session-storage.ts's sanitizeSelections), so the guard here is
+// belt-and-braces against a caller that skips that path, not the primary
+// defence.
+export function restoreSelections(
+  handoff: ReadBackHandoff,
+  indexes: Record<string, number> | undefined,
+): Map<string, NarrativeProposal> {
+  const selections = new Map<string, NarrativeProposal>();
+  for (const [fieldId, index] of Object.entries(indexes ?? {})) {
+    const proposal = handoff.result.proposals[index];
+    if (proposal?.action.fieldId === fieldId) selections.set(fieldId, proposal);
+  }
+  return selections;
+}

@@ -106,13 +106,17 @@ export function StartSurface({ initialNarrative = "", onLanded }: StartSurfacePr
             Issue #72, which is what makes a reload survivable — design.md's
             privacy-copy rule is that copy claims exactly what the
             machinery delivers, so machinery that now keeps a draft has to
-            say so. The closing sentence replaced "Nothing is filed until
+            say so — and says "until you start over", not "until you
+            submit": submitting REPLACES the draft with the read-back one
+            and confirming moves the narrative into the persisted session
+            transcript, so local retention doesn't end at submit, it gets
+            longer-lived (reviewer pass, PR #80, finding 2). The closing sentence replaced "Nothing is filed until
             you sign off", which implied wilson files the report once you
             do; it never does, and a clinician who believed it could sign
             off and never send the report at all. */}
         <p className="start-surface__privacy">
           wilson never hears your voice — dictation happens on your device, and only text you approve is
-          sent. Your draft stays in this browser until you submit it or start over. Submitted text is
+          sent. Your text stays in this browser, on this device, until you start over. Submitted text is
           processed by wilson&rsquo;s model provider to help fill out the report. wilson fills the form and
           hands it back to you — it never files anything with FDA on your behalf.
         </p>

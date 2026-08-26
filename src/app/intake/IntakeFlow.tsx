@@ -75,13 +75,28 @@ export function IntakeFlow() {
   // stored rather than stored itself, so a pointer can never disagree
   // with the data it points at (src/lib/session-storage.ts).
   useEffect(() => {
-    const resumed = resolveResumeSurface(window.localStorage);
-    if (resumed.kind === "follow-ups") {
-      setSurface({ kind: "follow-ups" });
-    } else if (resumed.kind === "read-back") {
-      setSurface({ kind: "read-back", handoff: resumed.draft.handoff, restored: resumed.draft });
-    } else {
-      setSurface({ kind: "start", initialNarrative: resumed.narrative });
+    try {
+      const resumed = resolveResumeSurface(window.localStorage);
+      if (resumed.kind === "follow-ups") {
+        setSurface({ kind: "follow-ups" });
+      } else if (resumed.kind === "read-back") {
+        setSurface({ kind: "read-back", handoff: resumed.draft.handoff, restored: resumed.draft });
+      } else {
+        setSurface({ kind: "start", initialNarrative: resumed.narrative });
+      }
+    } catch {
+      // Belt and braces behind loadIntakeDraft()'s own manifest check
+      // (reviewer pass, PR #80, finding 1), and the same fail-forward
+      // template Wizard.tsx has always used for the session key. The
+      // failure mode this exists for is unrecoverable rather than merely
+      // annoying: a stored value that gets past the guard and then throws
+      // during render has no error boundary anywhere in src/app to catch
+      // it, and would reproduce on every reload for as long as it sat in
+      // storage — the clinician could not reach Start again without
+      // clearing site data. Wiping and starting clean loses a draft;
+      // leaving it loses the app.
+      clearIntakeState(window.localStorage);
+      setSurface({ kind: "start", initialNarrative: "" });
     }
   }, []);
 

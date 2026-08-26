@@ -171,7 +171,14 @@ describe("the Read-back draft", () => {
     const loaded = loadIntakeDraft(storage);
     if (loaded?.kind !== "read-back") throw new Error("expected a read-back draft");
     const index = loaded.selectedProposalIndexes["Page1.SecA_Patient.AgeValue"];
-    expect(loaded.handoff.result.proposals[index]).toBe(loaded.handoff.result.proposals[1]);
+    // The index names the SECOND proposal, and the object at that index
+    // carries the second proposal's action — a store-by-value
+    // implementation deserializes an equal-but-different object and fails
+    // the identity assertion in read-back.test.ts's restoreSelections
+    // cases, which is where the property this index exists for is
+    // actually proven (reviewer pass, PR #80, finding 5: this used to
+    // assert proposals[1] === proposals[1], true of any implementation).
+    expect(index).toBe(1);
     expect(loaded.handoff.result.proposals[index].action).toEqual(PROPOSAL_B.action);
   });
 });
@@ -190,6 +197,99 @@ describe("stale and foreign values never crash a surface", () => {
     const storage = fakeStorage();
     storage.setItem("wilson.intake-draft.v1", raw);
     expect(loadIntakeDraft(storage)).toBeNull();
+  });
+
+  // Reviewer pass, PR #80, finding 1 (blocking). isTalkSession only checks
+  // that `record` is a non-null object, never its entries — so a draft
+  // written before a manifest/topic-map change loaded clean, and then
+  // ReadBack's very first render (currentTopicProgress → nextStep) threw
+  // "record missing field id" outside any try/catch, with no error
+  // boundary anywhere in src/app. Nothing cleared the offending draft, so
+  // every reload reproduced it: a blank screen the clinician could not
+  // escape without clearing site data. This is criterion 3 verbatim, and
+  // the cases above never reached it — all eight die at the guard.
+  it("rejects a draft whose record no longer covers the live field manifest", () => {
+    const storage = fakeStorage();
+    const handoff = handoffOf("narrative", [PROPOSAL_A]);
+    storage.setItem(
+      "wilson.intake-draft.v1",
+      JSON.stringify({
+        kind: "read-back",
+        handoff: { ...handoff, session: { ...handoff.session, record: {} } },
+        selectedProposalIndexes: {},
+        editing: false,
+        draftNarrative: "narrative",
+      }),
+    );
+    expect(loadIntakeDraft(storage)).toBeNull();
+  });
+
+  it("rejects a draft missing even a single manifest field", () => {
+    const storage = fakeStorage();
+    const handoff = handoffOf("narrative", [PROPOSAL_A]);
+    const record = { ...handoff.session.record };
+    delete record["Page1.SecA_Patient.PatientIdentifier"];
+    storage.setItem(
+      "wilson.intake-draft.v1",
+      JSON.stringify({
+        kind: "read-back",
+        handoff: { ...handoff, session: { ...handoff.session, record } },
+        selectedProposalIndexes: {},
+        editing: false,
+        draftNarrative: "narrative",
+      }),
+    );
+    expect(loadIntakeDraft(storage)).toBeNull();
+  });
+
+  it("rejects a draft whose session is malformed", () => {
+    const storage = fakeStorage();
+    storage.setItem(
+      "wilson.intake-draft.v1",
+      JSON.stringify({
+        kind: "read-back",
+        handoff: { session: { transcript: "not an array" }, narrative: "x", result: resultOf([]) },
+        selectedProposalIndexes: {},
+        editing: false,
+        draftNarrative: "x",
+      }),
+    );
+    expect(loadIntakeDraft(storage)).toBeNull();
+  });
+
+  // Reviewer pass, PR #80, finding 3. An index inside the array but
+  // pointing at ANOTHER field's proposal used to survive: the panel then
+  // held field A's "choice" as field B's proposal, resolveConfirmReadiness
+  // wrote B twice and dropped A entirely, both of A's radios rendered
+  // unchecked, and "Looks right" stayed enabled — a silent wrong value
+  // plus a silent drop, with the screen disagreeing with storage.
+  it("drops a selection index that points at another field's proposal", () => {
+    const storage = fakeStorage();
+    const otherField = proposalOf("Page4.Prod1.Prod1Name", "amoxicillin", "amoxicillin");
+    saveIntakeDraft(storage, {
+      kind: "read-back",
+      handoff: handoffOf("narrative", [PROPOSAL_A, PROPOSAL_B, otherField]),
+      selectedProposalIndexes: { "Page1.SecA_Patient.AgeValue": 2 },
+      editing: false,
+      draftNarrative: "narrative",
+    });
+    const loaded = loadIntakeDraft(storage);
+    if (loaded?.kind !== "read-back") throw new Error("expected a read-back draft");
+    expect(loaded.selectedProposalIndexes).toEqual({});
+  });
+
+  it("keeps a selection index that points at its own field's proposal", () => {
+    const storage = fakeStorage();
+    saveIntakeDraft(storage, {
+      kind: "read-back",
+      handoff: handoffOf("narrative", [PROPOSAL_A, PROPOSAL_B]),
+      selectedProposalIndexes: { "Page1.SecA_Patient.AgeValue": 1 },
+      editing: false,
+      draftNarrative: "narrative",
+    });
+    const loaded = loadIntakeDraft(storage);
+    if (loaded?.kind !== "read-back") throw new Error("expected a read-back draft");
+    expect(loaded.selectedProposalIndexes).toEqual({ "Page1.SecA_Patient.AgeValue": 1 });
   });
 
   it("drops a selection index that points past the restored proposals", () => {
