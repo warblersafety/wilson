@@ -25,11 +25,10 @@ import {
   widgetTurnText,
 } from "@/lib/chip-grammar";
 import type { CorrectionOffer } from "@/lib/followup-sweep";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
+import { fieldById } from "@/lib/form-3500-fields";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
-const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
 
 interface AskFormProps {
   current: TalkStep;
@@ -125,7 +124,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const field = FIELDS_BY_ID.get(offer.fieldId);
+      const field = fieldById(offer.fieldId);
       const label = field ? fieldPhrase(field) : offer.fieldId;
       const nextSession: TalkSession = {
         ...current.session,
@@ -154,7 +153,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       {current.correctionOffers && current.correctionOffers.length > 0 && (
         <div className="ask-form__corrections" role="group" aria-label="Correction offers">
           {current.correctionOffers.map((offer) => {
-            const field = FIELDS_BY_ID.get(offer.fieldId);
+            const field = fieldById(offer.fieldId);
             const label = field ? fieldPhrase(field) : offer.fieldId;
             return (
               <Chip

@@ -13,6 +13,7 @@
 // confirms it, and what happens to an accepted candidate is decided only
 // by classifyFollowUpActions().
 import Anthropic from "@anthropic-ai/sdk";
+import { sharedAnthropicClient } from "./anthropic-client";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
   EXTRACTION_RESPONSE_SCHEMA,
@@ -41,7 +42,7 @@ import { TOPICS, nextStep, openFollowUpFields, type Topic } from "./topics";
 // defaults, so this can't diverge today; a future caller overriding one
 // set without the other would silently extract against the wrong step.
 export function createExtractFn(
-  client: Anthropic = new Anthropic(),
+  client: Anthropic = sharedAnthropicClient(),
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): ExtractFn {
@@ -94,9 +95,25 @@ export function createExtractFn(
 
     const parsed = response.parsed_output;
     if (!parsed) {
-      // Structured-output parsing failed (malformed model response). Fail
-      // closed — no field writes, no repeat decision — rather than risk
-      // acting on a partially-parsed guess.
+      // `parsed_output` is genuinely null only for a response with no text
+      // block at all (empty content, or a thinking/tool_use-only response)
+      // — a degenerate case, failed closed here with no field writes and
+      // no repeat decision.
+      //
+      // It is NOT what catches a malformed or truncated response: the
+      // SDK's structured-output parser throws on invalid JSON or a Zod
+      // validation failure rather than returning null (verified against
+      // the installed @anthropic-ai/sdk). That throw is deliberately not
+      // caught here either — letting it reject this function's promise is
+      // the honest signal that extraction broke, which a caller can only
+      // tell apart from "the turn had nothing reportable in it" if the
+      // distinction survives.
+      //
+      // This comment used to say "structured-output parsing failed
+      // (malformed model response)", which read as though this branch
+      // were the app's defence against a bad response when the throw is
+      // (warblersafety/wilson#54; #41 corrected the same wording on its
+      // own copy in narrative-extract.ts).
       return { actions: [] };
     }
 

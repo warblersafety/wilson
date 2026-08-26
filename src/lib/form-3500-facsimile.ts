@@ -20,7 +20,7 @@
 // AgendaRecord reader here uses for a stale/mismatched record (ready.ts's
 // readyCounts(), review.ts's fieldDisplay()).
 import type { AgendaEntry, AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
+import { fieldById, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 
 export const UNKNOWN_SENTINEL = "Unknown";
 export const DECLINED_SENTINEL = "Declined to answer";
@@ -68,13 +68,11 @@ export interface RenderedFacsimileValue {
   muted: boolean;
 }
 
-const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
-
 // muted mirrors the underlying STATE (unknown/declined), never the
 // string content — a clinician dictating the literal word "unknown"
 // into a text field must not pick up the sentinel's own styling.
 export function displayFor(record: AgendaRecord, fieldId: string): RenderedFacsimileValue {
-  const field = FIELDS_BY_ID.get(fieldId);
+  const field = fieldById(fieldId);
   if (!field) return { text: null, muted: false };
   const entry = record[fieldId];
   const value = facsimileValue(field, entry);

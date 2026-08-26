@@ -1911,3 +1911,34 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     required: false,
   },
 ];
+
+// The manifest's id lookup, built once for the process (Issue #74, closes
+// #61). Four modules each kept their own module-level
+// `new Map(FORM_3500_FIELDS.map(...))` — identical, and four chances for
+// one of them to drift if the manifest ever gains a second index.
+//
+// Deliberately NOT applied to the other lookup pattern in this codebase:
+// topics.ts, review.ts, open-fields.ts and ready.ts build a map per call
+// from an injectable `fields: FormFieldSpec[] = FORM_3500_FIELDS`
+// parameter. Collapsing those onto this constant would pin them to the
+// real 227-field manifest and make a whole class of test unwritable —
+// duplication across an injection boundary is the point there, not an
+// oversight.
+//
+// Precisely (reviewer pass, PR #83, finding 3): topics.test.ts exercises
+// that injection heavily today, including an empty-fields edge case;
+// review.test.ts, open-fields.test.ts and ready.test.ts currently call
+// through with defaults only. So for those three the parameter is an
+// available seam rather than one their current tests depend on — still
+// worth keeping, since it is what makes a synthetic-manifest test
+// possible at all, but not a claim that removing it would break the suite
+// today.
+//
+// A function rather than an exported Map: a shared mutable Map is one
+// stray `.set()` away from a manifest that disagrees with FORM_3500_FIELDS
+// for the rest of the process.
+const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
+
+export function fieldById(fieldId: string): FormFieldSpec | undefined {
+  return FIELDS_BY_ID.get(fieldId);
+}
