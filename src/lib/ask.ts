@@ -19,11 +19,10 @@
 // with their options by the deterministic AskFn") layer an options suffix
 // on top of the same base phrase, rather than a wholly separate phrasing
 // path — see fieldPhrase()'s type-specific branches below.
-import { FORM_3500_FIELDS, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
+import { fieldById, FORM_3500_FIELDS, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 import type { NextStep } from "./topics";
 import type { AskFn } from "./talk";
 
-const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
 
 const DONE_MESSAGE = "That's everything — thanks for walking through this with me.";
 
@@ -188,7 +187,7 @@ export const askDeterministic: AskFn = async (step: NextStep, session) => {
     return base;
   }
   const phrases = step.fieldIds.slice(0, MAX_FIELDS_PER_ASK).map((fieldId) => {
-    const field = FIELDS_BY_ID.get(fieldId);
+    const field = fieldById(fieldId);
     if (!field) {
       throw new Error(`askDeterministic: no such field: ${fieldId}`);
     }

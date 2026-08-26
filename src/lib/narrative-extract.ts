@@ -10,6 +10,7 @@
 // continues into follow-ups — that orchestration belongs to the units that
 // actually have the read-back UI (#42 Start, #43 Read-back) to drive it.
 import Anthropic from "@anthropic-ai/sdk";
+import { sharedAnthropicClient } from "./anthropic-client";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
   NARRATIVE_EXTRACTION_RESPONSE_SCHEMA,
@@ -135,7 +136,7 @@ export function resolveNarrativeExtraction(
 }
 
 export function createNarrativeExtractFn(
-  client: Anthropic = new Anthropic(),
+  client: Anthropic = sharedAnthropicClient(),
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): NarrativeExtractFn {

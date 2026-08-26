@@ -7,7 +7,7 @@
 import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { submitNarrative } from "@/app/actions";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
+import { fieldById } from "@/lib/form-3500-fields";
 import type { NarrativeProposal } from "@/lib/narrative-extract";
 import {
   buildHighlightSegments,
@@ -25,12 +25,8 @@ import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/l
 import type { TalkSession } from "@/lib/talk";
 import { currentTopicProgress } from "@/lib/topics";
 
-const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
-function fieldOf(fieldId: string): FormFieldSpec | undefined {
-  return FIELDS_BY_ID.get(fieldId);
-}
 function fieldLabel(fieldId: string): string {
-  return fieldOf(fieldId)?.label ?? fieldId;
+  return fieldById(fieldId)?.label ?? fieldId;
 }
 
 // Read-back's record is ALSO still blank (nothing writes until "Looks
@@ -265,7 +261,7 @@ export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {
                   {group.proposals.length === 1 ? (
                     <div className="read-back__panel-reading">
                       <span className="read-back__panel-value">
-                        {describeProposalValue(group.proposals[0].action, fieldOf(group.fieldId))}
+                        {describeProposalValue(group.proposals[0].action, fieldById(group.fieldId))}
                       </span>
                       {renderReading(group.proposals[0])}
                     </div>
@@ -285,7 +281,7 @@ export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {
                           />
                           <span className="read-back__panel-reading">
                             <span className="read-back__panel-value">
-                              {describeProposalValue(proposal.action, fieldOf(group.fieldId))}
+                              {describeProposalValue(proposal.action, fieldById(group.fieldId))}
                             </span>
                             {renderReading(proposal)}
                           </span>

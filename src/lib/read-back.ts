@@ -4,6 +4,10 @@
 // for the same reason src/lib/start-surface.ts is: provable under vitest's
 // node environment, the component stays a thin wrapper.
 import { PUNCT_CHARS } from "./extraction-validator";
+// The same two words the exporter writes and the facsimile shows, so the
+// read-back panel reads as the same report rather than a second,
+// differently-worded account of it (Issue #74, closes #61).
+import { DECLINED_SENTINEL, UNKNOWN_SENTINEL } from "./form-3500-facsimile";
 import { applyNarrativeProposals, type NarrativeProposal } from "./narrative-extract";
 import type { FormFieldSpec } from "./form-3500-fields";
 import type { ReadBackHandoff } from "./start-surface";
@@ -317,9 +321,9 @@ export function describeProposalValue(action: ProposedAction, field?: FormFieldS
     case "answer":
       return field?.type === "checkbox" ? (action.value === "true" ? "Yes" : "No") : action.value;
     case "mark_unknown":
-      return "Unknown";
+      return UNKNOWN_SENTINEL;
     case "decline":
-      return "Declined to answer";
+      return DECLINED_SENTINEL;
     case "reopen":
       return "Reopened";
     default: {
