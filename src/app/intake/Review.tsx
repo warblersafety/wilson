@@ -22,7 +22,7 @@ import { useState } from "react";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { hasOpenFields } from "@/lib/open-fields";
 import type { CuratedRow } from "@/lib/report-chrome";
-import { reopenReviewRow, reviewFieldRows, reviewRows, SIGN_OFF_CTA } from "@/lib/review";
+import { PDF_COPY, REVIEW_COPY, reopenReviewRow, reviewFieldRows, reviewRows, SIGN_OFF_CTA } from "@/lib/review";
 import type { TalkSession } from "@/lib/talk";
 import { FORM_3500_SECTIONS } from "@/lib/form-3500-fields";
 import { OpenFieldsDialog } from "./OpenFieldsDialog";
@@ -63,10 +63,8 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
   return (
     <ReportChrome record={session.record} repeatCounts={session.repeatCounts} currentTopicId={null}>
       <main className="review">
-        <h1 className="review__heading">Review before you sign off.</h1>
-        <p className="review__intro">
-          Your signature is the safety boundary, not mine. Edit anything and I&rsquo;ll ask about it again.
-        </p>
+        <h1 className="review__heading">{REVIEW_COPY.heading}</h1>
+        <p className="review__intro">{REVIEW_COPY.intro}</p>
 
         <div className="review__cards">
           {rows.map((row) => (
@@ -77,7 +75,7 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
                 </h2>
                 <span className="review__card-section">{FORM_3500_SECTIONS[row.section]}</span>
                 <button type="button" className="review__edit" onClick={() => handleEditRow(row)}>
-                  Edit
+                  {REVIEW_COPY.editCta}
                 </button>
               </div>
               <dl className="review__fields">
@@ -96,7 +94,7 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
                       {/* A reopened field still carrying its prior value:
                           design.md's "reopen never wipes", finally
                           visible (PR #64, finding 7). */}
-                      {field.retained ? `you said: ${field.text}` : (field.text ?? "—")}
+                      {field.retained ? `${REVIEW_COPY.retainedPrefix}${field.text}` : (field.text ?? REVIEW_COPY.emptyValue)}
                     </dd>
                   </div>
                 ))}
@@ -110,10 +108,10 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
             {SIGN_OFF_CTA}
           </button>
           <button type="button" className="review__paper-toggle" onClick={() => setShowPaper((shown) => !shown)}>
-            {showPaper ? "Hide the draft PDF" : "Show the draft PDF"}
+            {showPaper ? REVIEW_COPY.hidePaperCta : REVIEW_COPY.showPaperCta}
           </button>
           <button type="button" onClick={() => pdf.download()} disabled={pdf.status !== "ready"}>
-            Download the draft PDF
+            {REVIEW_COPY.downloadDraftCta}
           </button>
         </div>
 
@@ -125,14 +123,14 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
             preview. */}
         {pdf.status === "loading" && (
           <p className="review__pdf-status" role="status">
-            Generating the PDF…
+            {PDF_COPY.generating}
           </p>
         )}
         {pdf.status === "error" && (
           <div className="review__pdf-status review__pdf-status--error">
             <p role="alert">{pdf.error}</p>
             <button type="button" onClick={pdf.retry}>
-              Try again
+              {PDF_COPY.retryCta}
             </button>
           </div>
         )}
@@ -142,7 +140,7 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
             editing actually runs on. */}
         {showPaper && pdf.status === "ready" && pdf.pdfUrl && (
           <div className="review__paper">
-            <embed src={pdf.pdfUrl} type="application/pdf" className="review__paper-frame" title="Form 3500 preview" />
+            <embed src={pdf.pdfUrl} type="application/pdf" className="review__paper-frame" title={REVIEW_COPY.paperTitle} />
           </div>
         )}
 

@@ -121,9 +121,41 @@ export function reopenReviewRow(
 // file" claims a filing wilson does not perform (it fills and exports
 // the form; there is no MedWatch e-submission pipeline). The sign-off
 // vocabulary is kept — the clinician's signature is still the safety
-// boundary — and only the filing claim is dropped. Asserted by
-// ready.test.ts's copy-level check alongside Ready's own strings.
+// boundary — and only the filing claim is dropped.
 export const SIGN_OFF_CTA = "Sign off and continue";
+
+// Every other clinician-facing string these surfaces render. Lifted out of
+// the components (reviewer pass, PR #78, finding 3) so ready.test.ts's
+// copy-level check actually covers what renders: AC-3's rule is "no
+// 'filed'/'submitted to FDA' language or confirmation numbers ANYWHERE",
+// and while the strings were inline a future edit of the sign-off CTA back
+// to "Sign off and file" would have broken no test. The intro pair is the
+// mockup's own copy, which carries no violation and is taken as-is.
+export const REVIEW_COPY = {
+  heading: "Review before you sign off.",
+  intro: "Your signature is the safety boundary, not mine. Edit anything and I’ll ask about it again.",
+  editCta: "Edit",
+  showPaperCta: "Show the draft PDF",
+  hidePaperCta: "Hide the draft PDF",
+  downloadDraftCta: "Download the draft PDF",
+  paperTitle: "Form 3500 preview",
+  retainedPrefix: "you said: ",
+  emptyValue: "—",
+} as const;
+
+// The PDF generate/download states, shared by Review and Ready. In lib
+// rather than beside the hook because src/lib is typechecked without the
+// DOM lib (tsconfig.node.json), so ready.test.ts cannot import the hook to
+// assert these — and copy that no test can reach is the whole of finding 3.
+// `failure` follows chip-grammar.ts's friendlyFailureMessage convention:
+// one honest line, never the caught error's own message, since
+// PdfExportError's two cases (transport, server) ask nothing different of
+// the clinician.
+export const PDF_COPY = {
+  generating: "Generating the PDF…",
+  retryCta: "Try again",
+  failure: "Something went wrong generating the PDF. Check your connection and try again.",
+} as const;
 
 // --- the cards' rendered rows -------------------------------------------
 //
@@ -207,6 +239,19 @@ export function shortFieldLabel(label: string, rowLabel: string): string {
   return rest.length > 0 ? rest : label;
 }
 
+// A composition's label is the form's own GROUP caption, not the anchor
+// field's leaf name: the row shows several fields' values, so labelling it
+// "…: Product Name" would name one of three. Mechanical — drop the last
+// segment of the (already card-scoped) label — never hand-authored, and
+// the same choice form-3500-facsimile.ts's productIdentity() records for
+// the facsimile's own row.
+function composedLabel(label: string): string {
+  const lastSeparator = label.lastIndexOf(": ");
+  if (lastSeparator === -1) return label;
+  const caption = label.slice(0, lastSeparator).trim();
+  return caption.length > 0 ? caption : label;
+}
+
 export function reviewFieldRows(
   record: AgendaRecord,
   row: CuratedRow,
@@ -216,27 +261,52 @@ export function reviewFieldRows(
 ): ReviewFieldRow[] {
   const fieldsById = new Map(fields.map((f) => [f.id, f]));
   const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics);
-  const absorbed = new Set(
-    fieldIds.flatMap((id) => COMPOSED_ROWS.get(id)?.absorbs ?? []).filter((id) => fieldIds.includes(id)),
-  );
+  const present = new Set(fieldIds);
 
-  const rows: ReviewFieldRow[] = [];
+  // Absorption is decided per anchor, against the record — never from the
+  // COMPOSED_ROWS table alone. The helpers bail out entirely on a muted or
+  // blank anchor (form-3500-facsimile.ts: `if (dose.text === null ||
+  // dose.muted) return dose;`) and fold in only `answered` values, so
+  // absorbing unconditionally hid real data: with the dose declined and
+  // the frequency answered "BID", the card rendered one row reading
+  // "Declined to answer" and "BID" appeared nowhere on any card, while the
+  // exporter still wrote it to the form. Answered data that reaches the
+  // PDF but not the surface the clinician signs off from is exactly the
+  // silent-drop class the charter weights heaviest (reviewer pass, PR #78,
+  // finding 1). A field a composition does NOT speak for keeps its own
+  // row, which also restores the "obvious gaps" design.md asks for: an
+  // absorbed-but-`unknown` unit now shows as a gap on the card instead of
+  // appearing only in the Open-fields dialog.
+  const composedRows = new Map<string, ReviewFieldRow>();
+  const absorbed = new Set<string>();
   for (const fieldId of fieldIds) {
-    if (absorbed.has(fieldId)) continue;
-    const label = shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label);
-    const display = fieldDisplay(record, fieldId);
     const composed = COMPOSED_ROWS.get(fieldId);
+    if (!composed) continue;
+    const anchor = fieldDisplay(record, fieldId);
     // The retained-value case wins over composition: a reopened field's
     // prior value is exactly what Review exists to keep visible (AC-1's
     // edit path), and the composed helpers are built on displayFor(),
     // which reads a reopened field as blank by design — composing first
     // would silently drop the reminder this unit adds.
-    if (composed && !display.retained) {
-      const { text, muted } = composed.render(record);
-      rows.push({ fieldId, label, text, muted, retained: false });
+    if (anchor.retained || anchor.muted || anchor.text === null) continue;
+    const { text, muted } = composed.render(record);
+    const label = composedLabel(shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label));
+    composedRows.set(fieldId, { fieldId, label, text, muted, retained: false });
+    for (const absorbedId of composed.absorbs) {
+      if (present.has(absorbedId) && record[absorbedId]?.state === "answered") absorbed.add(absorbedId);
+    }
+  }
+
+  const rows: ReviewFieldRow[] = [];
+  for (const fieldId of fieldIds) {
+    if (absorbed.has(fieldId)) continue;
+    const composedRow = composedRows.get(fieldId);
+    if (composedRow) {
+      rows.push(composedRow);
       continue;
     }
-    rows.push({ fieldId, label, ...display });
+    const label = shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label);
+    rows.push({ fieldId, label, ...fieldDisplay(record, fieldId) });
   }
   return rows;
 }

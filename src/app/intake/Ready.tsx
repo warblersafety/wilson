@@ -15,6 +15,7 @@ import { useState } from "react";
 import { Dialog } from "@/components/Dialog";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { formatReadyCounts, READY_COPY, readyCounts, START_OVER_CONFIRM_COPY } from "@/lib/ready";
+import { PDF_COPY } from "@/lib/review";
 import type { TalkSession } from "@/lib/talk";
 import { usePdfExport } from "./use-pdf-export";
 
@@ -70,14 +71,14 @@ export function Ready({ session, onStartOver }: ReadyProps) {
 
         {pdf.status === "loading" && (
           <p className="ready__pdf-status" role="status">
-            Generating the PDF…
+            {PDF_COPY.generating}
           </p>
         )}
         {pdf.status === "error" && (
           <div className="ready__pdf-status ready__pdf-status--error">
             <p role="alert">{pdf.error}</p>
             <button type="button" onClick={pdf.retry}>
-              Try again
+              {PDF_COPY.retryCta}
             </button>
           </div>
         )}

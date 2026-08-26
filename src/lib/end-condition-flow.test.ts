@@ -195,6 +195,21 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
     for (const id of skippedIds) expect(openIds).not.toContain(id);
     // And clinician-established states are never nudged.
     for (const id of openIds) expect(["answered", "declined"]).not.toContain(done.record[id].state);
+    // Completeness, not just the edges: the assertions above are all
+    // inclusion/exclusion tests, and a regression that dropped a whole
+    // class of reachable topics from the walk (section E, say, which no
+    // other test in this unit lists as open) would pass every one of them
+    // (reviewer pass, PR #78, finding 4). This derives the expected set
+    // independently — straight from TOPICS and the record — and pins the
+    // list exactly, order included.
+    const expectedOpenIds = TOPICS.filter(
+      (t) =>
+        t.repeatInstance === null ||
+        t.repeatInstance <= (done.repeatCounts[t.repeatGroup!] ?? 1),
+    )
+      .flatMap((t) => t.fieldIds)
+      .filter((id) => done.record[id].state === "unknown" || done.record[id].state === "unasked");
+    expect(openIds).toEqual(expectedOpenIds);
     // The nudge never gates.
     const summary = summarizeOpenFields(done.record, done.repeatCounts);
     expect(summary.entries.length).toBeGreaterThan(0);

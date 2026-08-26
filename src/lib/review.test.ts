@@ -235,6 +235,7 @@ describe("reviewFieldRows", () => {
     const rows = rowsFor(record, "suspect-product-1");
     expect(rows.find((r) => r.fieldId === PROD_NAME)?.text).toBe("Amoxicillin 875");
     expect(rows.find((r) => r.fieldId === PROD_STRENGTH)).toBeUndefined();
+    expect(rows.find((r) => r.fieldId === PROD_NAME)?.label).toBe("Name, Strength, Manufacturer/Compounder");
   });
 
   it("renders fixed-choice fields the deleted review component filtered out (#69)", () => {
@@ -249,22 +250,74 @@ describe("reviewFieldRows", () => {
     expect(composed).toEqual({ fieldId: AGE_VALUE, label: "Age", text: "42", muted: false, retained: true });
   });
 
-  it("covers every reachable field of the row exactly once, minus only what a composition absorbs", () => {
-    const rows = rowsFor(initAgenda(), "patient-basics");
-    const ids = rows.map((r) => r.fieldId);
+  it("drops a field from the card only when a composition actually spoke for its value", () => {
+    let record = applyAction(initAgenda(), AGE_VALUE, { type: "answer" }, "42");
+    record = applyAction(record, AGE_YEARS, { type: "answer" }, "true");
+    const ids = rowsFor(record, "patient-basics").map((r) => r.fieldId);
     expect(new Set(ids).size).toBe(ids.length);
     const reachable = fieldIdsForReviewRow(row("patient-basics"), ONE_EACH);
-    // Exactly the six unit checkboxes the age and weight compositions
-    // speak for — nothing else may go missing from a card.
-    expect(reachable.filter((id) => !ids.includes(id))).toEqual([
-      AGE_YEARS,
-      "Page1.SecA_Patient.AgeMonths",
-      "Page1.SecA_Patient.AgeWeeks",
-      "Page1.SecA_Patient.AgeDays",
-      "Page1.SecA_Patient.WeightLB",
-      "Page1.SecA_Patient.WeightKG",
-    ]);
+    // Exactly the one unit checkbox the rendered age composition folded
+    // in. Weight's units stay — its own composition rendered nothing, so
+    // it spoke for nothing.
+    expect(reachable.filter((id) => !ids.includes(id))).toEqual([AGE_YEARS]);
     // …and the rows that remain keep the manifest's own order.
     expect(ids).toEqual(reachable.filter((id) => ids.includes(id)));
+  });
+
+  it("hides nothing on a blank record — an unrendered composition absorbs no fields", () => {
+    const ids = rowsFor(initAgenda(), "patient-basics").map((r) => r.fieldId);
+    expect(ids).toEqual(fieldIdsForReviewRow(row("patient-basics"), ONE_EACH));
+  });
+
+  // Reviewer pass, PR #78, finding 1. The composed helpers bail out on a
+  // muted or blank anchor and fold in only `answered` values, so absorbing
+  // unconditionally hid answered data that the exporter still wrote to the
+  // PDF — the silent-drop class the charter weights heaviest.
+  it("keeps an answered field visible when its composition's anchor is declined", () => {
+    let record = applyAction(initAgenda(), "Page4.Prod1.Prod1Dose", { type: "decline" });
+    record = applyAction(record, "Page4.Prod1.Prod1Freq", { type: "answer" }, "BID");
+    record = applyAction(record, "Page4.Prod1.Prod1DoseUnit", { type: "answer" }, "MILLIGRAM(S) - MG");
+    const rows = rowsFor(record, "suspect-product-1");
+    expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1Dose")?.text).toBe("Declined to answer");
+    expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1Freq")?.text).toBe("BID");
+    expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1DoseUnit")?.text).toBe("MILLIGRAM(S) - MG");
+  });
+
+  it("keeps an answered strength visible when the product name is unknown", () => {
+    let record = applyAction(initAgenda(), PROD_NAME, { type: "mark_unknown" });
+    record = applyAction(record, PROD_STRENGTH, { type: "answer" }, "875");
+    const rows = rowsFor(record, "suspect-product-1");
+    expect(rows.find((r) => r.fieldId === PROD_NAME)?.text).toBe("Unknown");
+    expect(rows.find((r) => r.fieldId === PROD_STRENGTH)?.text).toBe("875");
+  });
+
+  it("shows an absorbed-but-unknown field as its own gap, not only in the open-fields dialog", () => {
+    // design.md's "legible values and obvious gaps": a reachable field the
+    // clinician marked unknown must read as a gap on the card too.
+    let record = applyAction(initAgenda(), "Page4.Prod1.Prod1Dose", { type: "answer" }, "875");
+    record = applyAction(record, "Page4.Prod1.Prod1DoseUnit", { type: "mark_unknown" });
+    const rows = rowsFor(record, "suspect-product-1");
+    expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1Dose")?.text).toBe("875");
+    expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1DoseUnit")).toEqual({
+      fieldId: "Page4.Prod1.Prod1DoseUnit",
+      label: "Dose or Amount: Unit",
+      text: "Unknown",
+      muted: true,
+      retained: false,
+    });
+  });
+
+  it("labels a rendered composition with the form's group caption, not the anchor's leaf name", () => {
+    let record = applyAction(initAgenda(), PROD_NAME, { type: "answer" }, "amoxicillin");
+    record = applyAction(record, PROD_STRENGTH, { type: "answer" }, "875");
+    const identity = rowsFor(record, "suspect-product-1").find((r) => r.fieldId === PROD_NAME);
+    expect(identity?.text).toBe("amoxicillin 875");
+    expect(identity?.label).toBe("Name, Strength, Manufacturer/Compounder");
+  });
+
+  it("leaves a composition label alone when the form gives it no group caption", () => {
+    let record = applyAction(initAgenda(), AGE_VALUE, { type: "answer" }, "42");
+    record = applyAction(record, AGE_YEARS, { type: "answer" }, "true");
+    expect(rowsFor(record, "patient-basics").find((r) => r.fieldId === AGE_VALUE)?.label).toBe("Age");
   });
 });

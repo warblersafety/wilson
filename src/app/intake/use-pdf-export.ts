@@ -26,15 +26,10 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AgendaRecord } from "@/lib/agenda";
 import { fetchReportPdf } from "@/lib/pdf-export";
-
-// The friendly-copy convention (chip-grammar.ts's friendlyFailureMessage,
-// Issue #44's AC: "server/extraction failures surface as friendly copy
-// with a retry, never err.message"), applied to this unit's own new
-// surfaces. One honest message rather than a per-error-string guess:
-// PdfExportError's own two messages ("Could not reach the PDF service",
-// "PDF generation failed (status N)") name a transport failure and a
-// server failure, and neither asks anything different of the clinician.
-export const PDF_FAILURE_MESSAGE = "Something went wrong generating the PDF. Check your connection and try again.";
+// Copy lives in lib (src/lib/review.ts) so the copy-level check in
+// ready.test.ts can reach it — src/lib is typechecked without the DOM lib,
+// so a lib test cannot import this hook (reviewer pass, PR #78, finding 3).
+import { PDF_COPY } from "@/lib/review";
 
 export type PdfExportStatus = "loading" | "ready" | "error";
 
@@ -71,7 +66,7 @@ export function usePdfExport(record: AgendaRecord): PdfExport {
         // Never the caught error's own message: pdf-export.ts already
         // keeps field values out of what it throws, and this surface
         // shows the clinician one friendly line either way.
-        setError(PDF_FAILURE_MESSAGE);
+        setError(PDF_COPY.failure);
         setStatus("error");
       });
     return () => {

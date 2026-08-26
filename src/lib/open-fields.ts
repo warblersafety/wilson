@@ -42,6 +42,31 @@ const REASON_TEXT: Record<OpenFieldReasonKind, string> = {
   "not-asked": "not asked yet",
 };
 
+// The dialog's own strings, in lib for the same reason Ready's are
+// (reviewer pass, PR #78, finding 3): ready.test.ts's copy-level check
+// covers every string these surfaces render, not only the ones that
+// happened to start out as constants. Body copy keeps the mockup's
+// partial-report framing with design.md's recorded vocabulary swap
+// ("file as it stands" → "finish as it stands").
+export const OPEN_FIELDS_COPY = {
+  body:
+    "Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. " +
+    "Fill any of them now, or finish as it stands.",
+  answerCta: "Answer",
+  backCta: "Back to review",
+  finishCta: "Finish as it stands",
+} as const;
+
+// Derived from the count, never hardcoded — screen 06's own "Three fields
+// are still open." is written for its three-entry sample.
+export function openFieldsHeading(count: number): string {
+  return count === 1 ? "1 field is still open." : `${count} fields are still open.`;
+}
+
+// Exported for the copy-level check, which has to be able to enumerate the
+// reason strings the dialog renders alongside every other string.
+export const OPEN_FIELD_REASONS = REASON_TEXT;
+
 // A topic the clinician can still be asked about: any non-repeat topic,
 // or a repeat instance at or below its group's decided count. An
 // undecided group counts as 1, matching nextStep()'s own "instance 1 is

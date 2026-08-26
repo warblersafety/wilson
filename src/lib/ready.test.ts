@@ -4,7 +4,8 @@
 // nothing on its own servers... No submission claims."
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda } from "./agenda";
-import { SIGN_OFF_CTA } from "./review";
+import { OPEN_FIELD_REASONS, OPEN_FIELDS_COPY, openFieldsHeading } from "./open-fields";
+import { PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import {
   formatReadyCounts,
   READY_COPY,
@@ -62,7 +63,22 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
   // no confirmation numbers anywhere in the UI." This is AC-3's
   // "asserted by a copy-level check" option, taken instead of leaning on
   // the manual-check note alone.
-  const ALL_COPY = [...Object.values(READY_COPY), ...Object.values(START_OVER_CONFIRM_COPY), SIGN_OFF_CTA];
+  // Every clinician-facing string the three closing surfaces render, not
+  // only the ones that happened to start out as constants — AC-3's rule is
+  // "anywhere in the UI" (reviewer pass, PR #78, finding 3). If a string
+  // renders on Review, the Open-fields dialog, or Ready, it is in this
+  // list; the components hold no literals of their own.
+  const ALL_COPY = [
+    ...Object.values(READY_COPY),
+    ...Object.values(START_OVER_CONFIRM_COPY),
+    ...Object.values(REVIEW_COPY),
+    ...Object.values(PDF_COPY),
+    ...Object.values(OPEN_FIELDS_COPY),
+    ...Object.values(OPEN_FIELD_REASONS),
+    openFieldsHeading(1),
+    openFieldsHeading(7),
+    SIGN_OFF_CTA,
+  ];
 
   it.each(["filed", "file ", "submitted", "submission", "confirmation", "medwatch"])(
     "never says %s",
@@ -89,5 +105,29 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
 
   it("heads the surface with readiness, not a filing", () => {
     expect(READY_COPY.heading).toBe("Report ready.");
+  });
+});
+
+describe("no clinician-facing literals are left in the closing components", () => {
+  // The copy check above is only worth as much as its coverage: a string
+  // typed straight into a component is invisible to it. This is the
+  // coverage guard (reviewer pass, PR #78, finding 3) — it reads the three
+  // component sources and fails on a rendered text literal that is not a
+  // lib constant. Deliberately narrow: it matches only JSX TEXT (`>text<`),
+  // not attributes or class names, so ordinary markup does not trip it.
+  const COMPONENTS = [
+    "src/app/intake/Review.tsx",
+    "src/app/intake/Ready.tsx",
+    "src/app/intake/OpenFieldsDialog.tsx",
+  ];
+
+  it.each(COMPONENTS)("%s renders no bare text", async (path) => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(path, "utf8");
+    const withoutComments = source.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/^\s*\/\/.*$/gm, "");
+    const bareText = [...withoutComments.matchAll(/>\s*([^<>{}\n][^<>{}]*?)\s*</g)]
+      .map((m) => m[1].trim())
+      .filter((text) => /[A-Za-z]{2}/.test(text));
+    expect(bareText).toEqual([]);
   });
 });

@@ -12,7 +12,7 @@
 // summarizeOpenFields()'s canFinishAsIs tripwire and its test.
 import { Dialog } from "@/components/Dialog";
 import type { AgendaRecord } from "@/lib/agenda";
-import { openFieldEntries, rowForField } from "@/lib/open-fields";
+import { OPEN_FIELDS_COPY, openFieldEntries, openFieldsHeading, rowForField } from "@/lib/open-fields";
 import type { CuratedRow } from "@/lib/report-chrome";
 import type { RepeatCounts } from "@/lib/topics";
 
@@ -28,12 +28,6 @@ interface OpenFieldsDialogProps {
   onDismiss: () => void;
 }
 
-// Derived from the count, never hardcoded — screen 06's own "Three fields
-// are still open." is written for its three-entry sample.
-function heading(count: number): string {
-  return count === 1 ? "1 field is still open." : `${count} fields are still open.`;
-}
-
 export function OpenFieldsDialog({
   record,
   repeatCounts,
@@ -47,12 +41,9 @@ export function OpenFieldsDialog({
   return (
     <Dialog labelledBy="open-fields-heading" onDismiss={onDismiss}>
       <h2 id="open-fields-heading" className="dialog__heading">
-        {heading(entries.length)}
+        {openFieldsHeading(entries.length)}
       </h2>
-      <p className="dialog__body">
-        Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them
-        now, or finish as it stands.
-      </p>
+      <p className="dialog__body">{OPEN_FIELDS_COPY.body}</p>
 
       <ul className="open-fields__list">
         {entries.map((entry) => {
@@ -66,7 +57,7 @@ export function OpenFieldsDialog({
                   dishonest thing this dialog could do. */}
               {row && (
                 <button type="button" className="open-fields__answer" onClick={() => onAnswer(row)}>
-                  Answer
+                  {OPEN_FIELDS_COPY.answerCta}
                 </button>
               )}
             </li>
@@ -85,10 +76,10 @@ export function OpenFieldsDialog({
           the layout still nudges toward filling rather than finishing. */}
       <div className="dialog__actions">
         <button type="button" className="dialog__primary" onClick={onDismiss}>
-          Back to review
+          {OPEN_FIELDS_COPY.backCta}
         </button>
         <button type="button" className="dialog__secondary" onClick={onFinishAsIs}>
-          Finish as it stands
+          {OPEN_FIELDS_COPY.finishCta}
         </button>
       </div>
     </Dialog>
