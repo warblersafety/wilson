@@ -13,7 +13,7 @@
 // re-verifies everything this prompt promises — nothing here is load-bearing
 // for safety on its own, same posture extractor.ts documents for itself.
 import { z } from "zod";
-import { DISALLOWED_ENUM_VALUES, type FormFieldSpec } from "../lib/form-3500-fields";
+import { legalEnumOptions, type FormFieldSpec } from "../lib/form-3500-fields";
 import { QuoteSchema, REPEAT_GROUPS } from "./extractor";
 
 // EXTRACTOR_MODEL (same Sonnet tier, not re-exported under a second name
@@ -88,15 +88,6 @@ export const NARRATIVE_EXTRACTION_RESPONSE_SCHEMA = z.object({
 });
 
 export type NarrativeExtractionResponse = z.infer<typeof NARRATIVE_EXTRACTION_RESPONSE_SCHEMA>;
-
-// Mirrors TopicFields.tsx's own dropdown filtering (blank placeholder,
-// DISALLOWED_ENUM_VALUES) so the model is never invited toward a value the
-// validator (and, downstream, scripts/fill-3500.py at PDF-export time)
-// would refuse anyway.
-function legalEnumOptions(field: FormFieldSpec): string[] {
-  const disallowed = DISALLOWED_ENUM_VALUES[field.id];
-  return (field.options ?? []).filter((option) => option.trim().length > 0 && !disallowed?.has(option));
-}
 
 // Checkbox carries no per-field elaboration — NARRATIVE_EXTRACTOR_SYSTEM
 // already states the "true"/"false" contract once, and restating it on

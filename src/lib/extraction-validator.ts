@@ -54,7 +54,7 @@
 // ExtractionCandidate[], then wrap this validator's synchronous result
 // to satisfy ExtractFn's async, message-driven signature — this module
 // is that inner check, not a drop-in ExtractFn itself.
-import { DISALLOWED_ENUM_VALUES, type FormFieldSpec } from "./form-3500-fields";
+import { legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 import type { ProposedAction, TalkTurn } from "./talk";
 import type { RepeatGroup } from "./topics";
 
@@ -80,7 +80,8 @@ export type RejectionReason =
   | "not_extractable_field_type"
   | "quote_not_found"
   | "value_not_grounded"
-  | "not_a_legal_option";
+  | "not_a_legal_option"
+  | "quote_outside_current_turn";
 
 export interface RejectedCandidate {
   candidate: ExtractionCandidate;
@@ -139,18 +140,18 @@ function isExtractableFieldType(
 // ("Whatever eventually writes a checkbox answer (Extractor, or a UI)
 // needs to honor this string shape"), so this produces exactly that
 // shape rather than a looser boolean-ish check that would just fail later,
-// less legibly, at export. Enum's options[] IS the legal set, minus the
-// manifest's own blank placeholder (never a real "answered" value — see
-// TopicFields.tsx) and minus DISALLOWED_ENUM_VALUES (a real member of
-// options[] the source PDF itself mis-mapped).
+// less legibly, at export. Enum's legalEnumOptions(field)
+// (form-3500-fields.ts) IS the legal set — the manifest's own options[]
+// minus the blank placeholder (never a real "answered" value) and minus
+// DISALLOWED_ENUM_VALUES (a real member of options[] the source PDF
+// itself mis-mapped) — one shared definition, not a second copy of that
+// filter here.
 function isLegalFixedChoiceValue(field: FormFieldSpec, value: string): boolean {
   if (field.type === "checkbox") {
     return value === "true" || value === "false";
   }
   if (field.type === "enum") {
-    const options = field.options ?? [];
-    const disallowed = DISALLOWED_ENUM_VALUES[field.id];
-    return options.includes(value) && value.trim().length > 0 && !disallowed?.has(value);
+    return legalEnumOptions(field).includes(value);
   }
   return true;
 }
@@ -225,7 +226,7 @@ export interface RepeatCandidate {
   quote: Quote;
 }
 
-export type RepeatRejectionReason = "wrong_repeat_group" | "quote_not_found";
+export type RepeatRejectionReason = "wrong_repeat_group" | "quote_not_found" | "quote_outside_current_turn";
 
 export interface RepeatValidationResult {
   accepted: boolean;
@@ -240,13 +241,29 @@ export interface RepeatValidationResult {
 // already is in validateCandidates() ("unknown_field" /
 // "not_extractable_field_type"), rather than trusted on quote-grounding
 // alone.
+//
+// `currentTurnIndex` (Issue #44, design.md's citation-pool rule, resolves
+// #59): when given, a quote citing any OTHER turn index is rejected
+// before grounding is even checked — the widened follow-up sweep's own
+// per-turn extraction always passes the clinician's just-appended
+// message's index here, so a candidate citing the opening narrative (or
+// any earlier follow-up turn) can never be written with no read-back
+// pairing behind it. Optional and checked AFTER the group match (a wrong
+// group is rejected regardless of which turn it cites) but BEFORE quote
+// grounding — omitted, this function is fully unconstrained, which is
+// what the narrative-extraction pass needs: it only ever has one
+// clinician turn to cite in the first place.
 export function validateRepeatCandidate(
   transcript: TalkTurn[],
   candidate: RepeatCandidate,
   expectedGroup: RepeatGroup,
+  currentTurnIndex?: number,
 ): RepeatValidationResult {
   if (candidate.repeatGroup !== expectedGroup) {
     return { accepted: false, reason: "wrong_repeat_group" };
+  }
+  if (currentTurnIndex !== undefined && candidate.quote.turnIndex !== currentTurnIndex) {
+    return { accepted: false, reason: "quote_outside_current_turn" };
   }
   const turnText = clinicianTurnText(transcript, candidate.quote.turnIndex);
   if (!quoteIsGrounded(turnText, candidate.quote)) {
@@ -255,11 +272,19 @@ export function validateRepeatCandidate(
   return { accepted: true };
 }
 
+// `currentTurnIndex` (Issue #44, design.md's citation-pool rule, resolves
+// #59): same optional turn-index constraint as validateRepeatCandidate()
+// above, checked per-candidate after the field-shape checks
+// (unknown_field/not_extractable_field_type) and before quote grounding.
+// Omitted, every existing caller (the per-ask extractor prior to this
+// unit, the narrative-extraction pass) is fully unconstrained, unchanged
+// from before this parameter existed.
 export function validateCandidates(
   transcript: TalkTurn[],
   candidates: ExtractionCandidate[],
   fields: FormFieldSpec[],
   allowedTypes: readonly FormFieldSpec["type"][] = ["text", "date"],
+  currentTurnIndex?: number,
 ): ValidationResult {
   const fieldsById = new Map(fields.map((field) => [field.id, field]));
   // Memoized per call: a single clinician turn commonly grounds several
@@ -284,6 +309,10 @@ export function validateCandidates(
     }
     if (!isExtractableFieldType(field.type, allowedTypes)) {
       rejected.push({ candidate, reason: "not_extractable_field_type" });
+      continue;
+    }
+    if (currentTurnIndex !== undefined && candidate.quote.turnIndex !== currentTurnIndex) {
+      rejected.push({ candidate, reason: "quote_outside_current_turn" });
       continue;
     }
     if (!quoteIsGrounded(memoizedTurnText(candidate.quote.turnIndex), candidate.quote)) {

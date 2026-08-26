@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  DISALLOWED_ENUM_VALUES,
   FORM_3500_FIELDS,
   FORM_3500_SECTIONS,
+  legalEnumOptions,
   type FormFieldType,
   type FormSection,
 } from "./form-3500-fields";
@@ -94,6 +96,49 @@ describe("FORM_3500_FIELDS", () => {
       const match = f.pdfFieldName.match(rowFieldPattern);
       if (!match) continue;
       expect(f.label).toContain(`Row ${match[1]} —`);
+    }
+  });
+});
+
+// The single shared source for "which enum options are actually legal to
+// propose or offer" (this file's own DISALLOWED_ENUM_VALUES comment names
+// the intent: "one TS definition, not three") — extraction-validator.ts's
+// isLegalFixedChoiceValue(), src/prompts/narrative-extractor.ts's prompt
+// rendering, and src/lib/ask.ts's option-aware phrasing (Issue #44) all
+// call this instead of each re-deriving the blank-placeholder-and-
+// disallowed-value filter independently.
+describe("legalEnumOptions", () => {
+  it("strips the manifest's own blank placeholder", () => {
+    const field = FORM_3500_FIELDS.find((f) => f.id === "Page7.SecG_Reporter.Occupation")!;
+    expect(field.options).toContain(" ");
+    expect(legalEnumOptions(field)).not.toContain(" ");
+    expect(legalEnumOptions(field).every((o) => o.trim().length > 0)).toBe(true);
+  });
+
+  it("strips a field's disallowed values, even though they're real members of options[]", () => {
+    const field = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1StrengthUnit")!;
+    expect(field.options).toContain("AS NECESSARY - AN");
+    expect(legalEnumOptions(field)).not.toContain("AS NECESSARY - AN");
+  });
+
+  it("leaves every other real option untouched, in manifest order", () => {
+    const field = FORM_3500_FIELDS.find((f) => f.id === "Page7.SecG_Reporter.Occupation")!;
+    const expected = (field.options ?? []).filter((o) => o.trim().length > 0);
+    expect(legalEnumOptions(field)).toEqual(expected);
+  });
+
+  it("returns an empty array for a field with no options at all (never thrown)", () => {
+    const textField = FORM_3500_FIELDS.find((f) => f.type === "text")!;
+    expect(legalEnumOptions(textField)).toEqual([]);
+  });
+
+  it("against the real manifest: every disallowed value named in DISALLOWED_ENUM_VALUES is actually excluded", () => {
+    for (const [fieldId, disallowed] of Object.entries(DISALLOWED_ENUM_VALUES)) {
+      const field = FORM_3500_FIELDS.find((f) => f.id === fieldId)!;
+      const legal = legalEnumOptions(field);
+      for (const value of disallowed) {
+        expect(legal).not.toContain(value);
+      }
     }
   });
 });

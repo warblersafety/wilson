@@ -47,15 +47,31 @@ const OCCUPATION_OPTIONS: string[] = [" ", "Administrator/Supervisor", "Biomedic
 // above (not corrected there — see the comment above Prod1StrengthUnit).
 // The single shared source for every consumer that must refuse it:
 // scripts/fill-3500.py's own DISALLOWED_ENUM_VALUES (the canonical,
-// PDF-export-enforced definition), src/app/wizard/TopicFields.tsx (filters
-// it out of the dropdown), and src/lib/extraction-validator.ts (refuses it
-// as a legal narrative-extraction value) — one TS definition, not three.
+// PDF-export-enforced definition) and legalEnumOptions() below, which is
+// in turn the one place src/lib/extraction-validator.ts,
+// src/prompts/narrative-extractor.ts, and src/lib/ask.ts (Issue #44) all
+// get an enum field's actually-offerable options from — one TS
+// definition, not three (the widget dropdown that used to do this
+// filtering itself, src/app/wizard/TopicFields.tsx, was deleted in Issue
+// #44 — checkbox/enum fields are ordinary conversational asks now).
 export const DISALLOWED_ENUM_VALUES: Record<string, ReadonlySet<string>> = {
   "Page4.Prod1.Prod1StrengthUnit": new Set(["AS NECESSARY - AN"]),
   "Page4.Prod1.Prod1DoseUnit": new Set(["AS NECESSARY - AN"]),
   "Page5.Prod2.Prod2StrengthUnit": new Set(["AS NECESSARY - AN"]),
   "Page5.Prod2.Prod2DoseUnit": new Set(["AS NECESSARY - AN"]),
 };
+
+// An enum field's actually-legal options: its manifest options[] minus the
+// blank "unselected" placeholder (a literal " ", never a real choice) and
+// minus DISALLOWED_ENUM_VALUES (a real member of options[] the source PDF
+// itself mis-mapped — see the comment above). Returns [] for a non-enum
+// field rather than throwing — a caller sweeping every field uniformly
+// (e.g. a prompt-manifest renderer) shouldn't need to branch on type
+// first just to avoid a crash.
+export function legalEnumOptions(field: FormFieldSpec): string[] {
+  const disallowed = DISALLOWED_ENUM_VALUES[field.id];
+  return (field.options ?? []).filter((option) => option.trim().length > 0 && !disallowed?.has(option));
+}
 
 
 // Prod1StrengthUnit/Prod1DoseUnit (and their Prod2 counterparts) carry a real
