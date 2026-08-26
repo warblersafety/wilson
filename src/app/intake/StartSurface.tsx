@@ -12,6 +12,15 @@ import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/l
 import { initTalkSession } from "@/lib/talk";
 import { initRepeatCounts } from "@/lib/topics";
 
+// Module-level, not computed per render: AgendaRecord/RepeatCounts are
+// treated immutably everywhere else in this codebase (applyAction/
+// setRepeatCount always return a new object, never mutate), so one
+// shared empty instance is safe to reuse across every render and mount —
+// re-deriving it on every keystroke otherwise re-walks 227 fields and 34
+// topics for an always-identical result (reviewer pass, PR #75, F11).
+const EMPTY_RECORD = initAgenda();
+const EMPTY_REPEAT_COUNTS = initRepeatCounts();
+
 interface StartSurfaceProps {
   onLanded: (handoff: ReadBackHandoff) => void;
 }
@@ -37,7 +46,7 @@ export function StartSurface({ onLanded }: StartSurfaceProps) {
   }
 
   return (
-    <ReportChrome record={initAgenda()} repeatCounts={initRepeatCounts()} currentTopicId={null}>
+    <ReportChrome record={EMPTY_RECORD} repeatCounts={EMPTY_REPEAT_COUNTS} currentTopicId={null}>
       <main className="start-surface">
         <h1 className="start-surface__heading">Report an adverse event</h1>
         <div className="start-surface__questions">

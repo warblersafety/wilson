@@ -9,15 +9,21 @@
 // Row membership is curated, not derived: which topics collapse into
 // which row is read from docs/mockups' own ReportRail.dc.html source,
 // not reconstructed from the topic map (34 entries) or the form's
-// section structure alone. Two folds aren't named anywhere but that
+// section structure alone. Three things aren't named anywhere but that
 // source's row list, so they're recorded here rather than left silent
-// (design.md's own fidelity rule: reasoned deviations are first-class):
-// "What happened" absorbs event-additional-comments (both section-B
-// narrative content about the event, not a fact the mockup's four B-rows
-// have room to break out further), and section E (device) has no row at
-// all, matching the mockups exactly — device topics stay reachable
-// through the follow-up loop and count toward the footer's record-wide
-// totals, just not rolled up individually here.
+// (design.md's own fidelity rule: reasoned deviations are first-class;
+// reviewer pass, PR #75, finding F13 — this comment previously recorded
+// only two of the three):
+//   - "What happened" absorbs event-additional-comments (both section-B
+//     narrative content about the event, not a fact the mockup's four
+//     B-rows have room to break out further).
+//   - "Reporter" absorbs both reporter-contact-info and
+//     reporter-about-you (the mockup's single "Reporter" row covers all
+//     of section G, which the topic map splits into two topics).
+//   - Section E (device) has no row at all, matching the mockups exactly
+//     — device topics stay reachable through the follow-up loop and
+//     count toward the footer's record-wide totals, just not rolled up
+//     individually here.
 import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
@@ -98,19 +104,49 @@ export function curatedRows(repeatCounts: RepeatCounts, topics: Topic[] = TOPICS
   ];
 }
 
-function fieldIdsForRow(row: CuratedRow, topics: Topic[]): string[] {
-  const topicsById = new Map(topics.map((t) => [t.id, t]));
+function fieldIdsForRow(row: CuratedRow, topicsById: Map<string, Topic>): string[] {
   return row.topicIds.flatMap((id) => topicsById.get(id)?.fieldIds ?? []);
 }
 
-// current > untouched > done > unknown, in that precedence. "done" and
-// "unknown" are both defined over a row's FULL field set (never a
-// positional walk): done means at least one constituent field carries a
-// real value (proven progress, even mid-row or ahead of the sequential
-// cursor — the AC's own "narrative-filled topic past the cursor renders
-// done" case); unknown means every touched field came back with nothing
-// to write (unknown or declined — both mean "asked, no value"; neither
-// counts toward done) and nothing else is untouched-only.
+// done/unknown/untouched are all defined over a row's FULL field set
+// (never a positional walk): done means at least one constituent field
+// carries a real value (proven progress, even mid-row or ahead of the
+// sequential cursor — the AC's own "narrative-filled topic past the
+// cursor renders done" case); untouched means none of them have been
+// reached at all; unknown means every touched field came back with
+// nothing to write and none is untouched-only either.
+//
+// "Nothing to write" groups FieldState's `unknown` AND `declined` into
+// this one bucket, not three-way. That's a real divergence from the
+// mockups' own rail component (ReportRail.dc.html defines five row
+// looks, with `declined` as its own muted "—" badge distinct from
+// `unknown`'s amber one — reviewer pass, PR #75, finding F5) — recorded
+// here rather than left silent, per design.md's own fidelity rule. It
+// is not a build shortcut: design.md's chrome paragraph and this unit's
+// own frozen AC both name exactly four row states — `done`, `current`,
+// `unknown`, `untouched` — with no fifth value in either, the same
+// closed enumeration RowState's type carries above. Adding one would be
+// new scope past what was frozen before code, not a fix; grouping
+// `declined` with `unknown` here also matches recordFieldCounts()'s
+// identical choice for the footer below, which design.md's own quoted
+// example ("18 fields written · 2 unknown") independently supports —
+// one consistent two-bucket model for "real value" vs. "not", not two
+// different collapses in two places.
+function stateFromFieldStates(states: Array<AgendaRecord[string]["state"]>): "done" | "untouched" | "unknown" {
+  if (states.every((s) => s === "unasked")) return "untouched";
+  if (states.some((s) => s === "answered")) return "done";
+  return "unknown";
+}
+
+// The AC's own worked example ("a narrative-filled topic past the
+// cursor renders done") is a boundary case worth naming explicitly: this
+// threshold is ANY answered field, not a completion ratio, so a row with
+// 1 of ~40 fields answered reads identically to one fully resolved, and
+// a row with 1 answered + 39 unknown shows no trace of the unknowns
+// (reviewer pass, PR #75, finding F6 — no change requested, recorded for
+// whoever next touches this). "Done" is the strongest word the rail
+// shows; the per-field detail lives one click away, in the facsimile and
+// the real Review surface (#45), not the rail itself.
 export function curatedRowState(
   row: CuratedRow,
   record: AgendaRecord,
@@ -118,10 +154,8 @@ export function curatedRowState(
   topics: Topic[] = TOPICS,
 ): RowState {
   if (currentTopicId !== null && row.topicIds.includes(currentTopicId)) return "current";
-  const states = fieldIdsForRow(row, topics).map((id) => record[id]?.state ?? "unasked");
-  if (states.every((s) => s === "unasked")) return "untouched";
-  if (states.some((s) => s === "answered")) return "done";
-  return "unknown";
+  const topicsById = new Map(topics.map((t) => [t.id, t]));
+  return stateFromFieldStates(fieldIdsForRow(row, topicsById).map((id) => record[id]?.state ?? "unasked"));
 }
 
 export function reportRailRows(
@@ -130,10 +164,17 @@ export function reportRailRows(
   currentTopicId: string | null,
   topics: Topic[] = TOPICS,
 ): CuratedRowStatus[] {
-  return curatedRows(repeatCounts, topics).map((row) => ({
-    row,
-    state: curatedRowState(row, record, currentTopicId, topics),
-  }));
+  // Builds topicsById once for the whole rail rather than once per row
+  // (curatedRowState's own default builds one per call, fine for a
+  // single lookup but wasteful called nine or ten times per render —
+  // reviewer pass, PR #75, finding F12).
+  const topicsById = new Map(topics.map((t) => [t.id, t]));
+  return curatedRows(repeatCounts, topics).map((row) => {
+    if (currentTopicId !== null && row.topicIds.includes(currentTopicId)) {
+      return { row, state: "current" as const };
+    }
+    return { row, state: stateFromFieldStates(fieldIdsForRow(row, topicsById).map((id) => record[id]?.state ?? "unasked")) };
+  });
 }
 
 export interface RecordCounts {
@@ -157,6 +198,16 @@ export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] 
     else if (state === "unknown" || state === "declined") unknown++;
   }
   return { written, unknown };
+}
+
+// Shared by the footer and the facsimile header so the two on-screen
+// counters can't silently drift in copy (reviewer pass, PR #75, finding
+// F4: they used to pluralize and zero-suppress differently while
+// agreeing on the numbers — "1 field written" in one place, "1 fields
+// written · 0 unknown" in the other, for the same record).
+export function formatFieldCounts(counts: RecordCounts): string {
+  const written = `${counts.written} field${counts.written === 1 ? "" : "s"} written`;
+  return counts.unknown > 0 ? `${written} · ${counts.unknown} unknown` : written;
 }
 
 const PATIENT_IDENTIFIER_FIELD_ID = "Page1.SecA_Patient.PatientIdentifier";

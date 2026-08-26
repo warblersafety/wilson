@@ -14,9 +14,27 @@
 // note, per design.md's fidelity rule.
 import type { ReactNode } from "react";
 import type { AgendaRecord } from "@/lib/agenda";
-import { patientIdentifier, recordFieldCounts, reportRailRows } from "@/lib/report-chrome";
+import { formatFieldCounts, patientIdentifier, recordFieldCounts, reportRailRows } from "@/lib/report-chrome";
 import type { RepeatCounts } from "@/lib/topics";
 import { Facsimile } from "./Facsimile";
+
+// The footer's nothing-written-yet copy assumes the Start surface's own
+// framing ("wilson asks one topic at a time") — true once the topic-by-
+// topic loop begins, not on Read-back, where the record is ALSO still
+// blank (design.md: nothing is written until confirmed there) but the
+// clinician is looking at a full set of pending proposals, not being
+// asked anything one at a time. ReadBack.tsx overrides this via
+// `emptyState`; every other blank-record caller gets the Start default
+// (reviewer pass, PR #75, finding F9).
+interface EmptyStateCopy {
+  headline: string;
+  note: string;
+}
+
+const START_EMPTY_STATE: EmptyStateCopy = {
+  headline: "Nothing written yet",
+  note: "wilson asks one topic at a time — skip anything you don’t have.",
+};
 
 interface ReportChromeProps {
   record: AgendaRecord;
@@ -27,14 +45,16 @@ interface ReportChromeProps {
   // have this: Wizard.tsx's own currentTopicProgress() call, reused
   // as-is, or the same call seeded with a blank record for Read-back.
   currentTopicId: string | null;
+  emptyState?: EmptyStateCopy;
   children: ReactNode;
 }
 
-export function ReportChrome({ record, repeatCounts, currentTopicId, children }: ReportChromeProps) {
+export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState, children }: ReportChromeProps) {
   const rows = reportRailRows(record, repeatCounts, currentTopicId);
   const counts = recordFieldCounts(record);
   const identifier = patientIdentifier(record);
   const nothingWritten = counts.written === 0 && counts.unknown === 0;
+  const { headline, note } = emptyState ?? START_EMPTY_STATE;
 
   return (
     <div className="report-chrome">
@@ -68,17 +88,12 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, children }:
         <div className="report-footer">
           {nothingWritten ? (
             <>
-              <p className="report-footer__headline">Nothing written yet</p>
-              <p className="report-footer__note">
-                wilson asks one topic at a time — skip anything you don&rsquo;t have.
-              </p>
+              <p className="report-footer__headline">{headline}</p>
+              <p className="report-footer__note">{note}</p>
             </>
           ) : (
             <>
-              <p className="report-footer__headline">
-                {counts.written} field{counts.written === 1 ? "" : "s"} written
-                {counts.unknown > 0 ? ` · ${counts.unknown} unknown` : ""}
-              </p>
+              <p className="report-footer__headline">{formatFieldCounts(counts)}</p>
               <p className="report-footer__note">A partial report is a valid report.</p>
             </>
           )}

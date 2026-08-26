@@ -24,8 +24,10 @@
   --danger: #8c1d2f;
   --danger-bg: #fcf1f3;
 
-  /* Shared so .wizard-layout's viewport-height calc below can't silently
-     desync from the header it's subtracting (reviewer pass, finding 2). */
+  /* Shared so .report-chrome/.report-rail/.report-facsimile's viewport-
+     height calcs below can't silently desync from the header they're
+     subtracting (reviewer pass, finding 2; retargeted from the deleted
+     .wizard-layout by PR #75's own reviewer pass, finding F13). */
   --shell-header-height: 56px;
 }
 
@@ -465,6 +467,17 @@ h3 {
   font-size: var(--type-fine-size);
   line-height: var(--type-fine-line);
   color: var(--ink-form);
+}
+
+/* Its own modifier, not a reuse of .report-facsimile__field-value--muted:
+   that class and .report-facsimile__text-block both set `color` at equal
+   (0,1,0) specificity, so whichever rule is declared later in the
+   stylesheet silently wins regardless of which classes an element
+   carries (reviewer pass, PR #75, finding F3 — DescEvent marked unknown/
+   declined was rendering in the same ink as real dictated prose). */
+.report-facsimile__text-block--muted {
+  color: var(--gold-700);
+  font-style: italic;
 }
 
 .report-facsimile__disclosure {

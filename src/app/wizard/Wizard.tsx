@@ -5,10 +5,9 @@
 import { useEffect, useState } from "react";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { askDeterministic } from "@/lib/ask";
-import { initAgenda } from "@/lib/agenda";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { currentTopicProgress, initRepeatCounts, reopenTopic, type Topic } from "@/lib/topics";
+import { currentTopicProgress, reopenTopic, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
 import { PdfReview } from "./PdfReview";
@@ -89,12 +88,16 @@ export function Wizard() {
   }
 
   if (!current) {
+    // Deliberately unwrapped: `current` is null only during the async
+    // hydration gap before a stored session's real record is known
+    // (reviewer pass, PR #75, finding F10) — chrome around this branch
+    // would assert "nothing written yet" over a session that may have
+    // most of the form filled in, a false claim for however briefly it
+    // shows.
     return (
-      <ReportChrome record={initAgenda()} repeatCounts={initRepeatCounts()} currentTopicId={null}>
-        <main className="wizard">
-          <p>Loading…</p>
-        </main>
-      </ReportChrome>
+      <main className="wizard">
+        <p>Loading…</p>
+      </main>
     );
   }
 

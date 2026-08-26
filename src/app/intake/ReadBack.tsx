@@ -28,6 +28,18 @@ function fieldLabel(fieldId: string): string {
   return fieldOf(fieldId)?.label ?? fieldId;
 }
 
+// Read-back's record is ALSO still blank (nothing writes until "Looks
+// right"), so the chrome's default Start-surface empty copy ("wilson
+// asks one topic at a time") would otherwise show here too — wrong for
+// a moment where the clinician is looking at a full set of pending
+// proposals, not being asked anything one at a time (reviewer pass, PR
+// #75, finding F9). Matches the mockups' own dedicated "transcript"
+// rail stage (ReportRail.dc.html).
+const READ_BACK_EMPTY_STATE = {
+  headline: "Transcript ready · 0 fields written",
+  note: "Nothing is written to the form until you approve the transcript.",
+};
+
 interface ReadBackProps {
   handoff: ReadBackHandoff;
   onConfirmed: (session: TalkSession) => void;
@@ -89,6 +101,7 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
         record={current.session.record}
         repeatCounts={current.session.repeatCounts}
         currentTopicId={chromeCurrentTopicId}
+        emptyState={READ_BACK_EMPTY_STATE}
       >
         <main className="read-back">
           <h1 className="read-back__heading">Here&rsquo;s what I&rsquo;d write</h1>
@@ -134,6 +147,7 @@ export function ReadBack({ handoff, onConfirmed }: ReadBackProps) {
       record={current.session.record}
       repeatCounts={current.session.repeatCounts}
       currentTopicId={chromeCurrentTopicId}
+      emptyState={READ_BACK_EMPTY_STATE}
     >
       <main className="read-back">
         <h1 className="read-back__heading">Here&rsquo;s what I&rsquo;d write</h1>

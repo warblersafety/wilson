@@ -9,8 +9,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { AgendaEntry } from "./agenda";
-import { facsimileValue } from "./form-3500-facsimile";
+import { initAgenda, type AgendaEntry, type AgendaRecord } from "./agenda";
+import {
+  doseWithUnitAndFrequency,
+  facsimileValue,
+  productIdentity,
+  valueWithCheckedUnit,
+} from "./form-3500-facsimile";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 
 function textField(overrides: Partial<FormFieldSpec> = {}): FormFieldSpec {
@@ -156,4 +161,129 @@ describe("facsimileValue — reference-case equality (design.md 'one mapping tru
       expect(actual).toEqual(expectedValue);
     });
   }
+});
+
+// Composition tests (reviewer pass, PR #75, finding F1 — a value field
+// silently rendered without its paired unit/strength/manufacturer
+// fields, even when those were answered and reach the real PDF).
+function recordWith(overrides: Record<string, AgendaEntry>): AgendaRecord {
+  return { ...initAgenda(), ...overrides };
+}
+
+describe("valueWithCheckedUnit", () => {
+  const AGE_UNITS = [
+    ["Page1.SecA_Patient.AgeYears", "yr"],
+    ["Page1.SecA_Patient.AgeMonths", "mo"],
+    ["Page1.SecA_Patient.AgeWeeks", "wk"],
+    ["Page1.SecA_Patient.AgeDays", "day"],
+  ] as const;
+
+  it("composes the checked unit onto an answered value", () => {
+    const record = recordWith({
+      "Page1.SecA_Patient.AgeValue": { state: "answered", value: "42" },
+      "Page1.SecA_Patient.AgeYears": { state: "answered", value: "true" },
+    });
+    expect(valueWithCheckedUnit(record, "Page1.SecA_Patient.AgeValue", AGE_UNITS)).toEqual({
+      text: "42 yr",
+      muted: false,
+    });
+  });
+
+  it("uses whichever unit checkbox is actually answered true, not just the first in the list", () => {
+    const record = recordWith({
+      "Page1.SecA_Patient.AgeValue": { state: "answered", value: "7" },
+      "Page1.SecA_Patient.AgeMonths": { state: "answered", value: "true" },
+    });
+    expect(valueWithCheckedUnit(record, "Page1.SecA_Patient.AgeValue", AGE_UNITS)).toEqual({
+      text: "7 mo",
+      muted: false,
+    });
+  });
+
+  it("renders the bare value when no unit has been answered yet — never invents one", () => {
+    const record = recordWith({ "Page1.SecA_Patient.AgeValue": { state: "answered", value: "42" } });
+    expect(valueWithCheckedUnit(record, "Page1.SecA_Patient.AgeValue", AGE_UNITS)).toEqual({
+      text: "42",
+      muted: false,
+    });
+  });
+
+  it("passes through the sentinel untouched when the value itself is unknown — never 'Unknown yr'", () => {
+    const record = recordWith({
+      "Page1.SecA_Patient.AgeValue": { state: "unknown" },
+      "Page1.SecA_Patient.AgeYears": { state: "answered", value: "true" },
+    });
+    expect(valueWithCheckedUnit(record, "Page1.SecA_Patient.AgeValue", AGE_UNITS)).toEqual({
+      text: "Unknown",
+      muted: true,
+    });
+  });
+
+  it("renders nothing when the value is unasked, regardless of the unit", () => {
+    const record = recordWith({ "Page1.SecA_Patient.AgeYears": { state: "answered", value: "true" } });
+    expect(valueWithCheckedUnit(record, "Page1.SecA_Patient.AgeValue", AGE_UNITS)).toEqual({
+      text: null,
+      muted: false,
+    });
+  });
+});
+
+describe("doseWithUnitAndFrequency", () => {
+  it("composes dose, unit, and frequency into one value", () => {
+    const record = recordWith({
+      "Page4.Prod1.Prod1Dose": { state: "answered", value: "875" },
+      "Page4.Prod1.Prod1DoseUnit": { state: "answered", value: "MILLIGRAM(S) - MG" },
+      "Page4.Prod1.Prod1Freq": { state: "answered", value: "BID" },
+    });
+    expect(doseWithUnitAndFrequency(record)).toEqual({ text: "875 MILLIGRAM(S) - MG BID", muted: false });
+  });
+
+  it("renders the bare dose when unit and frequency aren't answered yet", () => {
+    const record = recordWith({ "Page4.Prod1.Prod1Dose": { state: "answered", value: "875" } });
+    expect(doseWithUnitAndFrequency(record)).toEqual({ text: "875", muted: false });
+  });
+
+  it("renders the dose's own sentinel when the dose is declined, ignoring a separately-answered unit", () => {
+    const record = recordWith({
+      "Page4.Prod1.Prod1Dose": { state: "declined" },
+      "Page4.Prod1.Prod1DoseUnit": { state: "answered", value: "MILLIGRAM(S) - MG" },
+    });
+    expect(doseWithUnitAndFrequency(record)).toEqual({ text: "Declined to answer", muted: true });
+  });
+});
+
+describe("productIdentity", () => {
+  it("composes name, strength, unit, and manufacturer into one value", () => {
+    const record = recordWith({
+      "Page4.Prod1.Prod1Name": { state: "answered", value: "Amoxicillin" },
+      "Page4.Prod1.Prod1Strength": { state: "answered", value: "875" },
+      "Page4.Prod1.Prod1StrengthUnit": { state: "answered", value: "MILLIGRAM(S) - MG" },
+      "Page4.Prod1.Prod1ManuComp": { state: "answered", value: "Aurobindo Pharma" },
+    });
+    expect(productIdentity(record)).toEqual({
+      text: "Amoxicillin 875 MILLIGRAM(S) - MG — Aurobindo Pharma",
+      muted: false,
+    });
+  });
+
+  it("renders the bare name when nothing else has been answered", () => {
+    const record = recordWith({ "Page4.Prod1.Prod1Name": { state: "answered", value: "Amoxicillin" } });
+    expect(productIdentity(record)).toEqual({ text: "Amoxicillin", muted: false });
+  });
+
+  it("composes strength without a unit when only strength is answered", () => {
+    const record = recordWith({
+      "Page4.Prod1.Prod1Name": { state: "answered", value: "Amoxicillin" },
+      "Page4.Prod1.Prod1Strength": { state: "answered", value: "875" },
+    });
+    expect(productIdentity(record)).toEqual({ text: "Amoxicillin 875", muted: false });
+  });
+
+  it("renders the name's own sentinel when the name is unknown, ignoring an answered manufacturer", () => {
+    const record = recordWith({
+      "Page4.Prod1.Prod1Name": { state: "unknown" },
+      "Page4.Prod1.Prod1ManuComp": { state: "answered", value: "Aurobindo Pharma" },
+    });
+    expect(productIdentity(record)).toEqual({ text: "Unknown", muted: true });
+  });
 });
