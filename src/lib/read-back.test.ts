@@ -13,6 +13,9 @@ import {
   describeProposalValue,
   findQuoteSpan,
   groupProposalsByField,
+  quoteReadings,
+  READ_BACK_COPY,
+  readingFraming,
   resolveConfirmReadiness,
   restoreSelections,
 } from "./read-back";
@@ -277,5 +280,88 @@ describe("restoreSelections", () => {
     const handoff = handoffWith([AGE_42, AGE_43]);
     expect(restoreSelections(handoff, { [AGE]: 9 }).size).toBe(0);
     expect(restoreSelections(handoff, undefined).size).toBe(0);
+  });
+});
+
+describe("quoteReadings", () => {
+  // Issue #60 / design.md: the read-back confirm "is the correspondence
+  // check", and a value paired with a quote "must present it as a reading
+  // of the quote". The panel showed values with no quotes at all, and
+  // rendered an ambiguous-quote proposal identically to a cleanly grounded
+  // one — so the surface whose whole job is letting a clinician verify
+  // wilson read them correctly withheld the evidence they'd check against.
+  const NARRATIVE = "42-year-old woman, amoxicillin 875 twice daily. Admitted her overnight. Rash on day 7, rash resolving.";
+
+  it("marks a quote found exactly once as grounded", () => {
+    const readings = quoteReadings(NARRATIVE, [proposal("f1", "42", "42-year-old")]);
+    expect(readings[0].status).toBe("grounded");
+    expect(readings[0].quoteText).toBe("42-year-old");
+    expect(readings[0].note).toBeNull();
+  });
+
+  it("marks a quote appearing more than once as ambiguous, and says why", () => {
+    // Distinct from unlocatable, and it must be: "it appears twice" and
+    // "I can't find it" mean different things about how much to trust the
+    // reading (AC: distinguished from grounded AND from each other).
+    const readings = quoteReadings(NARRATIVE, [proposal("f1", "x", "rash")]);
+    expect(readings[0].status).toBe("ambiguous");
+    expect(readings[0].note).toBe(READ_BACK_COPY.ambiguousNote);
+  });
+
+  it("marks a quote it cannot locate as unlocatable, and says why", () => {
+    const readings = quoteReadings(NARRATIVE, [proposal("f1", "x", "penicillin allergy")]);
+    expect(readings[0].status).toBe("unlocatable");
+    expect(readings[0].note).toBe(READ_BACK_COPY.unlocatableNote);
+  });
+
+  it("agrees with the highlight above: exactly the grounded ones are highlighted", () => {
+    // The panel and the highlighting must not tell different stories —
+    // buildHighlightSegments renders only "unique" spans, so a proposal
+    // shown as grounded here and unhighlighted above (or the reverse)
+    // would be the surface contradicting itself.
+    const proposals = [
+      proposal("f1", "42", "42-year-old"),
+      proposal("f2", "x", "rash"),
+      proposal("f3", "x", "penicillin allergy"),
+    ];
+    const readings = quoteReadings(NARRATIVE, proposals);
+    const highlighted = new Set(
+      buildHighlightSegments(NARRATIVE, proposals).flatMap((segment) => segment.proposalIndexes),
+    );
+    readings.forEach((reading, i) => {
+      expect(highlighted.has(i)).toBe(reading.status === "grounded");
+    });
+  });
+
+  it("matches under the same normalization the grounding validator used", () => {
+    // Case and punctuation differences are not the clinician's problem:
+    // findQuoteSpan already normalizes, and this must not be stricter, or
+    // a quote the validator accepted would show as unlocatable.
+    const readings = quoteReadings("Admitted her overnight for observation.", [
+      proposal("f1", "x", "admitted her OVERNIGHT"),
+    ]);
+    expect(readings[0].status).toBe("grounded");
+  });
+
+  it("returns one reading per proposal, in order, and handles none", () => {
+    expect(quoteReadings(NARRATIVE, [])).toEqual([]);
+    const readings = quoteReadings(NARRATIVE, [proposal("f1", "1", "woman"), proposal("f2", "2", "sinusitis")]);
+    expect(readings).toHaveLength(2);
+    expect(readings.map((r) => r.status)).toEqual(["grounded", "unlocatable"]);
+  });
+});
+
+describe("readingFraming", () => {
+  // AC: the pairing is presented as a READING of the quote, "including
+  // referential phrasings ('admitted her overnight' → Outcome:
+  // Hospitalization) — never as if the value appeared in the prose".
+  // "Hospitalization" appears nowhere in that sentence; copy that implied
+  // it did would be a false claim about the clinician's own words.
+  it("frames the value as read FROM the quote, never as quoted text", () => {
+    expect(readingFraming("admitted her overnight")).toBe("read from “admitted her overnight”");
+  });
+
+  it("keeps the clinician's words verbatim inside the framing", () => {
+    expect(readingFraming("875 twice daily")).toContain("875 twice daily");
   });
 });

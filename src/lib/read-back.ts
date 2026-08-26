@@ -148,6 +148,83 @@ function actionsEqual(a: ProposedAction, b: ProposedAction): boolean {
   return a.type === "answer" && b.type === "answer" ? a.value === b.value : true;
 }
 
+// --- the value <- quote pairing the panel renders (Issue #73, #60) -------
+//
+// design.md: the read-back confirm "is the correspondence check", and a
+// value paired with a quote "must present it as a reading of the quote".
+// The panel used to show values alone, so the surface whose whole job is
+// letting a clinician verify wilson read them correctly withheld the
+// evidence they would check against — and it rendered an ambiguous-quote
+// proposal identically to a cleanly grounded one, which are different
+// claims about how far to trust the reading.
+//
+// Three statuses, deliberately three and not two: "this quote appears
+// twice in your narrative, so I can't point at which one" and "I can't
+// match this to your words at all" mean different things, and collapsing
+// them would hide the second behind the first.
+export type QuoteReadingStatus = "grounded" | "ambiguous" | "unlocatable";
+
+export interface QuoteReading {
+  status: QuoteReadingStatus;
+  quoteText: string;
+  // The reading itself, e.g. `read from “admitted her overnight”`.
+  framing: string;
+  // Why this reading is less than solid — null when it is grounded.
+  note: string | null;
+}
+
+// The panel's own clinician-facing strings, in lib so ready.test.ts's
+// no-submission-claims check and its bare-text coverage guard can reach
+// them (the pattern Issue #45 established for the closing surfaces).
+export const READ_BACK_COPY = {
+  heading: "Here’s what I’d write",
+  editToggle: "Edit narrative",
+  panelHeading: "What I’d write from this",
+  panelEmpty: "Nothing to fill in yet — you can still continue.",
+  confirmCta: "Looks right",
+  reExtractCta: "Re-extract",
+  reExtractPending: "Reading through what you wrote…",
+  cancelCta: "Cancel",
+  narrativeEditLabel: "Edit the narrative",
+  retryCta: "Try again",
+  ambiguousNote: "those words appear more than once, so I can’t point at which one",
+  unlocatableNote: "I couldn’t match that to your exact words above",
+} as const;
+
+// "read from", never a bare quotation: the value is wilson's READING of
+// the clinician's words, not a claim that the value appears in them. The
+// AC names the case that makes this matter — "admitted her overnight" →
+// Outcome: Hospitalization, where the value appears nowhere in the quote.
+// Copy that presented the pair as if it did would misattribute wilson's
+// inference to the clinician.
+export function readingFraming(quoteText: string): string {
+  return `read from “${quoteText}”`;
+}
+
+// One reading per proposal, in the order given. Normalizes the narrative
+// ONCE for the whole batch, unlike findQuoteSpan() — that function's own
+// header points callers checking many quotes here.
+//
+// Uses the same searchNormalized() the highlighting does, so the panel and
+// the marks above it cannot tell different stories: exactly the proposals
+// this reports as grounded are the ones buildHighlightSegments() renders
+// (pinned by test).
+export function quoteReadings(narrative: string, proposals: NarrativeProposal[]): QuoteReading[] {
+  const { normalized, map } = normalizeForMatch(narrative);
+  return proposals.map((proposal) => {
+    const quoteText = proposal.quote.text;
+    const result = searchNormalized(normalized, map, quoteText);
+    const framing = readingFraming(quoteText);
+    if (result.status === "unique") {
+      return { status: "grounded" as const, quoteText, framing, note: null };
+    }
+    if (result.status === "ambiguous") {
+      return { status: "ambiguous" as const, quoteText, framing, note: READ_BACK_COPY.ambiguousNote };
+    }
+    return { status: "unlocatable" as const, quoteText, framing, note: READ_BACK_COPY.unlocatableNote };
+  });
+}
+
 export interface FieldGroup {
   fieldId: string;
   // length 1: applies with no extra interaction. length > 1: two
