@@ -49,6 +49,13 @@ jobs:
       - name: Run (${{ inputs.mode }})
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Explicit shell: GitHub only adds `set -o pipefail` when a step
+        # names bash itself — its own default `run:` shell omits it, so
+        # `npm run cost:widened | tee cost-output.txt`'s exit code was
+        # always tee's (0) regardless of whether the script itself failed
+        # or exceeded design.md's cost-posture ratio (reviewer pass on PR
+        # #64) — the job went green on a failing/over-budget run.
+        shell: bash
         run: |
           if [ "${{ inputs.mode }}" = "cost" ]; then
             npm run cost:widened | tee cost-output.txt
