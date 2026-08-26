@@ -68,22 +68,51 @@ function declineAll(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
   return fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "decline" }), record);
 }
 
-// A representative mid-session snapshot — three topics' worth of fields
+// A representative mid-session snapshot — seven topics' worth of fields
 // already resolved, currently on suspect-product-1-identity — chosen to
 // be a plausible real turn rather than an empty-record best case that
 // would understate the manifest's actual rendered size (and therefore
 // understate what the widened prompt's cacheable prefix really costs to
 // write).
 function midSessionFixture(): { record: AgendaRecord; transcript: TalkTurn[]; message: string } {
-  const doneTopicIds = ["patient-basics", "event-what-happened", "event-outcome"];
+  // Every topic BEFORE suspect-product-1-identity in topics.ts's own
+  // array order, not just the first three — leaving any of them open
+  // left `nextStep()` landing earlier (event-medical-history, a
+  // single-field topic) than this fixture's own transcript/message ever
+  // claimed to be answering (found by review on PR #64: the cost job was
+  // silently measuring the wrong turn). The assertion below turns that
+  // same class of drift into a thrown error instead of a silent
+  // mismeasurement the next time topics.ts's order changes.
+  const doneTopicIds = [
+    "patient-basics",
+    "event-what-happened",
+    "event-outcome",
+    "event-medical-history",
+    "event-lab-data",
+    "event-additional-comments",
+    "product-availability",
+  ];
   let record = initAgenda();
   for (const topicId of doneTopicIds) {
     const topic = TOPICS.find((t) => t.id === topicId)!;
     record = declineAll(record, topic.fieldIds);
   }
-  const transcript: TalkTurn[] = [
-    { role: "talker", text: "What's the name, strength, and manufacturer of the suspect product?" },
-  ];
+
+  const step = nextStep(record, initRepeatCounts());
+  if (step.kind !== "topic" || step.topic.id !== "suspect-product-1-identity") {
+    throw new Error(
+      `cost-widened-turn: fixture drift — expected doneTopicIds to leave nextStep() on ` +
+        `"suspect-product-1-identity", but got ${step.kind === "topic" ? step.topic.id : step.kind}. ` +
+        "Update doneTopicIds above (and this fixture's transcript/message) to match the current topic map.",
+    );
+  }
+
+  // suspect-product-1-identity's real ask, per askDeterministic() and its
+  // own MAX_FIELDS_PER_ASK cap: only the first 3 of its 6 fields (name,
+  // strength, unit) are actually phrased — manufacturer (field 5) is
+  // deliberately left for the clinician to volunteer, exercising the
+  // widened sweep's own out-of-ask pickup, same as in a real session.
+  const transcript: TalkTurn[] = [{ role: "talker", text: "What's the product name, the strength, and the unit?" }];
   const message = "Amoxicillin 875 mg, made by a generic manufacturer we don't have on file.";
   return { record, transcript, message };
 }
