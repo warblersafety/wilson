@@ -7,7 +7,10 @@
 // count follow-through rather than writing a lossy guess. Writes
 // setRepeatCount directly — no free-text detour — and, like every other
 // chip write in this unit, appends a "question — answer" transcript turn
-// so the visible history has no gaps.
+// so the visible history has no gaps. stepForSession's appendReply: true
+// then also appends the recomputed NEXT question as its own talker turn
+// (direct-step.ts's file header) — otherwise a typed answer to that next
+// question would show up with nothing above it in the transcript.
 import { useState } from "react";
 import { Chip } from "@/components/Chip";
 import { friendlyFailureMessage, repeatDecisionOptions, widgetTurnText } from "@/lib/chip-grammar";
@@ -48,7 +51,7 @@ export function RepeatDecision({
         ],
       };
       setError(null);
-      onChange(await stepForSession(nextSession));
+      onChange(await stepForSession(nextSession, { appendReply: true }));
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     }

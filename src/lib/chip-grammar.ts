@@ -6,8 +6,10 @@
 // multi-slot repeat groups, and the "question — answer" transcript
 // formatting a chip tap needs.
 import { applyAction, type AgendaRecord } from "./agenda";
+import { MAX_FIELDS_PER_ASK } from "./ask";
 import type { FieldAction } from "./field-state";
-import { repeatGroupCapacity, TOPICS, type RepeatGroup, type Topic } from "./topics";
+import type { CorrectionOffer } from "./followup-sweep";
+import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
 
 export interface RepeatDecisionOptions {
   // Total repeat-group capacity per topics.ts's own real topic map.
@@ -52,13 +54,55 @@ export function widgetTurnText(question: string, answerLabel: string): string {
   return `${question} — ${answerLabel}`;
 }
 
+// Which of a step's fields AskForm's "I don't have that"/"rather not
+// say" chips are allowed to write. A "topic" step's fieldIds is NOT
+// itself capped by nextStep() (most real topics have more than
+// MAX_FIELDS_PER_ASK unresolved fields — patient-basics has 19 at once),
+// but askDeterministic() only ever phrases the first MAX_FIELDS_PER_ASK
+// of them into the visible question (src/lib/ask.ts). Passing the
+// UNCAPPED step.fieldIds to applyActionToFields() below would silently
+// write declined/unknown to every one of a topic's unresolved fields,
+// including the 16 the clinician was never shown a question about and so
+// never had a chance to decline (reviewer pass on PR #64 — this used to
+// be AskForm.tsx's own `current.nextStep.fieldIds`, uncapped). A
+// non-topic step (repeat-decision, done) has no ask-form fields to
+// dismiss at all.
+export function dismissableFieldIds(step: NextStep): string[] {
+  return step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+}
+
 // AskForm's "I don't have that"/"rather not say" chips dismiss a whole
-// bundled topic ask (up to MAX_FIELDS_PER_ASK fields) in one tap — this
-// applies the same FieldAction to each, the same direct write path every
-// other chip in this app uses (RepeatDecision's chips, AskForm's own
-// correction-offer accept — Issue #44).
+// bundled topic ask in one tap — this applies the same FieldAction to
+// every given field, the same direct write path every other chip in this
+// app uses (RepeatDecision's chips, AskForm's own correction-offer
+// accept — Issue #44). This function itself trusts whatever fieldIds
+// it's handed — callers sourcing them from a topic step's own fieldIds
+// MUST run them through dismissableFieldIds() above first, never pass
+// step.fieldIds directly, or the mass-write bug documented there comes
+// back.
 export function applyActionToFields(record: AgendaRecord, fieldIds: string[], action: FieldAction): AgendaRecord {
   return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, action), record);
+}
+
+// AskForm's one-tap correction-offer accept (design.md: "one tap to
+// accept... recorded in the transcript") must not silently discard the
+// turn's OTHER correction offers. stepForSession() (src/app/wizard/
+// direct-step.ts) returns a fresh TalkStep computed from nextStep(),
+// which carries no correctionOffers of its own — TalkStep.correctionOffers
+// is deliberately ephemeral, THIS turn's sweep output only (talk.ts) —
+// so accepting offer A while offers B/C were also on screen used to make
+// B/C simply vanish on the next render, even though neither was acted on
+// (reviewer pass on PR #64). Filters the accepted offer out of the
+// CURRENT turn's own offer list rather than clearing it, and returns
+// undefined (not an empty array) once nothing remains, matching every
+// other producer of TalkStep.correctionOffers (talk.ts's processTurn():
+// `undefined` when there's nothing to show, never `[]`).
+export function remainingCorrectionOffers(
+  offers: CorrectionOffer[] | undefined,
+  acceptedFieldId: string,
+): CorrectionOffer[] | undefined {
+  const rest = (offers ?? []).filter((offer) => offer.fieldId !== acceptedFieldId);
+  return rest.length > 0 ? rest : undefined;
 }
 
 // Issue #44 AC: "server/extraction failures surface as friendly copy with

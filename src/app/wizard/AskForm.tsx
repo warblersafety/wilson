@@ -17,7 +17,13 @@ import { useState, useTransition, type FormEvent } from "react";
 import { submitTurn } from "@/app/actions";
 import { Chip } from "@/components/Chip";
 import { fieldPhrase } from "@/lib/ask";
-import { friendlyFailureMessage, applyActionToFields, widgetTurnText } from "@/lib/chip-grammar";
+import {
+  applyActionToFields,
+  dismissableFieldIds,
+  friendlyFailureMessage,
+  remainingCorrectionOffers,
+  widgetTurnText,
+} from "@/lib/chip-grammar";
 import type { CorrectionOffer } from "@/lib/followup-sweep";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "@/lib/form-3500-fields";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
@@ -41,7 +47,12 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
   const [isPending, startTransition] = useTransition();
   const [isDismissing, setIsDismissing] = useState(false);
 
-  const fieldIds = current.nextStep.kind === "topic" ? current.nextStep.fieldIds : [];
+  // Capped to what this turn's ask actually phrased (chip-grammar.ts's
+  // dismissableFieldIds) — passing current.nextStep's own raw fieldIds
+  // here used to let one dismiss tap silently write every unresolved
+  // field in a bundled topic, not just the ones asked about (reviewer
+  // pass on PR #64).
+  const fieldIds = dismissableFieldIds(current.nextStep);
   const busy = isPending || isDismissing;
 
   function handleSubmit(e: FormEvent) {
@@ -65,7 +76,12 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
   // "I don't have that" / "rather not say" dismiss the whole bundled
   // topic ask in one tap — a deterministic direct write (applyAction via
   // stepForSession), same as RepeatDecision's chip writes, not a
-  // submission that needs the real Extractor to interpret.
+  // submission that needs the real Extractor to interpret. appendReply:
+  // true so the recomputed follow-up question enters the transcript as
+  // its own talker turn, not just current.reply — otherwise a typed
+  // answer to THAT question (submitTurn only ever appends the
+  // clinician's own message) would land with no question visible above
+  // it (direct-step.ts's file header; reviewer pass on PR #64).
   async function handleDismiss(action: "mark_unknown" | "decline", answerLabel: string) {
     if (fieldIds.length === 0) return;
     setError(null);
@@ -80,7 +96,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(current.reply, answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(await stepForSession(nextSession));
+      onSubmitted(await stepForSession(nextSession, { appendReply: true }));
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
@@ -94,9 +110,19 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
   // transcript)"). The turn's reply already states the offer in full
   // ("you said X for <field> — it's recorded as Y; replace it?") — the
   // chip itself just needs to name which field it applies to, for a
-  // clinician juggling more than one offer at once.
+  // clinician juggling more than one offer at once. Sets isDismissing
+  // the same as handleDismiss above (not just onPendingChange, which
+  // only reaches the PARENT's chip affordances) so THIS form's own
+  // composer/chips — including any other correction-offer chip — are
+  // disabled for the duration too; without it, a second offer tapped
+  // mid-flight could resolve out of order against a stale current.session
+  // (reviewer pass on PR #64). remainingCorrectionOffers() carries the
+  // turn's other, still-unactioned offers forward — stepForSession()'s
+  // fresh step has none of its own, so without this an accept used to
+  // silently drop every offer but the one just accepted.
   async function handleAcceptCorrection(offer: CorrectionOffer) {
     setError(null);
+    setIsDismissing(true);
     onPendingChange?.(true);
     try {
       const field = FIELDS_BY_ID.get(offer.fieldId);
@@ -109,10 +135,15 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(`Replace ${label}?`, "Yes, replace it"), source: "widget" },
         ],
       };
-      onSubmitted(await stepForSession(nextSession));
+      const nextStepResult = await stepForSession(nextSession, { appendReply: true });
+      onSubmitted({
+        ...nextStepResult,
+        correctionOffers: remainingCorrectionOffers(current.correctionOffers, offer.fieldId),
+      });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
+      setIsDismissing(false);
       onPendingChange?.(false);
     }
   }

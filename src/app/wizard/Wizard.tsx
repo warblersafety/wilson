@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { askDeterministic } from "@/lib/ask";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
-import { currentTopicProgress, nextStep, reopenTopic, type Topic } from "@/lib/topics";
+import { currentTopicProgress, reopenTopic, type Topic } from "@/lib/topics";
 import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
 import { PdfReview } from "./PdfReview";
@@ -35,12 +35,11 @@ export function Wizard() {
       const stored = loadSession(window.localStorage);
       let step: TalkStep;
       try {
-        if (stored) {
-          const next = nextStep(stored.record, stored.repeatCounts);
-          step = { session: stored, nextStep: next, reply: await askDeterministic(next, stored) };
-        } else {
-          step = await freshStep();
-        }
+        // stepForSession's default (no appendReply): re-deriving the
+        // CURRENT step from a stored session must never append it as a
+        // new talker turn, or every reload would duplicate the last
+        // question (direct-step.ts's file header).
+        step = stored ? await stepForSession(stored) : await freshStep();
       } catch {
         // A stored session that no longer matches the current field
         // manifest/topic map (nextStep()'s documented "missing field id"

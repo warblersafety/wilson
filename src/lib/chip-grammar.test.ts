@@ -3,9 +3,18 @@
 // wrappers, same convention as the rest of src/app/wizard.
 import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
+import { MAX_FIELDS_PER_ASK } from "./ask";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
-import type { Topic } from "./topics";
-import { applyActionToFields, friendlyFailureMessage, repeatDecisionOptions, widgetTurnText } from "./chip-grammar";
+import type { CorrectionOffer } from "./followup-sweep";
+import { TOPICS, type NextStep, type Topic } from "./topics";
+import {
+  applyActionToFields,
+  dismissableFieldIds,
+  friendlyFailureMessage,
+  remainingCorrectionOffers,
+  repeatDecisionOptions,
+  widgetTurnText,
+} from "./chip-grammar";
 
 const SUSPECT_PRODUCT_TOPICS: Topic[] = [
   { id: "p1", section: "D", label: "Suspect product 1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 },
@@ -66,6 +75,94 @@ describe("applyActionToFields", () => {
     for (const id of fieldIds) expect(result[id].state).toBe("declined");
     const untouchedId = FORM_3500_FIELDS[2].id;
     expect(result[untouchedId]).toEqual(record[untouchedId]);
+  });
+});
+
+// Issue #64 reviewer pass, finding 1 [High]: AskForm used to derive its
+// dismiss chips' fieldIds straight from a topic step's own (uncapped)
+// fieldIds, so one "Rather not say" tap on a bundled topic wrote
+// declined/unknown to every unresolved field in it — up to 19 on
+// patient-basics — even though askDeterministic() only ever asked about
+// the first MAX_FIELDS_PER_ASK. dismissableFieldIds() is the fix; these
+// tests cover both the pure cap and the actual dismiss write end to end.
+describe("dismissableFieldIds", () => {
+  it("caps a topic step's fieldIds to MAX_FIELDS_PER_ASK", () => {
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a", "b", "c", "d", "e"] };
+    expect(dismissableFieldIds(step)).toEqual(["a", "b", "c"]);
+  });
+
+  it("passes an already-short fieldIds list through unchanged", () => {
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a"] };
+    expect(dismissableFieldIds(step)).toEqual(["a"]);
+  });
+
+  it("returns no fields for a repeat-decision or done step", () => {
+    expect(
+      dismissableFieldIds({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 }),
+    ).toEqual([]);
+    expect(dismissableFieldIds({ kind: "done" })).toEqual([]);
+  });
+
+  it("against the real manifest: patient-basics bundles far more fields than the cap", () => {
+    const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
+    // The real topic the bug was found on — proof this isn't a
+    // synthetic-fixture-only guarantee.
+    expect(patientBasics.fieldIds.length).toBeGreaterThan(MAX_FIELDS_PER_ASK);
+    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
+    const ids = dismissableFieldIds(step);
+    expect(ids).toEqual(patientBasics.fieldIds.slice(0, MAX_FIELDS_PER_ASK));
+    expect(ids.length).toBe(MAX_FIELDS_PER_ASK);
+  });
+
+  it("against the real manifest: a dismiss on patient-basics writes exactly the phrased fields and no more", () => {
+    const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
+    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
+    const record = initAgenda();
+    const phrasedIds = dismissableFieldIds(step);
+
+    const result = applyActionToFields(record, phrasedIds, { type: "decline" });
+
+    for (const id of phrasedIds) expect(result[id].state).toBe("declined");
+    // The other 16 of patient-basics's 19 fields — never shown to the
+    // clinician this turn — must be untouched. This is the exact
+    // regression: one tap used to decline all 19.
+    const unphrasedIds = patientBasics.fieldIds.filter((id) => !phrasedIds.includes(id));
+    expect(unphrasedIds).toHaveLength(patientBasics.fieldIds.length - MAX_FIELDS_PER_ASK);
+    for (const id of unphrasedIds) expect(result[id]).toEqual(record[id]);
+  });
+});
+
+// Issue #64 reviewer pass, finding 2 [Mod-high]: accepting one
+// correction offer used to hand onSubmitted a TalkStep with no
+// correctionOffers at all (stepForSession()'s fresh nextStep() computes
+// none of its own), silently dropping every OTHER offer from the same
+// turn even though neither was acted on.
+describe("remainingCorrectionOffers", () => {
+  function offer(fieldId: string): CorrectionOffer {
+    return {
+      fieldId,
+      action: { fieldId, type: "answer", value: `value for ${fieldId}` },
+      currentState: "answered",
+      currentValue: `old value for ${fieldId}`,
+    };
+  }
+
+  it("drops only the accepted offer, keeping every other offer from the same turn", () => {
+    const offers = [offer("a"), offer("b"), offer("c")];
+    expect(remainingCorrectionOffers(offers, "b")).toEqual([offer("a"), offer("c")]);
+  });
+
+  it("returns undefined, not an empty array, once accepting the offer empties the list", () => {
+    expect(remainingCorrectionOffers([offer("a")], "a")).toBeUndefined();
+  });
+
+  it("returns undefined for an undefined input list (no offers this turn)", () => {
+    expect(remainingCorrectionOffers(undefined, "a")).toBeUndefined();
+  });
+
+  it("is a no-op when the accepted id isn't among the given offers", () => {
+    const offers = [offer("a"), offer("b")];
+    expect(remainingCorrectionOffers(offers, "z")).toEqual(offers);
   });
 });
 
