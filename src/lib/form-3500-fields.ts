@@ -1920,10 +1920,19 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
 // Deliberately NOT applied to the other lookup pattern in this codebase:
 // topics.ts, review.ts, open-fields.ts and ready.ts build a map per call
 // from an injectable `fields: FormFieldSpec[] = FORM_3500_FIELDS`
-// parameter. That injection is a real design property their tests rely on
-// — collapsing those onto this constant would silently pin them to the
-// real manifest and make a whole class of test unwritable. Duplication
-// across an injection boundary is the point there, not an oversight.
+// parameter. Collapsing those onto this constant would pin them to the
+// real 227-field manifest and make a whole class of test unwritable —
+// duplication across an injection boundary is the point there, not an
+// oversight.
+//
+// Precisely (reviewer pass, PR #83, finding 3): topics.test.ts exercises
+// that injection heavily today, including an empty-fields edge case;
+// review.test.ts, open-fields.test.ts and ready.test.ts currently call
+// through with defaults only. So for those three the parameter is an
+// available seam rather than one their current tests depend on — still
+// worth keeping, since it is what makes a synthetic-manifest test
+// possible at all, but not a claim that removing it would break the suite
+// today.
 //
 // A function rather than an exported Map: a shared mutable Map is one
 // stray `.set()` away from a manifest that disagrees with FORM_3500_FIELDS

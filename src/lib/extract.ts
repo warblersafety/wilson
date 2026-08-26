@@ -98,16 +98,22 @@ export function createExtractFn(
       // `parsed_output` is genuinely null only for a response with no text
       // block at all (empty content, or a thinking/tool_use-only response)
       // — a degenerate case, failed closed here with no field writes and
-      // no repeat decision. It is NOT what catches a malformed/truncated
-      // response: the SDK's structured-output parser throws on invalid
-      // JSON or a Zod validation failure rather than returning null
-      // (verified against the installed @anthropic-ai/sdk). This comment
-      // used to claim the opposite — "structured-output parsing failed
-      // (malformed model response)" — which read as though this branch
-      // were the app's defence against a bad response. The throw is
+      // no repeat decision.
+      //
+      // It is NOT what catches a malformed or truncated response: the
+      // SDK's structured-output parser throws on invalid JSON or a Zod
+      // validation failure rather than returning null (verified against
+      // the installed @anthropic-ai/sdk). That throw is deliberately not
+      // caught here either — letting it reject this function's promise is
+      // the honest signal that extraction broke, which a caller can only
+      // tell apart from "the turn had nothing reportable in it" if the
+      // distinction survives.
+      //
+      // This comment used to say "structured-output parsing failed
+      // (malformed model response)", which read as though this branch
+      // were the app's defence against a bad response when the throw is
       // (warblersafety/wilson#54; #41 corrected the same wording on its
-      // own copy in narrative-extract.ts, which carries the fuller note
-      // on why that throw is deliberately not caught).
+      // own copy in narrative-extract.ts).
       return { actions: [] };
     }
 
