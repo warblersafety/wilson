@@ -52,9 +52,11 @@ jobs:
         # Explicit shell: GitHub only adds `set -o pipefail` when a step
         # names bash itself — its own default `run:` shell omits it, so
         # `npm run cost:widened | tee cost-output.txt`'s exit code was
-        # always tee's (0) regardless of whether the script itself failed
-        # or exceeded design.md's cost-posture ratio (reviewer pass on PR
-        # #64) — the job went green on a failing/over-budget run.
+        # always tee's (0) even when the script itself failed (reviewer
+        # pass on PR #64). An over-ratio run is deliberately NOT an
+        # exit-code failure: the script prints design.md's re-decision
+        # warning and exits 0 — "roughly 2x" is Steve's soft threshold,
+        # read from the posted table, not a hard gate here.
         shell: bash
         run: |
           if [ "${{ inputs.mode }}" = "cost" ]; then
@@ -63,20 +65,30 @@ jobs:
             npm run eval:extraction
           fi
       - name: Record cost table on the branch PR
-        if: ${{ inputs.mode == 'cost' }}
+        # always(): a FAILED cost run must still land its evidence on the
+        # PR — Claude holds no `actions` permission and cannot read this
+        # job's logs, so a skipped record step would make the failure
+        # invisible to the merge process.
+        if: ${{ always() && inputs.mode == 'cost' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pr=$(gh pr list --head "${GITHUB_REF_NAME}" --json number --jq '.[0].number' || true)
-          if [ -n "$pr" ] && [ "$pr" != "null" ]; then
-            {
-              echo "## Cost proof — widened vs narrow per-turn (mode=cost run ${GITHUB_RUN_ID})"
-              echo
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then
+            echo "No open PR for ${GITHUB_REF_NAME}; cost output stays in this log only."
+            exit 0
+          fi
+          {
+            echo "## Cost proof — widened vs narrow per-turn (mode=cost run ${GITHUB_RUN_ID})"
+            echo
+            if [ -s cost-output.txt ]; then
               echo '```'
               cat cost-output.txt
               echo '```'
-            } > cost-comment.md
-            gh pr comment "$pr" --body-file cost-comment.md
-          else
-            echo "No open PR for ${GITHUB_REF_NAME}; cost table stays in this log only."
-          fi
+            fi
+            if [ "${{ job.status }}" != "success" ] || [ ! -s cost-output.txt ]; then
+              echo
+              echo "**The cost run did not complete successfully** (job status: ${{ job.status }}; table above may be empty or partial). Not a passing measurement — re-run after fixing the cause."
+            fi
+          } > cost-comment.md
+          gh pr comment "$pr" --body-file cost-comment.md
