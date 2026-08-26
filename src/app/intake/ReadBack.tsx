@@ -13,6 +13,7 @@ import {
   buildHighlightSegments,
   confirmReadBack,
   describeProposalValue,
+  collisionHint,
   groupProposalsByField,
   quoteReadings,
   READ_BACK_COPY,
@@ -40,8 +41,8 @@ function fieldLabel(fieldId: string): string {
 // #75, finding F9). Matches the mockups' own dedicated "transcript"
 // rail stage (ReportRail.dc.html).
 const READ_BACK_EMPTY_STATE = {
-  headline: "Transcript ready · 0 fields written",
-  note: "Nothing is written to the form until you approve the transcript.",
+  headline: READ_BACK_COPY.emptyStateHeadline,
+  note: READ_BACK_COPY.emptyStateNote,
 };
 
 interface ReadBackProps {
@@ -184,7 +185,9 @@ export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {
     );
   }
 
-  const groups = groupProposalsByField(current.result.proposals);
+  // Passing the narrative lets an equal-action set keep its best-grounded
+  // quote rather than whichever came first — see groupProposalsByField.
+  const groups = groupProposalsByField(current.result.proposals, current.narrative);
   const segments = buildHighlightSegments(current.narrative, current.result.proposals);
   const readiness = resolveConfirmReadiness(groups, selections);
 
@@ -298,8 +301,7 @@ export function ReadBack({ handoff, restored, onConfirmed }: ReadBackProps) {
 
         {!readiness.ready && (
           <p className="read-back__hint" role="alert">
-            Choose a value for {readiness.pendingFieldIds.map(fieldLabel).join(", ")} before continuing — both were
-            mentioned, so only one can be kept.
+            {collisionHint(readiness.pendingFieldIds.map(fieldLabel))}
           </p>
         )}
         <button type="button" className="read-back__confirm" onClick={handleConfirm} disabled={!readiness.ready}>

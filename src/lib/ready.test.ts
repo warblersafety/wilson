@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda } from "./agenda";
 import { OPEN_FIELD_REASONS, OPEN_FIELDS_COPY, openFieldsHeading } from "./open-fields";
-import { READ_BACK_COPY, readingFraming } from "./read-back";
+import { collisionHint, READ_BACK_COPY, readingFraming } from "./read-back";
 import { START_COPY } from "./start-surface";
 import { PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import {
@@ -85,6 +85,8 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
     openFieldsHeading(1),
     openFieldsHeading(7),
     readingFraming("admitted her overnight"),
+    collisionHint(["Age"]),
+    collisionHint(["Age", "Outcome"]),
     SIGN_OFF_CTA,
   ];
 

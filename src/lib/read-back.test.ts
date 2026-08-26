@@ -13,6 +13,7 @@ import {
   describeProposalValue,
   findQuoteSpan,
   groupProposalsByField,
+  collisionHint,
   quoteReadings,
   READ_BACK_COPY,
   readingFraming,
@@ -363,5 +364,99 @@ describe("readingFraming", () => {
 
   it("keeps the clinician's words verbatim inside the framing", () => {
     expect(readingFraming("875 twice daily")).toContain("875 twice daily");
+  });
+});
+
+describe("agreeing duplicates keep the best-grounded quote", () => {
+  // Reviewer pass, PR #82, finding 1. groupProposalsByField collapses
+  // proposals that AGREE (same action, different supporting quotes) — the
+  // validator's own documented case, "multiple pieces of supporting
+  // context become multiple candidates". It kept the first, whatever its
+  // quote was worth.
+  //
+  // Reproduced: with one candidate citing "Rash" (twice in the narrative
+  // → ambiguous) and another citing "Admitted her overnight" (unique), the
+  // panel showed the ambiguous one with a caution badge, while the prose
+  // above highlighted the OTHER quote — a mark no row mentions, and a
+  // warning on a value that a second accepted quote grounds cleanly. It
+  // never over-claims grounding, so it isn't the silent-mis-fill class;
+  // it is worse in a subtler way, teaching the clinician to discount the
+  // very badge this unit added.
+  const NARRATIVE = "Rash on day 7. Admitted her overnight. Rash resolving.";
+  const HOSPITAL = "Page1.SecA_Patient.Hospital";
+  const agreeing = (quoteText: string): NarrativeProposal => ({
+    action: { fieldId: HOSPITAL, type: "answer", value: "true" },
+    quote: { turnIndex: 0, text: quoteText },
+  });
+
+  it("prefers a uniquely locatable quote over an ambiguous one, whatever the order", () => {
+    const ambiguousFirst = [agreeing("Rash"), agreeing("Admitted her overnight")];
+    expect(groupProposalsByField(ambiguousFirst, NARRATIVE)[0].proposals[0].quote.text).toBe("Admitted her overnight");
+
+    const groundedFirst = [agreeing("Admitted her overnight"), agreeing("Rash")];
+    expect(groupProposalsByField(groundedFirst, NARRATIVE)[0].proposals[0].quote.text).toBe("Admitted her overnight");
+  });
+
+  it("prefers a locatable quote over an unlocatable one", () => {
+    const proposals = [agreeing("never said this"), agreeing("Admitted her overnight")];
+    expect(groupProposalsByField(proposals, NARRATIVE)[0].proposals[0].quote.text).toBe("Admitted her overnight");
+  });
+
+  it("keeps the first when neither is grounded, rather than churning", () => {
+    const proposals = [agreeing("Rash"), agreeing("never said this")];
+    expect(groupProposalsByField(proposals, NARRATIVE)[0].proposals[0].quote.text).toBe("Rash");
+  });
+
+  it("still collapses to exactly one row, and never merges disagreeing proposals", () => {
+    const disagreeing: NarrativeProposal[] = [
+      agreeing("Rash"),
+      { action: { fieldId: HOSPITAL, type: "answer", value: "false" }, quote: { turnIndex: 0, text: "day 7" } },
+    ];
+    expect(groupProposalsByField(disagreeing, NARRATIVE)[0].proposals).toHaveLength(2);
+    expect(groupProposalsByField([agreeing("Rash"), agreeing("Admitted her overnight")], NARRATIVE)).toHaveLength(1);
+  });
+
+  it("leaves grouping unchanged when no narrative is given", () => {
+    // The narrative is optional so existing callers and tests that only
+    // care about grouping keep working — the preference is an
+    // improvement on the tie-break, not a new requirement.
+    const proposals = [agreeing("Rash"), agreeing("Admitted her overnight")];
+    expect(groupProposalsByField(proposals)[0].proposals[0].quote.text).toBe("Rash");
+  });
+
+  it("leaves no highlighted span without a row that names it", () => {
+    // The property the panel/marks agreement test asserts per PROPOSAL,
+    // now asserted per RENDERED ROW — which is what the clinician sees.
+    const proposals = [agreeing("Rash"), agreeing("Admitted her overnight")];
+    const shown = new Set(
+      groupProposalsByField(proposals, NARRATIVE).flatMap((g) => g.proposals.map((p) => p.quote.text)),
+    );
+    const highlighted = buildHighlightSegments(NARRATIVE, proposals)
+      .filter((segment) => segment.proposalIndexes.length > 0)
+      .map((segment) => segment.text);
+    for (const mark of highlighted) expect(shown).toContain(mark);
+  });
+});
+
+describe("collisionHint", () => {
+  // Reviewer pass, PR #82, finding 2: the old hint said "both were
+  // mentioned, so only one can be kept" — which with two colliding FIELDS
+  // says one of the two fields will be dropped. Both get a value; it is
+  // one candidate per field that is kept.
+  it("reads correctly for a single field", () => {
+    expect(collisionHint(["Age"])).toBe(
+      "Choose a value for Age before continuing — more than one was mentioned, so only one can be kept.",
+    );
+  });
+
+  it("does not claim a field will be dropped when several collide", () => {
+    const hint = collisionHint(["Age", "Outcome"]);
+    expect(hint).toContain("Age and Outcome");
+    expect(hint).not.toContain("both");
+    expect(hint).toContain("one can be kept for each");
+  });
+
+  it("lists three or more readably", () => {
+    expect(collisionHint(["Age", "Outcome", "Weight"])).toContain("Age, Outcome and Weight");
   });
 });
