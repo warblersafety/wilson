@@ -114,8 +114,9 @@ end-to-end through the six surfaces of `docs/design.md`'s "Interaction
 model and UI": dictate or type the opening narrative; see a read-back
 whose panel pairs every proposal with its supporting quote, with
 nothing written to the record before confirmation (test-asserted);
-answer follow-ups through the chip/widget grammar; review field-led
-cards; see open fields with their reasons; export the PDF — with v1's
+answer follow-ups conversationally, chips only at the repeat
+decisions; review field-led cards; see open fields with their reasons
+(a dialog over review); export the PDF — with v1's
 field-mapping tests still green. Proven by the narrative-extraction
 fixture corpus (including the real-quote/fabricated-value adversarial
 case) and a scripted end-to-end flow test over the reference case

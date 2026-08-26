@@ -90,6 +90,24 @@ the v1 wizard it replaces was never pinned down in this document, which
 is how it shipped as a bare form-walker no clinician would prefer over
 the paper form.
 
+**The mockup screens are the layout authority (added 2026-08-25, after
+the chips build).** This section records interaction decisions and
+deviations; it is a synthesis, never a substitute for opening the
+screen. The seven flow screens are committed at
+`docs/mockups/screen-01.png`–`screen-07.png` (rendered from the
+repo-root zip, which stays the source): 01 Start · 02 Recording (n/a —
+wilson owns no microphone, below) · 03 Read-back · 04 Follow-ups ·
+05 Review · 06 Open fields (a dialog over Review, not a separate page) ·
+07 Ready (honest reframe of the mockup's "Filed" — no submission
+claims, below). Binding consequences, learned from Issue #44: a UI
+unit's spec names the screen(s) it implements and enumerates its
+intended deviations with reasons before its criteria freeze; its PR's
+manual-check note includes a side-by-side of the built surface against
+the named screen; its reviewer pass states fidelity or lists
+deviations. Recorded, reasoned deviations are first-class — this
+section is full of them — silent divergence, in either direction, is
+the defect.
+
 **The shape: dictation-first, then targeted follow-ups.** lucy walks a
 patient through their story turn by turn because a patient needs
 eliciting; a clinician already knows the clinical facts, so wilson's job
@@ -136,10 +154,23 @@ flow is six surfaces:
    count follow-through: "how many in total?" as choice chips where
    every option is a valid total to write. The chip grammar must be
    able to carry every count v1's free text could; the rebuild is never
-   allowed to be lossier than what it replaces. Enum/checkbox fields use widget
-   sections in lucy's chip grammar (yes/no, choice, always-present
-   "not sure" and "skip"); raw manifest strings and PDF `/Opt` codes
-   never reach the clinician.
+   allowed to be lossier than what it replaces. **Fixed-choice
+   (checkbox/enum) fields are ordinary conversational asks** (decided
+   2026-08-25, Issue #44): bundled into topic asks like any other
+   field, answered by dictation or typed text, extracted under the
+   same fixed-choice contract the narrative pass carries — the
+   proposal names one of the field's legal options, checked
+   mechanically against the manifest, and cites a supporting quote.
+   They are never a persistent widget panel: screen 04 is a single
+   conversational thread, and a standing checkbox/enum section appears
+   on no screen. (An earlier version of this sentence prescribed
+   "widget sections in lucy's chip grammar" — a synthesis error that
+   reached a build before it was caught; lucy's widget grammar fits
+   lucy's turn-by-turn eliciting of a patient, not wilson's
+   dictation-first receiving from a clinician.) The one-tap "I don't
+   have that" / "rather not say" affordances remain on field asks —
+   deterministic `unknown`/`declined` writes, no model call. Raw
+   manifest strings and PDF `/Opt` codes never reach the clinician.
 4. **Review** — field-led sectioned cards (form sections A–G), every
    topic editable; an edit reopens the topic as a normal question
    (the existing reopen path). The rendered Form 3500 PDF stays one
@@ -149,7 +180,9 @@ flow is six surfaces:
 5. **Open fields** — what's still `unknown` or unasked, listed with its
    reason, each answerable from here; "file as it stands" always
    available. A partial report is a valid report; this surface nudges,
-   it never gates.
+   it never gates. Presented as a dialog over the Review surface
+   (screen 06), not a separate page — it is enumerated as a surface
+   because it carries its own rules and state, not its own screen.
 6. **Ready** — honest completion: the filled PDF to download,
    answered/unknown/declined counts, and the reminder that wilson
    stores nothing on its own servers, so the download is the
@@ -158,6 +191,20 @@ flow is six surfaces:
    **No submission claims**: wilson fills and exports the form, like
    lucy; there is no MedWatch e-submission pipeline, so no "filed with
    FDA" language and no confirmation numbers anywhere in the UI.
+
+**The report chrome (recorded 2026-08-25; silently omitted by the
+original synthesis).** Every mockup screen renders the six surfaces
+inside one persistent frame: a left topic rail — the form's A–G
+sections with per-topic state (done, current, `unknown`, untouched)
+driven by real agenda state — a right Form FDA 3500 facsimile filling
+live from field states (an HTML rendering; the real PDF stays
+Review/Ready's on-demand artifact), the patient banner ("Form FDA 3500
+· draft · patient identifier"), and a status footer ("18 fields
+written · 2 unknown — a partial report is a valid report"). The first
+version of this section dropped the chrome without recording a
+decision — the same silent-synthesis defect as the widget-sections
+sentence above. It is part of the decided model and builds as its own
+unit.
 
 **Voice: wilson owns no microphone.** Dictation is the device's own
 keyboard feature (iOS/macOS/Android/Windows all provide it), typed into
@@ -215,10 +262,27 @@ inside it, both made here rather than left to the implementing unit:
   include the real-quote/fabricated-value case so the failure mode
   stays visible in CI rather than theoretical.
 
-Follow-up turns stay scoped to the ask they answer, matching v1's cost
-posture; the mockups' "answer several topics at once and I'll sort
-them" affordance for follow-ups is deferred until someone checks what
-full-manifest prompts per turn cost with caching.
+**Follow-up turns are mined for everything still open (decided
+2026-08-25; supersedes the deferral that stood here).** Every
+follow-up turn is extracted against all still-open fields — the ask's
+own first, plus anything the clinician volunteered beyond it
+("stopped the 19th, and she's also on lisinopril") — the mockups'
+"answer several topics at once and I'll sort them" affordance.
+Maximum information per interaction is the principle: the clinician's
+words are the expensive resource, and sorting them into the record is
+the model's job, never the clinician's. Open means `unknown` or not
+yet asked. Two guards: **open-only scope** — a proposal targeting an
+`answered` field (which includes everything confirmed at Read-back) is
+discarded, never silently applied, so a later turn can never overwrite
+a confirmed value without an explicit reopen (also the resolution
+direction for #59), and `declined` stays declined — a recorded refusal
+is reversed only by an explicit reopen, never by extraction. And the
+**cost posture** — the per-turn prompt is structured for provider
+prompt caching (stable prefix carrying the manifest and option lists,
+small per-turn suffix; #53's reordering applies), and the implementing
+unit's proof includes a measured cached-vs-uncached per-turn cost so
+this stays a checked decision rather than an assumed one. Repeat
+decisions are unaffected: chip taps, no model call.
 
 **Design system.** The warbler-safety tokens, transcribed verbatim from
 warblersafety.com — the same system lucy ships as `brand-tokens.css`
