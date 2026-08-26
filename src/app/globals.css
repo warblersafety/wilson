@@ -707,35 +707,6 @@ h3 {
   font-size: var(--type-copy-size);
 }
 
-.pdf-review__frame {
-  width: 100%;
-  height: 480px;
-  border: 1px solid #ddd;
-  margin-bottom: 1rem;
-}
-
-.pdf-review__error {
-  color: #b00020;
-}
-
-.wizard__edit-error {
-  color: #b00020;
-}
-
-.pdf-review__topic {
-  border-top: 1px solid #ddd;
-  padding: 0.75rem 0;
-}
-
-.pdf-review__field dt {
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.pdf-review__field dd {
-  margin: 0 0 0.5rem;
-}
-
 /* --- start surface (Issue #42) -------------------------------------------- */
 
 .start-surface {
@@ -1033,4 +1004,507 @@ h3 {
 .read-back__confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* --- dialog primitive (Issue #45) ----------------------------------------- */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  /* Screen 06's own scrim. --overlay-on-dark is the opposite thing (a
+     white wash for use ON a dark surface), and there is no scrim token in
+     the system — the navy is --navy-900, named rather than a raw hex. */
+  background: color-mix(in srgb, var(--navy-900) 44%, transparent);
+}
+
+.dialog {
+  width: min(540px, 100%);
+  max-height: calc(100vh - var(--space-12));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding: var(--pad-card);
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.dialog:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-panel), var(--focus-ring);
+}
+
+.dialog__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--type-h3-weight);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  letter-spacing: var(--type-h3-track);
+  color: var(--text-body);
+}
+
+.dialog__body {
+  margin: 0;
+  color: var(--text-prose);
+  font-size: var(--type-copy-size);
+  line-height: var(--type-copy-line);
+}
+
+.dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.dialog__primary {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.dialog__secondary {
+  min-height: var(--hit-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.dialog__secondary:hover {
+  color: var(--text-link-hover);
+}
+
+.dialog__danger {
+  color: var(--danger);
+}
+
+/* --- open fields dialog (Issue #45, screen 06) ---------------------------- */
+
+.open-fields__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.open-fields__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.open-fields__entry:last-child {
+  border-bottom: none;
+}
+
+.open-fields__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-ui-size);
+  color: var(--text-body);
+}
+
+.open-fields__reason {
+  flex: none;
+  font-size: var(--type-meta-size);
+  color: var(--text-muted);
+}
+
+.open-fields__reason--unknown {
+  font-weight: var(--weight-semibold);
+  color: var(--gold-700);
+}
+
+.open-fields__answer {
+  flex: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-meta-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.open-fields__answer:hover {
+  color: var(--text-link-hover);
+}
+
+/* --- review surface (Issue #45, screen 05) -------------------------------- */
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  /* No max-height of its own, matching .wizard/.start-surface/.read-back:
+     .report-chrome__content already scrolls where the grid constrains it,
+     and capping this element instead clipped the card list outright — the
+     cards' own `overflow: hidden` (there for the rounded border) has no
+     scrollbar to fall back on, so ten of the twelve cards became
+     unreachable. Caught by this unit's manual browser pass. */
+}
+
+.review__heading {
+  margin: 0;
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+  font-weight: var(--type-h2-weight);
+}
+
+.review__intro {
+  margin: 0;
+  max-width: var(--measure-copy);
+  color: var(--text-prose);
+  font-size: var(--type-copy-size);
+  line-height: var(--type-copy-line);
+}
+
+.review__cards {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--surface-well);
+  overflow: hidden;
+}
+
+.review__card-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--surface-card);
+}
+
+.review__card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--type-eyebrow-weight);
+  font-size: var(--type-eyebrow-size);
+  letter-spacing: var(--type-eyebrow-track);
+  text-transform: var(--type-eyebrow-transform);
+  color: var(--text-eyebrow-neutral);
+}
+
+.review__card-section {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+}
+
+.review__edit {
+  flex: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-meta-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.review__edit:hover {
+  color: var(--text-link-hover);
+}
+
+.review__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin: 0;
+}
+
+.review__field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.review__field-label {
+  flex: none;
+  /* Wider than the mockup's 96px: screen 05's labels are hand-authored
+     short ones ("Lot number"), and this surface renders the manifest's own
+     ("Race and/or Ethnicity: Native Hawaiian or Pacific Islander") — the
+     enumerated flat-rendering deviation. */
+  width: 160px;
+  font-size: var(--type-meta-size);
+  color: var(--text-subtle);
+}
+
+.review__field-value {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.review__field-value--muted {
+  font-weight: var(--weight-semibold);
+  color: var(--gold-700);
+}
+
+/* A reopened field's retained prior value — deliberately quieter than a
+   current answer: it is what the clinician said before, and the re-ask
+   for it is still outstanding. */
+.review__field-value--retained {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.review__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.review__sign-off {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.review__paper-toggle,
+.review__actions button:not(.review__sign-off) {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.review__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review__pdf-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-copy-size);
+}
+
+.review__pdf-status p {
+  margin: 0;
+}
+
+.review__pdf-status--error {
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.review__paper-frame {
+  width: 100%;
+  height: 480px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+}
+
+/* --- ready surface (Issue #45, screen 07) --------------------------------- */
+
+.ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--pad-section-y) var(--pad-gutter-x);
+  min-height: calc(100vh - var(--shell-header-height));
+  background: var(--surface-dark);
+  color: var(--text-on-dark);
+}
+
+/* Screen 07's confirmation mark. The mockup animates its ring twice on
+   entry; that is omitted — this unit adds no motion, and the repo has no
+   reduced-motion handling to hang one off yet. */
+.ready__mark {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  color: var(--text-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--type-h3-size);
+  font-weight: var(--weight-bold);
+}
+
+.ready__heading {
+  margin: 0;
+  max-width: var(--measure-title);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+  color: var(--text-on-dark);
+}
+
+.ready__subhead {
+  margin: 0;
+  max-width: var(--measure-lead);
+  color: var(--text-on-dark-prose);
+  font-size: var(--type-lead-size);
+  line-height: var(--type-lead-line);
+  text-wrap: pretty;
+}
+
+.ready__summary {
+  margin: var(--space-4) 0 0;
+  max-width: 520px;
+  border: 1px solid var(--border-on-dark);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ready__summary-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--border-on-dark);
+}
+
+.ready__summary-row:last-child {
+  border-bottom: none;
+}
+
+.ready__summary-label {
+  flex: none;
+  width: 132px;
+  font-size: var(--type-eyebrow-size-dark);
+  font-weight: var(--type-eyebrow-weight-dark);
+  letter-spacing: var(--type-eyebrow-track);
+  text-transform: var(--type-eyebrow-transform);
+  color: var(--text-on-dark-muted);
+}
+
+.ready__summary-value {
+  margin: 0;
+  font-size: var(--type-ui-size);
+  color: var(--text-on-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.ready__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+  flex-wrap: wrap;
+}
+
+.ready__download {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--text-body);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.ready__download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ready__start-over {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.ready__start-over:hover {
+  color: var(--text-on-dark);
+}
+
+.ready__pdf-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+  color: var(--text-on-dark-dim);
+  font-size: var(--type-copy-size);
+}
+
+.ready__pdf-status p {
+  margin: 0;
+}
+
+.ready__pdf-status--error {
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-on-dark-strong);
+  color: var(--text-on-dark);
+}
+
+.ready__storage {
+  /* Pinned to the bottom of the panel, as screen 07 does — the privacy
+     line is the last thing on the surface, not a footnote to the buttons. */
+  margin: var(--space-6) 0 0;
+  margin-top: auto;
+  max-width: 520px;
+  padding-top: var(--space-7);
+  border-top: 1px solid var(--border-on-dark);
+  color: var(--text-on-dark-dim);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
 }

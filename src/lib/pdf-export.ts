@@ -24,8 +24,8 @@ export class PdfExportError extends Error {}
 // Returns the filled PDF's raw bytes. Never returns partial/garbage bytes
 // silently — a non-ok response or a transport failure both throw
 // PdfExportError rather than handing back whatever arrived. `signal`
-// lets a caller give up on a superseded request (PdfReview regenerates on
-// every record change) rather than let it run to completion unused.
+// lets a caller give up on a superseded request (usePdfExport regenerates
+// on every record change) rather than let it run to completion unused.
 export async function fetchReportPdf(
   record: AgendaRecord,
   fetchImpl: PdfFetch,

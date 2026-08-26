@@ -16,8 +16,9 @@
 // an export gate (a malformed record must never reach the PDF), while
 // this one renders a live preview during active data entry — a
 // transient/invalid state degrades to blank here rather than taking the
-// whole surface down, the same defensive convention PdfReview.tsx's
-// displayValue() already uses for a stale/mismatched record.
+// whole surface down, the same defensive convention every other
+// AgendaRecord reader here uses for a stale/mismatched record (ready.ts's
+// readyCounts(), review.ts's fieldDisplay()).
 import type { AgendaEntry, AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 
