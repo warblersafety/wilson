@@ -3,6 +3,7 @@
 // The step-wizard UI (Issue #32) — replaces the placeholder homepage,
 // driven entirely by the real nextStep()/TOPICS, not hardcoded per-topic.
 import { useEffect, useState } from "react";
+import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { askDeterministic } from "@/lib/ask";
 import { clearSession, loadSession, saveSession } from "@/lib/session-storage";
 import { initTalkSession, startTalk, type TalkStep } from "@/lib/talk";
@@ -11,7 +12,6 @@ import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
 import { PdfReview } from "./PdfReview";
 import { RepeatDecision } from "./RepeatDecision";
-import { Sidebar } from "./Sidebar";
 import { Transcript } from "./Transcript";
 
 // No model call — askDeterministic never touches the network, so this is
@@ -88,6 +88,12 @@ export function Wizard() {
   }
 
   if (!current) {
+    // Deliberately unwrapped: `current` is null only during the async
+    // hydration gap before a stored session's real record is known
+    // (reviewer pass, PR #75, finding F10) — chrome around this branch
+    // would assert "nothing written yet" over a session that may have
+    // most of the form filled in, a false claim for however briefly it
+    // shows.
     return (
       <main className="wizard">
         <p>Loading…</p>
@@ -100,12 +106,13 @@ export function Wizard() {
   // real, currently-open topic's position among the flat topic walk — the
   // report chrome's curated nine-row rollup (design.md) is #67's own
   // scope, not reproduced here. null once nextStep() reaches "done" (the
-  // done-state render below has nothing to show a progress line for).
+  // done-state render below has nothing to show a progress line for) —
+  // the same null the chrome's own currentTopicId prop wants at that
+  // point, so it's reused rather than a second lookup.
   const progress = currentTopicProgress(session.record, session.repeatCounts);
 
   return (
-    <div className="wizard-layout">
-      <Sidebar session={session} />
+    <ReportChrome record={session.record} repeatCounts={session.repeatCounts} currentTopicId={progress?.topic.id ?? null}>
       <main className="wizard">
         <Transcript turns={session.transcript} progress={progress} />
         {step.kind === "topic" && (
@@ -140,6 +147,6 @@ export function Wizard() {
           </div>
         )}
       </main>
-    </div>
+    </ReportChrome>
   );
 }
