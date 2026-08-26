@@ -1,0 +1,52 @@
+{
+  "Page1.SecA_Patient.PatientIdentifier": "M.R. 4471-08",
+  "Page1.SecA_Patient.AgeValue": "42",
+  "Page1.SecA_Patient.AgeYears": true,
+  "Page1.SecA_Patient.SexF": true,
+  "Page1.SecA_Patient.WeightValue": "68",
+  "Page1.SecA_Patient.WeightKG": true,
+
+  "Page1.SecA_Patient.RepAdverse": true,
+  "Page1.SecA_Patient.EventDate": "2026-08-19",
+  "Page1.SecA_Patient.ReportDate": "2026-08-25",
+  "Page2.SecB_Adverse.DescEvent": "Diffuse urticarial rash with facial and periorbital angioedema approximately 7 days after starting amoxicillin. No airway compromise. Presented to ED, admitted overnight for observation, treated with IV diphenhydramine and methylprednisolone. Rash resolving at 48 hours.",
+
+  "Page1.SecA_Patient.Hospital": true,
+  "Page1.SecA_Patient.LifeThreaten": null,
+  "Page1.SecA_Patient.OtherEvents": null,
+
+  "Page3.Sec6Data.OtherHistory": "Unknown",
+
+  "Page3.TestDataTable.Row7.PicYes": true,
+  "Page3.TestDataTable.EvalYes": true,
+
+  "Page4.Prod1.Prod1Name": "Amoxicillin",
+  "Page4.Prod1.Prod1Strength": "875",
+  "Page4.Prod1.Prod1StrengthUnit": "MILLIGRAM(S) - MG",
+  "Page4.Prod1.Prod1NDC_ID": "Declined to answer",
+  "Page4.Prod1.Prod1ManuComp": "Aurobindo Pharma",
+  "Page4.Prod1.Prod1LotNum": "Unknown",
+  "Page4.Prod1.Prod1Dose": "875",
+  "Page4.Prod1.Prod1DoseUnit": "MILLIGRAM(S) - MG",
+  "Page4.Prod1.Prod1Freq": "BID",
+  "Page4.Prod1.Prod1Route": "Oral",
+  "Page4.Prod1.Prod1TherapyStartDate": "2026-08-12",
+  "Page4.Prod1.Prod1TherapyStopDate": "2026-08-19",
+  "Page4.Prod1.Prod1TherapyOngoingNo": true,
+  "Page4.Prod1.Prod1Diagnosis": "Sinusitis",
+  "Page4.Prod1.Prod1AbatedYes": true,
+
+  "Page6.SecF_Other.Table1.Row1.Prod1": "None reported",
+  "Page6.SecF_Other.Table1.Row1.Start1": "Declined to answer",
+  "Page6.SecF_Other.Table1.Row1.End1": "Declined to answer",
+
+  "Page7.SecG_Reporter.LastName": "Okonkwo",
+  "Page7.SecG_Reporter.FirstName": "A.",
+  "Page7.SecG_Reporter.PhoneNum": "415-555-0142",
+  "Page7.SecG_Reporter.ProYes": true,
+  "Page7.SecG_Reporter.Occupation": "Physician",
+
+  "Page1.SecA_Patient.DateBirth": null,
+  "Page4.Prod1.Prod1PurchaseDate": null,
+  "Page7.SecG_Reporter.Email": null
+}

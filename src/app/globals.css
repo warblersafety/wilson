@@ -129,57 +129,349 @@ h3 {
 
 /* --- wizard (v1, pre-#40; un-touched beyond fitting under the header) ---- */
 
-.wizard-layout {
-  display: flex;
+.wizard {
+  padding: 1.5rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* --- report chrome (Issue #67) -------------------------------------------
+   design.md "The report chrome": the persistent frame — left topic rail,
+   center surface content, right Form 3500 facsimile — every mockup screen
+   (01-07) shares. Mounted by each surface itself (StartSurface, ReadBack,
+   Wizard) around its own existing content; see ReportChrome.tsx. Narrow-
+   width collapse to a single column is this unit's own minimal design (the
+   mockups show desktop width only — #67's named deviation). */
+
+.report-chrome {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
   min-height: calc(100vh - var(--shell-header-height));
 }
 
-.sidebar {
-  width: 260px;
-  flex-shrink: 0;
-  padding: 1rem;
-  border-right: 1px solid #ddd;
+.report-chrome__content {
+  /* No padding of its own — StartSurface/ReadBack/Wizard already carry
+     their own (start-surface/read-back/wizard classes below), unchanged
+     by this unit; doubling it here would pad every surface twice. */
+  min-width: 0;
   overflow-y: auto;
 }
 
-.sidebar__section {
-  margin-bottom: 1rem;
+@media (max-width: 960px) {
+  .report-chrome {
+    grid-template-columns: 1fr;
+  }
+
+  .report-rail,
+  .report-facsimile {
+    max-height: none;
+  }
 }
 
-.sidebar__section-title {
-  font-size: 0.85rem;
+/* --- report rail (left column) --- */
+
+.report-rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-hairline);
+  background: var(--surface-chrome);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--shell-header-height));
+  position: sticky;
+  top: var(--shell-header-height);
+}
+
+.report-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-7) var(--space-6);
+}
+
+.report-banner__form {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+  color: var(--text-body);
+}
+
+.report-banner__status {
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
   text-transform: uppercase;
-  color: #666;
-  margin: 0 0 0.25rem;
+  letter-spacing: var(--type-eyebrow-track);
 }
 
-.sidebar ul {
+.report-banner__patient {
+  flex-basis: 100%;
+  display: inline-block;
+  width: fit-content;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
+  font-size: var(--type-fine-size);
+  color: var(--text-prose);
+}
+
+.report-rail__rows {
   list-style: none;
   margin: 0;
-  padding: 0;
-}
-
-.sidebar__topic {
-  font-size: 0.9rem;
-  padding: 0.15rem 0;
-}
-
-.sidebar__topic--done {
-  color: #2a7a2a;
-}
-
-.sidebar__topic--current {
-  font-weight: 700;
-}
-
-.sidebar__topic--upcoming {
-  color: #999;
-}
-
-.wizard {
+  padding: 0 var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   flex: 1;
-  padding: 1.5rem;
-  max-width: 640px;
+}
+
+.report-rail__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--type-ui-size);
+  color: var(--text-subtle);
+}
+
+.report-rail__row-section {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-circle);
+  background: var(--surface-well);
+  color: var(--text-muted);
+  font-size: var(--type-panel-micro-size);
+  font-weight: var(--weight-semibold);
+}
+
+.report-rail__row-label {
+  flex: 1;
+}
+
+.report-rail__row-mark {
+  flex: none;
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-muted);
+}
+
+.report-rail__row--untouched {
+  color: var(--text-subtle);
+}
+
+.report-rail__row--done {
+  color: var(--text-body);
+}
+
+.report-rail__row--done .report-rail__row-section {
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row--done .report-rail__row-mark {
+  color: var(--accent-wilson);
+  font-weight: var(--weight-bold);
+}
+
+.report-rail__row--current {
+  background: var(--surface-dark);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row--current .report-rail__row-section {
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row-mark--current {
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+  font-weight: var(--weight-semibold);
+  color: var(--text-on-dark-muted);
+}
+
+.report-rail__row--unknown .report-rail__row-section {
+  background: var(--accent);
+  color: var(--text-body);
+}
+
+.report-rail__row-mark--unknown {
+  color: var(--gold-700);
+  font-weight: var(--weight-semibold);
+}
+
+.report-footer {
+  padding: var(--space-6) var(--space-7) var(--space-8);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.report-footer__headline {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  color: var(--text-body);
+}
+
+.report-footer__note {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+/* --- report facsimile (right column) --- */
+
+.report-facsimile {
+  border-left: 1px solid var(--border-hairline);
+  background: var(--surface-panel);
+  padding: var(--space-7);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--shell-header-height));
+  position: sticky;
+  top: var(--shell-header-height);
+}
+
+.report-facsimile__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.report-facsimile__title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+}
+
+.report-facsimile__status {
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+}
+
+.report-facsimile__preview-label {
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-muted);
+}
+
+.report-facsimile__paper {
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-paper);
+  padding: var(--space-7);
+  font-family: var(--font-form);
+}
+
+.report-facsimile__masthead {
+  margin: 0 0 var(--space-6);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+  color: var(--text-muted);
+}
+
+.report-facsimile__empty {
+  margin: var(--space-11) 0;
+  padding: 0 var(--space-6);
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+.report-facsimile__section {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-field);
+}
+
+.report-facsimile__section:first-of-type {
+  border-top: none;
+}
+
+.report-facsimile__section-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--type-panel-title-size);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--type-kicker-track);
+}
+
+.report-facsimile__checkbox-group {
+  margin-bottom: var(--space-4);
+}
+
+.report-facsimile__checkbox-group-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+}
+
+.report-facsimile__checkbox-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+}
+
+.report-facsimile__checkbox-option {
+  font-size: var(--type-fine-size);
+  color: var(--text-subtle);
+}
+
+.report-facsimile__checkbox-option--checked {
+  color: var(--accent-wilson);
+  font-weight: var(--weight-semibold);
+}
+
+.report-facsimile__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+.report-facsimile__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.report-facsimile__field-label {
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: var(--type-kicker-track);
+}
+
+.report-facsimile__field-value {
+  font-size: var(--type-fine-size);
+  color: var(--ink-form);
+}
+
+.report-facsimile__field-value--muted {
+  color: var(--gold-700);
+  font-style: italic;
+}
+
+.report-facsimile__text-block {
+  margin: var(--space-3) 0 0;
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+  color: var(--ink-form);
+}
+
+.report-facsimile__disclosure {
+  margin: var(--space-5) 0 0;
+  color: var(--text-subtle);
+  font-size: var(--type-panel-micro-size);
+  line-height: var(--type-fine-line);
 }
 
 /* --- chip (Issue #44) -------------------------------------------------- */
