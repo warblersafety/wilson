@@ -182,67 +182,6 @@ h3 {
   max-width: 640px;
 }
 
-.topic-fields {
-  border: 1px solid var(--border-panel);
-  border-radius: var(--radius-lg);
-  padding: var(--space-7);
-  margin-bottom: var(--space-9);
-}
-
-.topic-fields:disabled {
-  opacity: 0.6;
-}
-
-.topic-fields__error {
-  margin: 0 0 var(--space-6);
-  padding: var(--space-5);
-  border-radius: var(--radius-md);
-  background: var(--danger-bg);
-  color: var(--danger);
-  font-size: var(--type-copy-size);
-}
-
-.topic-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
-}
-
-.topic-field__label {
-  font-weight: var(--weight-semibold);
-  font-size: var(--type-ui-size);
-}
-
-.topic-field__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.topic-field__select-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.topic-field__select {
-  padding: var(--space-3) var(--space-5);
-  border: 1px solid var(--border-field);
-  border-radius: var(--radius-md);
-  background: var(--surface-field);
-  color: var(--text-body);
-  font-family: var(--font-body);
-  font-size: var(--type-ui-size);
-}
-
-.topic-field__select:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-color: var(--accent-wilson);
-}
-
 /* --- chip (Issue #44) -------------------------------------------------- */
 
 .chip {
