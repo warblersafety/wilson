@@ -8,6 +8,7 @@ import {
   startTalk,
   type AskFn,
   type ExtractFn,
+  type TalkSession,
 } from "./talk";
 
 function field(id: string, type: FormFieldSpec["type"]): FormFieldSpec {
@@ -38,7 +39,7 @@ function unaskedRecordFor(fieldIds: string[]): AgendaRecord {
   return record;
 }
 
-function syntheticSession() {
+function syntheticSession(): TalkSession {
   return {
     transcript: [],
     record: unaskedRecordFor(["a", "b", "c"]),
@@ -342,5 +343,106 @@ describe("processTurn", () => {
     const session = syntheticSession();
     const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
     expect(result.session.repeatCounts).toEqual(session.repeatCounts);
+  });
+
+  // Issue #44's widened follow-up sweep: processTurn() composes the final
+  // reply from extract()'s replyPrefix plus the ordinary next question,
+  // threads correctionOffers through to the returned TalkStep (never into
+  // TalkSession/localStorage — see TalkStep's own comment), and merges
+  // volunteeredRepeatGroups into session.volunteeredRepeats.
+  describe("widened follow-up sweep plumbing (Issue #44)", () => {
+    it("prepends replyPrefix to the ask's own question in both .reply and the stored transcript turn", async () => {
+      const extract: ExtractFn = async () => ({
+        actions: [{ fieldId: "a", type: "answer", value: "42" }],
+        replyPrefix: "Also noted: something else — a value.",
+      });
+      const session = syntheticSession();
+      const result = await processTurn(session, "42, and something else", {
+        extract,
+        ask: askStep,
+        topics: TOPICS,
+        fields: FIELDS,
+      });
+      expect(result.reply).toBe(`Also noted: something else — a value. ${TOPIC_1.label}`);
+      expect(result.session.transcript.at(-1)).toEqual({ role: "talker", text: result.reply });
+    });
+
+    it("omits the prefix entirely when replyPrefix is absent — the reply reads exactly as it always has", async () => {
+      const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+      const session = syntheticSession();
+      const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
+      expect(result.reply).toBe(TOPIC_1.label);
+    });
+
+    it("carries correctionOffers through to the returned TalkStep", async () => {
+      const offer = {
+        fieldId: "a",
+        action: { fieldId: "a", type: "answer" as const, value: "42" },
+        currentState: "answered" as const,
+        currentValue: "41",
+      };
+      const extract: ExtractFn = async () => ({ actions: [], correctionOffers: [offer] });
+      const session = syntheticSession();
+      const result = await processTurn(session, "actually it's 42", {
+        extract,
+        ask: askStep,
+        topics: TOPICS,
+        fields: FIELDS,
+      });
+      expect(result.correctionOffers).toEqual([offer]);
+    });
+
+    it("leaves correctionOffers undefined when extract() reports none", async () => {
+      const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+      const session = syntheticSession();
+      const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
+      expect(result.correctionOffers).toBeUndefined();
+    });
+
+    it("merges a volunteered repeat group into session.volunteeredRepeats", async () => {
+      const extract: ExtractFn = async () => ({ actions: [], volunteeredRepeatGroups: ["suspect-product"] });
+      const session = syntheticSession();
+      const result = await processTurn(session, "she's also on a second one, lisinopril", {
+        extract,
+        ask: askStep,
+        topics: TOPICS,
+        fields: FIELDS,
+      });
+      expect(result.session.volunteeredRepeats).toEqual({ "suspect-product": true });
+    });
+
+    it("preserves an earlier volunteeredRepeats entry across a turn that doesn't touch it", async () => {
+      const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+      const session = { ...syntheticSession(), volunteeredRepeats: { "suspect-product": true as const } };
+      const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
+      expect(result.session.volunteeredRepeats).toEqual({ "suspect-product": true });
+    });
+
+    it("accumulates a second group alongside an already-recorded one", async () => {
+      const extract: ExtractFn = async () => ({ actions: [], volunteeredRepeatGroups: ["concomitant-medication"] });
+      const session = { ...syntheticSession(), volunteeredRepeats: { "suspect-product": true as const } };
+      const result = await processTurn(session, "and metformin too", {
+        extract,
+        ask: askStep,
+        topics: TOPICS,
+        fields: FIELDS,
+      });
+      expect(result.session.volunteeredRepeats).toEqual({
+        "suspect-product": true,
+        "concomitant-medication": true,
+      });
+    });
+
+    it("does not mutate the input session's volunteeredRepeats", async () => {
+      const extract: ExtractFn = async () => ({ actions: [], volunteeredRepeatGroups: ["suspect-product"] });
+      const session = syntheticSession();
+      await processTurn(session, "she's also on a second one", {
+        extract,
+        ask: askStep,
+        topics: TOPICS,
+        fields: FIELDS,
+      });
+      expect(session.volunteeredRepeats).toBeUndefined();
+    });
   });
 });

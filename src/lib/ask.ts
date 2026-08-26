@@ -14,7 +14,12 @@
 // own transform rather than an override, since it's the same shape
 // repeated many times. Six fields genuinely break the generic rule and
 // are named overrides instead — see PHRASING_OVERRIDES.
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+//
+// Checkbox/enum fields (Issue #44: "ordinary conversational asks... phrased
+// with their options by the deterministic AskFn") layer an options suffix
+// on top of the same base phrase, rather than a wholly separate phrasing
+// path — see fieldPhrase()'s type-specific branches below.
+import { FORM_3500_FIELDS, legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 import type { NextStep } from "./topics";
 import type { AskFn } from "./talk";
 
@@ -22,7 +27,10 @@ const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => 
 
 const DONE_MESSAGE = "That's everything — thanks for walking through this with me.";
 
-const REPEAT_GROUP_LABELS = {
+// Exported for reuse by src/lib/followup-sweep.ts's sweep-acknowledgment
+// phrasing (Issue #44) — a repeat group's human label is the same concept
+// regardless of which module needs to say it in a sentence.
+export const REPEAT_GROUP_LABELS = {
   "suspect-product": "suspect product",
   "concomitant-medication": "concomitant medication",
 } as const;
@@ -51,7 +59,20 @@ const REPEAT_GROUP_LABELS = {
 // field to bundle it with — but a future manifest change could make it
 // so, and the mechanical test now catches that regardless of whether
 // today's topic map happens to expose it).
+//
+// Defects and IdentityNo joined the table for the same reason once Issue
+// #44 started phrasing checkbox fields at all — each carries a comma in
+// its label (Defects: "Product Problem (e.g., defects/malfunctions)";
+// IdentityNo: "If you do NOT want your identity disclosed to the
+// manufacturer, please mark this box") that v1's own comma guard could
+// never have caught, since no checkbox field was ever run through
+// fieldPhrase() before checkbox/enum fields became ordinary
+// conversational asks. IdentityNo's label is also phrased as an
+// instruction rather than a noun phrase — the generic "the <label>" rule
+// would read as nonsense ("the if you do not want...") even with the
+// comma fixed, so it needed an override for both reasons at once.
 export const PHRASING_OVERRIDES: Record<string, string> = {
+  "Page1.SecA_Patient.Defects": "a product problem such as a defect or malfunction",
   "Page2.SecB_Adverse.DescEvent": "a description of what happened",
   "Page3.Sec6Data.OtherHistory": "any other relevant medical history",
   "Page3.TestDataTable.ReturnDate": "the date it was returned to the manufacturer",
@@ -63,6 +84,7 @@ export const PHRASING_OVERRIDES: Record<string, string> = {
   "Page6.SecE_Device.ImplantDate": "the date it was implanted",
   "Page6.SecE_Device.ManuName": "the manufacturer's name and location",
   "Page6.SecE_Device.ReprocInfo": "the name and address of whoever reprocessed it",
+  "Page7.SecG_Reporter.IdentityNo": "whether to keep your identity from the manufacturer",
 };
 
 // Caps how many of a topic's unresolved fields get asked in one message.
@@ -76,7 +98,24 @@ export const MAX_FIELDS_PER_ASK = 3;
 
 const ROW_PATTERN = /^Row (\d+) — (.+)$/;
 
-function fieldPhrase(field: FormFieldSpec): string {
+// Past this many legal options, spelling every one out inline (Issue #44)
+// would replace a question with a wall of text before a clinician could
+// even answer it — Country (~275 options), Route (~68), and Unit (~42)
+// are the real fields this affects; every other real enum field tops out
+// at 13 (Occupation), comfortably under this. Past the cap, the ask
+// carries no option suffix at all: the clinician answers in plain text
+// the same as any other field, and the Extractor performs the same
+// referential mapping it already does for text fields ("the water pill"
+// -> furosemide), checked mechanically against the FULL legal list
+// regardless of what was shown in the question.
+export const ASK_OPTIONS_INLINE_MAX = 15;
+
+// A field's base noun phrase, with no type-specific suffix — the same
+// derivation every field (of any type) has always used. Split out so
+// fieldPhrase() below can layer a checkbox/enum options suffix on top of
+// it without duplicating the override/row-pattern/generic logic three
+// times.
+function basePhrase(field: FormFieldSpec): string {
   const override = PHRASING_OVERRIDES[field.id];
   if (override) return override;
 
@@ -90,6 +129,30 @@ function fieldPhrase(field: FormFieldSpec): string {
     return `row ${rowNumber}'s ${rest.toLowerCase()}`;
   }
   return `the ${lastSegment.toLowerCase()}`;
+}
+
+// Checkbox/enum fields are ordinary conversational asks now (Issue #44) —
+// answered by typed/dictated text, never a widget — so the ask itself
+// must carry the field's legal options, or a clinician has no way to
+// know what vocabulary will actually validate. Joined with " / ", never
+// ",": a field's own phrase must stay comma-free (see the file header's
+// comma-guard rule, which every phrase — override, generic, or now
+// option-suffixed — is tested against across the whole real manifest).
+// Exported for followup-sweep.ts's sweep-acknowledgment/correction-offer
+// phrasing (Issue #44) — a field's plain-language phrase is the same
+// concept there ("you said X for <field>...") as it is in an ordinary ask.
+export function fieldPhrase(field: FormFieldSpec): string {
+  const base = basePhrase(field);
+  if (field.type === "checkbox") {
+    return `${base} (yes or no)`;
+  }
+  if (field.type === "enum") {
+    const options = legalEnumOptions(field);
+    if (options.length > 0 && options.length <= ASK_OPTIONS_INLINE_MAX) {
+      return `${base} (${options.join(" / ")})`;
+    }
+  }
+  return base;
 }
 
 function joinPhrases(phrases: string[]): string {
@@ -107,10 +170,22 @@ function joinPhrases(phrases: string[]): string {
   return `${phrases.slice(0, -1).join(", ")}, and ${phrases[phrases.length - 1]}`;
 }
 
-export const askDeterministic: AskFn = async (step: NextStep) => {
+export const askDeterministic: AskFn = async (step: NextStep, session) => {
   if (step.kind === "done") return DONE_MESSAGE;
   if (step.kind === "repeat-decision") {
-    return `Was there another ${REPEAT_GROUP_LABELS[step.repeatGroup]}?`;
+    const base = `Was there another ${REPEAT_GROUP_LABELS[step.repeatGroup]}?`;
+    // Issue #44: a hint when the widened follow-up sweep already saw a
+    // later-instance field volunteered for this exact group earlier in
+    // the conversation (talk.ts's processTurn() records it on
+    // session.volunteeredRepeats — see design.md: "a volunteered later
+    // instance surfaces... at the group's normal 'was there another?'
+    // repeat-decision ask"). Once decided (yes or no), nextStep() never
+    // returns this step for the group again, so the hint naturally stops
+    // appearing — nothing here needs to clear it.
+    if (session.volunteeredRepeats?.[step.repeatGroup]) {
+      return `${base} You mentioned another earlier — I can pick that back up now.`;
+    }
+    return base;
   }
   const phrases = step.fieldIds.slice(0, MAX_FIELDS_PER_ASK).map((fieldId) => {
     const field = FIELDS_BY_ID.get(fieldId);

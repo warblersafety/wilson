@@ -18,6 +18,7 @@
 // either lands, for no benefit today.
 import { type AgendaRecord, applyAction, initAgenda } from "./agenda";
 import type { FieldAction } from "./field-state";
+import type { CorrectionOffer } from "./followup-sweep";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   TOPICS,
@@ -50,10 +51,20 @@ export interface TalkSession {
   transcript: TalkTurn[];
   record: AgendaRecord;
   repeatCounts: RepeatCounts;
+  // Issue #44's widened follow-up sweep (design.md "Follow-up turns are
+  // mined for everything still open"): which repeat groups the sweep has
+  // seen a later-instance field volunteered for (e.g. a second suspect
+  // product's name mentioned before its "was there another?" decision is
+  // reached) — never written as a field or a count itself, only surfaced
+  // as a hint on that group's own repeat-decision ask (askDeterministic
+  // reads this; see src/lib/ask.ts). Optional and additive, same
+  // convention as TalkTurn.source above: every session that predates
+  // this field is still a valid TalkSession with it absent.
+  volunteeredRepeats?: Partial<Record<RepeatGroup, true>>;
 }
 
 export function initTalkSession(): TalkSession {
-  return { transcript: [], record: initAgenda(), repeatCounts: initRepeatCounts() };
+  return { transcript: [], record: initAgenda(), repeatCounts: initRepeatCounts(), volunteeredRepeats: {} };
 }
 
 // `value` is only meaningful — and only accepted — for "answer", mirroring
@@ -68,15 +79,47 @@ export type ProposedAction =
   | { fieldId: string; type: "answer"; value: string }
   | { fieldId: string; type: Exclude<FieldAction["type"], "answer"> };
 
+// A resolved (answered/unknown/declined) field the widened follow-up sweep
+// found new evidence for, but did NOT write (Issue #44, design.md:
+// "answered, unknown, and declined are clinician-established states the
+// sweep never writes... a proposal targeting one becomes a correction
+// offer"). `action` is what accepting the offer writes, through the exact
+// same applyProposedActions() path any other answer takes.
+// `currentState`/`currentValue` describe what's recorded right now, for
+// phrasing "it's recorded as Y" (or "it's marked unknown"/"declined" when
+// there's no value to quote). Lives in src/lib/followup-sweep.ts, the
+// module that actually produces one — imported here in type-only form (no
+// runtime dependency on that module; extract.ts is the one caller that
+// needs its actual functions) purely so ExtractResult/TalkStep below can
+// reference the shape. A caller building UI around a CorrectionOffer
+// (AskForm.tsx) imports the type directly from followup-sweep.ts.
+
 // `actions` is field-level, matching ProposedAction's own {fieldId, type}
-// shape. `repeatDecision` is separate, not folded into `actions`, because a
-// repeat-group decision isn't about any field — topics.ts's RepeatCounts is
-// deliberately kept outside AgendaRecord (Issue #18), so there's no fieldId
-// for it to attach to. Optional: most turns answer field-level questions,
-// not the "is there another one?" question.
+// shape — every entry here is a field the sweep decided TO write (an
+// in-ask answer, or an out-of-ask `unasked` field named in the reply);
+// never a correction offer or a collision, which are surfaced separately
+// below and never silently applied. `repeatDecision` is separate, not
+// folded into `actions`, because a repeat-group decision isn't about any
+// field — topics.ts's RepeatCounts is deliberately kept outside
+// AgendaRecord (Issue #18), so there's no fieldId for it to attach to.
+// Optional: most turns answer field-level questions, not the "is there
+// another one?" question.
 export interface ExtractResult {
   actions: ProposedAction[];
   repeatDecision?: { repeatGroup: RepeatGroup; count: number };
+  // Issue #44: acknowledgment/correction-offer/collision text the widened
+  // sweep produced this turn (src/lib/followup-sweep.ts's
+  // describeFollowUpSweep()) — prepended to the next question by
+  // processTurn() below, so a clinician always sees what an out-of-ask
+  // write or a declined correction did, never a silent one.
+  replyPrefix?: string;
+  // Issue #44: one-tap "replace it?" data for the UI (AskForm.tsx renders
+  // a chip per offer). Ephemeral to this turn — see TalkStep below.
+  correctionOffers?: CorrectionOffer[];
+  // Issue #44: repeat groups a later-instance field was volunteered for
+  // this turn — merged into TalkSession.volunteeredRepeats by
+  // processTurn(), never into `actions` (no field or count is written).
+  volunteeredRepeatGroups?: RepeatGroup[];
 }
 
 export type ExtractFn = (session: TalkSession, message: string) => Promise<ExtractResult>;
@@ -84,10 +127,12 @@ export type ExtractFn = (session: TalkSession, message: string) => Promise<Extra
 // The one write path from a validated proposal to the record — applyAction()
 // is pure and throws before returning anything on an invalid proposal, so a
 // reduce that throws partway through never lets a partially-applied record
-// escape this function. Shared by processTurn() below and, for the
-// narrative-extraction pass (Issue #41), the confirmed-batch apply step
-// design.md calls for — one write path, not two, per its own Architecture
-// table ("Assembly/Export... Deterministic mapping").
+// escape this function. Shared by processTurn() below, the one-tap
+// correction-offer accept path (AskForm.tsx applies a single CorrectionOffer's
+// `action` through this exact function) and, for the narrative-extraction
+// pass (Issue #41), the confirmed-batch apply step design.md calls for — one
+// write path, not several, per its own Architecture table ("Assembly/
+// Export... Deterministic mapping").
 export function applyProposedActions(record: AgendaRecord, actions: ProposedAction[]): AgendaRecord {
   return actions.reduce((rec, proposal) => {
     if (proposal.type === "answer") {
@@ -109,6 +154,16 @@ export interface TalkStep {
   session: TalkSession;
   reply: string;
   nextStep: NextStep;
+  // Issue #44: one-tap "replace it?" correction offers surfaced by THIS
+  // turn's widened sweep. Deliberately NOT part of TalkSession — never
+  // persisted to localStorage (session-storage.ts) — so there is nothing
+  // to reconcile if a clinician ignores one: design.md's "ignoring
+  // changes nothing" is true by construction, not by cleanup code. A
+  // clinician who reloads mid-session simply loses the convenience nudge,
+  // never any data — the field an offer would have touched is untouched
+  // either way, and the very next sweep re-proposes the same correction
+  // fresh if the clinician repeats it.
+  correctionOffers?: CorrectionOffer[];
 }
 
 interface Deps {
@@ -123,13 +178,20 @@ interface Deps {
 // session) is what makes "ask always sees this turn's writes" a
 // structural guarantee, not just something the current code happens to
 // get right — there is no stale record variable in scope here to reach
-// for by mistake.
+// for by mistake. `replyPrefix` (Issue #44) is prepended to the ask's own
+// question — startTalk() never passes one (nothing has been extracted
+// yet), processTurn() below passes whatever describeFollowUpSweep()
+// produced, so the transcript's talker turn always carries the FULL
+// reply (prefix and question together), never just the question with the
+// sweep's acknowledgment silently dropped.
 async function respond(
-  next: { record: AgendaRecord; transcript: TalkTurn[]; repeatCounts: RepeatCounts },
+  next: TalkSession,
   deps: Deps,
+  replyPrefix?: string,
 ): Promise<TalkStep> {
   const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
-  const reply = await deps.ask(step, next);
+  const question = await deps.ask(step, next);
+  const reply = replyPrefix ? `${replyPrefix} ${question}` : question;
   return {
     session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
     reply,
@@ -146,35 +208,53 @@ export async function processTurn(
   message: string,
   deps: Deps & { extract: ExtractFn },
 ): Promise<TalkStep> {
-  const { actions, repeatDecision } = await deps.extract(session, message);
-  // A proposal against an already-resolved field (e.g. a clinician
-  // volunteering "actually, make that 45") is intentionally applied
-  // directly via "answer" with no `reopen` step required — `reopen` is
-  // specifically the review-stage re-entry path (see field-state.ts),
-  // for a UI-driven edit after the clinician has already seen the
-  // generated PDF, not for an in-conversation correction. Grounding
-  // whether a proposal is actually correct is the Extractor's job
-  // (design.md), not this orchestrator's — it trusts what `extract`
-  // returns, same as it trusts `applyAction`'s existing validation.
-  const record = applyProposedActions(session.record, actions);
+  const result = await deps.extract(session, message);
+  // Every entry in `result.actions` is already a decision the widened
+  // sweep (src/lib/followup-sweep.ts) made about a currently `unasked`
+  // field — an in-ask answer, or an out-of-ask write named in
+  // result.replyPrefix. This REPLACES the direct-apply-on-resolved
+  // behavior this comment used to document (a proposal against an
+  // ALREADY-resolved field silently overwriting it, e.g. "actually, make
+  // that 45" just applying via "answer" with no confirmation): design.md's
+  // 2026-08-25 widening closed that silent path — a candidate targeting
+  // an answered/unknown/declined field never reaches `actions` at all, it
+  // becomes a `result.correctionOffers` entry instead, written only on an
+  // explicit one-tap accept (through this exact function, so there is
+  // still only one write path). `reopen` remains the review-stage
+  // re-entry path (field-state.ts) for a UI-driven edit after the
+  // clinician has seen the generated PDF — a different case from an
+  // in-conversation correction, which is what the offer mechanism is for.
+  const record = applyProposedActions(session.record, result.actions);
   // setRepeatCount() throws on an out-of-range count, same as applyAction()
   // throws on an invalid field action — an invalid repeatDecision fails the
   // whole turn rather than writing a bad count, matching the "never
   // partially applied" guarantee above.
-  const repeatCounts = repeatDecision
+  const repeatCounts = result.repeatDecision
     ? setRepeatCount(
         session.repeatCounts,
-        repeatDecision.repeatGroup,
-        repeatDecision.count,
+        result.repeatDecision.repeatGroup,
+        result.repeatDecision.count,
         deps.topics ?? TOPICS,
       )
     : session.repeatCounts;
-  return respond(
+  // Issue #44: a later-instance field volunteered this turn is recorded
+  // as a hint for that group's own repeat-decision ask (ask.ts reads
+  // this) — never merged into repeatCounts or any field write.
+  const volunteeredRepeats = result.volunteeredRepeatGroups?.length
+    ? {
+        ...session.volunteeredRepeats,
+        ...Object.fromEntries(result.volunteeredRepeatGroups.map((group) => [group, true as const])),
+      }
+    : session.volunteeredRepeats;
+  const step = await respond(
     {
       record,
       transcript: [...session.transcript, { role: "clinician", text: message }],
       repeatCounts,
+      volunteeredRepeats,
     },
     deps,
+    result.replyPrefix,
   );
+  return { ...step, correctionOffers: result.correctionOffers };
 }
