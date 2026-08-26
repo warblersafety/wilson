@@ -4,6 +4,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractionResponse } from "../prompts/extractor";
+import { MAX_FIELDS_PER_ASK } from "./ask";
 import { createExtractFn } from "./extract";
 import type { FormFieldSpec } from "./form-3500-fields";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
@@ -348,6 +349,40 @@ describe("createExtractFn", () => {
       const result = await extract(sessionWith(), "42, or was it 45");
       expect(result.actions).toEqual([]);
       expect(result.replyPrefix?.toLowerCase()).toContain("which");
+    });
+
+    it("flags a field as out-of-ask when it's unresolved in the topic but beyond MAX_FIELDS_PER_ASK — askDeterministic never actually phrased it", async () => {
+      // A 4-field, all-unasked topic: nextStep() itself returns all four
+      // fieldIds (it doesn't cap), but askDeterministic() only ever
+      // phrases the first MAX_FIELDS_PER_ASK (3) of them into the visible
+      // question — so a candidate for the 4th must still count as
+      // out-of-ask and be named in the reply, or "no invisible write"
+      // would be broken for any topic wider than the phrasing cap (most
+      // of the real manifest: patient-basics has 19 fields, event-outcome
+      // has 8, lab data has 31...).
+      expect(MAX_FIELDS_PER_ASK).toBe(3);
+      const fourFieldTopic: Topic = {
+        id: "wide",
+        section: "A",
+        label: "Wide topic",
+        fieldIds: ["a", "b", "c", "d"],
+        repeatGroup: null,
+        repeatInstance: null,
+      };
+      const fields = [field("a", "text"), field("b", "text"), field("c", "text"), field("d", "text")];
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: "d", kind: "value", value: "42", quote: { turnIndex: 1, text: "42" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, [fourFieldTopic], fields);
+      const session = sessionWith({
+        record: { a: { state: "unasked" }, b: { state: "unasked" }, c: { state: "unasked" }, d: { state: "unasked" } },
+      });
+      const result = await extract(session, "and also, 42 for the fourth thing");
+      expect(result.actions).toEqual([{ fieldId: "d", type: "answer", value: "42" }]);
+      expect(result.replyPrefix).toContain("42");
     });
 
     it("passes the full field manifest (not just openFields) to validateCandidates, via the ALL_FIELD_TYPES default", async () => {

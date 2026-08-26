@@ -20,6 +20,7 @@ import {
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "../prompts/extractor";
+import { MAX_FIELDS_PER_ASK } from "./ask";
 import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
@@ -90,7 +91,16 @@ export function createExtractFn(
     // gets written, offered, or turned into a suggestion.
     const { accepted } = validateCandidates(transcript, parsed.candidates, fields, ALL_FIELD_TYPES, currentTurnIndex);
 
-    const askFieldIds = step.kind === "topic" ? step.fieldIds : [];
+    // .slice(0, MAX_FIELDS_PER_ASK), not the raw step.fieldIds: nextStep()
+    // itself doesn't cap a "topic" step's fieldIds (most real topics have
+    // more than MAX_FIELDS_PER_ASK unresolved fields — patient-basics has
+    // 19), but askDeterministic() only ever phrases the first
+    // MAX_FIELDS_PER_ASK of them into the visible question. Using the
+    // uncapped list here would silently classify a candidate for the 4th+
+    // field as "in-ask" (no announcement needed) even though the
+    // clinician was never actually shown a question about it this turn —
+    // exactly the invisible write design.md's rule forbids.
+    const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
     const classified = classifyFollowUpActions(accepted, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 

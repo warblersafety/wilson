@@ -1,6 +1,6 @@
 // Pure logic for Issue #44's chip-driven follow-up loop — no React, no
-// DOM. UI components (RepeatDecision.tsx, TopicFields.tsx, AskForm.tsx)
-// stay thin wrappers, same convention as the rest of src/app/wizard.
+// DOM. UI components (RepeatDecision.tsx, AskForm.tsx) stay thin
+// wrappers, same convention as the rest of src/app/wizard.
 import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
 import { FORM_3500_FIELDS } from "./form-3500-fields";

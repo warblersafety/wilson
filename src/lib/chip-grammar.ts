@@ -54,8 +54,9 @@ export function widgetTurnText(question: string, answerLabel: string): string {
 
 // AskForm's "I don't have that"/"rather not say" chips dismiss a whole
 // bundled topic ask (up to MAX_FIELDS_PER_ASK fields) in one tap — this
-// applies the same FieldAction to each, the same direct write path
-// TopicFields.tsx already uses for a single checkbox/enum field.
+// applies the same FieldAction to each, the same direct write path every
+// other chip in this app uses (RepeatDecision's chips, AskForm's own
+// correction-offer accept — Issue #44).
 export function applyActionToFields(record: AgendaRecord, fieldIds: string[], action: FieldAction): AgendaRecord {
   return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, action), record);
 }
