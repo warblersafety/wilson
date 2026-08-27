@@ -54,8 +54,24 @@ export function widgetTurnText(question: string, answerLabel: string): string {
   return `${question} — ${answerLabel}`;
 }
 
-// Which of a step's fields AskForm's "I don't have that"/"rather not
-// say" chips are allowed to write: exactly the facts the visible question
+// The two dismiss chips' visible labels, and the action each writes.
+// ONE home, because three things have to agree on these strings and two
+// of them are not the component: AskForm renders them, the round-gate
+// case fixtures tap them by visible text through a real browser, and
+// gate-simulate.ts resolves them headlessly. They lived in all three,
+// so renaming the chip left the whole suite green and broke 122 of the
+// gate driver's 139 steps — silently, and only at gate time, which is
+// exactly when the driver is most likely to have rotted (doc-review on
+// #96). Keyed BY LABEL because the label is what a clinician taps and
+// what the driver clicks.
+export const DISMISS_CHIPS = {
+  "I don't have that": "mark_unknown",
+  "Rather not say": "decline",
+} as const satisfies Record<string, "mark_unknown" | "decline">;
+
+export type DismissChipLabel = keyof typeof DISMISS_CHIPS;
+
+// Which of a step's fields AskForm's dismiss chips are allowed to write: exactly the facts the visible question
 // named, and nothing else. Under the label-template walk this needed a
 // cap — nextStep() returned every unresolved field of a topic (19 for
 // patient-basics) while the question phrased only the first three, so an

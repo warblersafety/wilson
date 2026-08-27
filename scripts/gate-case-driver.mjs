@@ -13,15 +13,26 @@
 // at all without an API key.
 //
 // **It fails loudly rather than exiting green on a partial traversal**
-// (AC-3). Three independent ways:
+// (AC-3). Three independent detectors:
 //   - every step asserts the question it expects is really on screen, so
 //     a case that has drifted out of step with the walk stops here;
 //   - the surfaces actually traversed are checked against the case's own
 //     declared set, and what is missing is listed by name;
-//   - the browser's transcript is compared against the session the same
-//     case produces through the pure machinery (scripts/gate-emit-case.ts's
-//     `expected`), so a surface rendering something the session never
-//     said is a failure, not a screenshot nobody reads.
+//   - every talker turn the session holds must have reached the screen
+//     (scripts/gate-emit-case.ts's `expected`), so a turn the machinery
+//     produced that no surface showed is a failure and not a screenshot
+//     nobody reads. That is how #118 was found.
+//
+// **What those three do NOT cover, stated because a green exit here is
+// not a passing gate** (doc-review on #96). The transcript check is
+// one-directional — expected ⊆ rendered — so it is blind to a turn
+// rendered TWICE, which is entry 3's double bubble; that class is held
+// by ux-floor.ts's frameDuplicateViolations() in the ordinary test job,
+// not here. And nothing in this script judges whether the copy reads
+// well, whether the ask count is sane, or whether a clinician would
+// wince: checklist entries 1, 3, 4, 6, 7, 9 and 10 are the reviewer's,
+// answered with evidence. Exit 0 means the six cases are still
+// driveable and complete — it does not mean the build is good.
 //
 // Playwright is deliberately NOT a repo dependency: it would put a
 // browser download into every CI install. Install it into a scratch
@@ -45,8 +56,25 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const REPO = must("REPO");
 const CASE = must("CASE");
+// The SHA names the last commit; it does NOT name what was built. A
+// reviewer who patches a rotted selector locally to get through, drives
+// six green and commits runs/gate/<clean-SHA>/ has stamped a build
+// nobody drove — and CLAUDE.md lets a promotion PR whose head matches
+// that SHA proceed. So a dirty tree stops the run, and if it is allowed
+// through deliberately the stamp says so in the directory name, the
+// manifest and run.json (doc-review on #96).
 const SHA = execFileSync("git", ["-C", REPO, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const OUT_ROOT = process.env.OUT ?? `${REPO}/runs/gate/${SHA}`;
+const DIRTY = execFileSync("git", ["-C", REPO, "status", "--porcelain"], { encoding: "utf8" }).trim();
+if (DIRTY && !process.env.ALLOW_DIRTY) {
+  console.error(
+    `gate-case-driver: the working tree is dirty, so a run would stamp ${SHA.slice(0, 7)} for a build that is not ` +
+      `that commit. Commit or stash first, or set ALLOW_DIRTY=1 to run anyway (the stamp becomes ` +
+      `"${SHA.slice(0, 7)}...-dirty" and every manifest records it).\n\n${DIRTY}`,
+  );
+  process.exit(2);
+}
+const STAMP = DIRTY ? `${SHA}-dirty` : SHA;
+const OUT_ROOT = process.env.OUT ?? `${REPO}/runs/gate/${STAMP}`;
 const PORT = Number(process.env.PORT ?? 3210);
 // scripts/fill-3500.py needs pymupdf. CI installs it from
 // requirements.txt; on a dev box point this at a venv's interpreter.
@@ -112,13 +140,32 @@ async function driveCase(id) {
     log.push(s);
   };
   const surfaces = new Set();
+  // Per walk as well as overall: C6 runs two, and its whole point is
+  // that every surface is seen on BOTH sides of a Start over. One shared
+  // Set cannot tell "both walks reached Review" from "the first one did"
+  // (reviewer pass on #96).
+  const surfacesByWalk = {};
+  let currentWalk = "(before the first walk)";
+  const reach = (name) => {
+    surfaces.add(name);
+    (surfacesByWalk[currentWalk] ??= new Set()).add(name);
+  };
   const failures = [];
   let shot = 0;
 
+  // An uncaught client exception is a failure the driver ALREADY
+  // observes, and logging it to a file nobody diffs is downgrading it —
+  // a run could exit 0 with a React error boundary tripped mid-walk
+  // (reviewer pass on #96). Console errors stay informational: the
+  // expected PDF 404 under `next dev` is one, and failing on it would
+  // make every run red for a known Vercel-only route.
   page.on("console", (m) => {
     if (m.type() === "error") say(`[console error] ${m.text()}`);
   });
-  page.on("pageerror", (e) => say(`[page error] ${e.message}`));
+  page.on("pageerror", (e) => {
+    say(`[page error] ${e.message}`);
+    failures.push(`uncaught client exception: ${e.message}`);
+  });
 
   // Next's dev indicator renders asynchronously into a `nextjs-portal`,
   // so it is present in some captures and absent from others taken
@@ -140,8 +187,12 @@ async function driveCase(id) {
     // --- Surface 1: Start ---
     await page.goto(BASE);
     await page.waitForSelector("main");
-    surfaces.add("start");
-    if (await page.$(".report-chrome, .report-rail, [class*='chrome']")) surfaces.add("report-chrome");
+    reach("start");
+    // ReportChrome wraps every surface including Start, so this matches
+    // on the first load and evidences nothing on its own. Kept because
+    // its ABSENCE would be real, and narrowed to the actual class rather
+    // than a `[class*='chrome']` wildcard that could match anything.
+    if (await page.$(".report-chrome")) reach("report-chrome");
     await shoot("start");
     say(`[surface] start — ${(await page.textContent("h1")) ?? "(no heading)"}`);
 
@@ -168,17 +219,24 @@ async function driveCase(id) {
   }
 
   // --- what this case was required to reach ---
-  const missing = (emitted.case.surfaces ?? []).filter((s) => !surfaces.has(s));
-  if (missing.length > 0) failures.push(`surfaces declared but never reached: ${missing.join(", ")}`);
+  // Checked per walk: a C6 whose second run never reached Review must
+  // fail for that reason, not be covered by the first run's coverage.
+  for (const [walk, reached] of Object.entries(surfacesByWalk)) {
+    const declared = walk === emitted.case.id ? emitted.case.surfaces : (emitted.followOn?.surfaces ?? []);
+    const missing = (declared ?? []).filter((s) => !reached.has(s));
+    if (missing.length > 0) failures.push(`${walk}: surfaces declared but never reached: ${missing.join(", ")}`);
+  }
 
   const manifest = {
     case: emitted.case.id,
     title: emitted.case.title,
     spec: emitted.case.spec,
     evidences: emitted.case.evidences,
-    devSha: SHA,
+    devSha: STAMP,
+    treeClean: DIRTY === "",
     surfacesDeclared: emitted.case.surfaces ?? [],
     surfacesReached: [...surfaces].sort(),
+    surfacesByWalk: Object.fromEntries(Object.entries(surfacesByWalk).map(([k, v]) => [k, [...v].sort()])),
     screenshots: shot,
     failures,
     // Stated, not implied: docs/round-gate.md requires the verdict to say
@@ -193,17 +251,18 @@ async function driveCase(id) {
 
   await browser.close();
   if (!process.env.KEEP) child.kill("SIGTERM");
-  return { id, failures, surfaces: [...surfaces] };
+  return { id, failures, surfaces: [...surfaces], allSurfaces: emitted.allSurfaces ?? [] };
 
   // --- the walk, shared by a case and its Start-over follow-on ---------
 
   async function runWalk(gateCase, expected) {
+    currentWalk = gateCase.id;
     // --- Surface 2: Read-back (only for a case that dictates one) ---
     if (gateCase.narrative) {
       await page.fill(".start-surface__composer", gateCase.narrative.text);
       await page.click(".start-surface__form button[type='submit']");
       await page.waitForSelector(".read-back", { timeout: 20000 });
-      surfaces.add("read-back");
+      reach("read-back");
       await shoot(`${gateCase.id}-read-back`);
       const panel = await page.textContent(".read-back__panel");
       say(`\n[surface] read-back — panel:\n${panel.trim().slice(0, 900)}`);
@@ -216,8 +275,9 @@ async function driveCase(id) {
       await page.waitForSelector(".start-surface");
     }
 
-    surfaces.add("follow-ups");
-    if (await page.$(".transcript-panel, .transcript")) surfaces.add("report-chrome");
+    reach("follow-ups");
+    if (await page.$(".transcript-panel, .transcript")) reach("report-chrome");
+    else failures.push(`${gateCase.id}: Follow-ups rendered no transcript panel`);
 
     let lastTranscript = [];
     const onScreen = new Set();
@@ -228,7 +288,11 @@ async function driveCase(id) {
         failures.push(`${gateCase.id} step ${index}: no ask on screen`);
         break;
       }
-      if (step.expectAsk && !onScreenAsk.includes(step.expectAsk)) {
+      // The sentinel marks the one step whose question is the decision it
+      // already asserted (count chips share a turn with it). Recognised
+      // by identity, so a blank assertion is still a failure.
+      const asserts = step.expectAsk && step.expectAsk !== emitted.followThroughSentinel;
+      if (asserts && !onScreenAsk.includes(step.expectAsk)) {
         failures.push(
           `${gateCase.id} step ${index}: expected an ask containing ${JSON.stringify(step.expectAsk)}, saw ${JSON.stringify(onScreenAsk.slice(0, 120))}`,
         );
@@ -266,8 +330,8 @@ async function driveCase(id) {
 
     // Gate states, read off the walk the browser actually took.
     const seen = lastTranscript.join("\n");
-    if (/device details|operating the device|reprocessed/i.test(seen)) surfaces.add("gate-opened-device");
-    if (/still available|purchased/i.test(seen)) surfaces.add("gate-opened-product-handling");
+    if (/device details|operating the device|reprocessed/i.test(seen)) reach("gate-opened-device");
+    if (/still available|purchased/i.test(seen)) reach("gate-opened-product-handling");
 
     const seenOnScreen = [...lastTranscript, ...onScreen];
     await compareTranscript(gateCase.id, seenOnScreen, expected.transcript ?? []);
@@ -291,14 +355,14 @@ async function driveCase(id) {
     // --- Surface 4: Review ---
     await page.waitForTimeout(500);
     await page.waitForSelector(".review", { timeout: 20000 });
-    surfaces.add("review");
+    reach("review");
     await shoot(`${gateCase.id}-review`);
 
     const paper = await page.$(".review__paper-toggle");
     if (paper) {
       await paper.click();
       await page.waitForTimeout(400);
-      surfaces.add("review-paper-facsimile");
+      reach("review-paper-facsimile");
       await shoot(`${gateCase.id}-review-paper-facsimile`);
       await paper.click();
       await page.waitForTimeout(200);
@@ -308,7 +372,7 @@ async function driveCase(id) {
     await page.click(".review__sign-off");
     await page.waitForTimeout(300);
     if (await page.$("[aria-labelledby='open-fields-heading']")) {
-      surfaces.add("open-fields");
+      reach("open-fields");
       await shoot(`${gateCase.id}-open-fields`);
       say(`\n[surface] open-fields:\n${(await page.textContent("[aria-labelledby='open-fields-heading']")).trim().slice(0, 700)}`);
       await page.click("button:has-text('Finish as it stands')");
@@ -317,7 +381,7 @@ async function driveCase(id) {
 
     // --- Surface 6: Ready ---
     await page.waitForSelector(".ready", { timeout: 20000 });
-    surfaces.add("ready");
+    reach("ready");
     await shoot(`${gateCase.id}-ready`);
     say(`\n[surface] ready:\n${(await page.textContent("main")).trim().slice(0, 1200)}`);
 
@@ -424,28 +488,22 @@ for (const id of ids) {
 // The union check (AC-3): across the whole run set, every surface
 // design.md enumerates must have been reached by SOMETHING. A per-case
 // check cannot catch a surface no case reaches at all.
-const ALL_SURFACES = [
-  "start",
-  "read-back",
-  "follow-ups",
-  "review",
-  "review-paper-facsimile",
-  "open-fields",
-  "ready",
-  "report-chrome",
-  "gate-opened-device",
-  "gate-opened-product-handling",
-];
+// Emitted by gate-emit-case.ts from fixtures/gate/cases.ts, never kept
+// here: a second copy of the enumeration drifts the moment a surface is
+// added, and the union check would then pass against a stale list —
+// the one mechanism that is supposed to make "exiting green on a
+// partial traversal" impossible (reviewer pass on #96).
+const ALL_SURFACES = results[0]?.allSurfaces ?? [];
 const union = new Set(results.flatMap((r) => r.surfaces));
 const neverReached = CASE === "all" ? ALL_SURFACES.filter((s) => !union.has(s)) : [];
 
 mkdirSync(OUT_ROOT, { recursive: true });
 writeFileSync(
   `${OUT_ROOT}/run.json`,
-  JSON.stringify({ devSha: SHA, cases: results, surfacesUnion: [...union].sort(), neverReached }, null, 2),
+  JSON.stringify({ devSha: STAMP, treeClean: DIRTY === "", cases: results, surfacesUnion: [...union].sort(), neverReached }, null, 2),
 );
 
-console.log(`\n${"=".repeat(64)}\n=== RUN SUMMARY (dev ${SHA.slice(0, 7)})`);
+console.log(`\n${"=".repeat(64)}\n=== RUN SUMMARY (dev ${STAMP.slice(0, 7)}${DIRTY ? " — DIRTY TREE" : ""})`);
 for (const r of results) console.log(`${r.id}: ${r.failures.length === 0 ? "ok" : `${r.failures.length} FAILURE(S)`}`);
 for (const r of results) for (const f of r.failures) console.log(`  [${r.id}] ${f}`);
 if (neverReached.length > 0) console.log(`\n!! surfaces no case reached: ${neverReached.join(", ")}`);

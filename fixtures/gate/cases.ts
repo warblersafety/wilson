@@ -30,6 +30,7 @@
 // extractions*. The real-model residual is the charter v1.2 live evals
 // and Steve's own acceptance pass.
 import type { ExtractionScript, ScriptedCandidate, ScriptedRepeatDecision } from "../../src/lib/scripted-extract";
+import { REPEAT_COUNT_FOLLOW_THROUGH } from "../../src/lib/gate-simulate";
 
 // A typed clinician turn. `expectAsk` is a distinctive fragment of the
 // question the driver must be looking at when it sends this — not
@@ -46,6 +47,8 @@ export interface GateTypeStep {
 
 // A chip tap. `label` is the chip's visible text — "I don't have that",
 // "Rather not say", "Yes", "No", or a repeat count like "3".
+export { REPEAT_COUNT_FOLLOW_THROUGH };
+
 export interface GateChipStep {
   kind: "chip";
   expectAsk?: string;
@@ -352,7 +355,7 @@ const C3: GateCase = {
     // them. Three concomitants is what round-gate.md's C3 specifies, and
     // it is also what makes #111's per-instance CM-2 copy visible on
     // consecutive turns.
-    { kind: "chip", label: "3" },
+    { kind: "chip", expectAsk: REPEAT_COUNT_FOLLOW_THROUGH, label: "3" },
     { kind: "chip", expectAsk: "What's the second medication", label: "I don't have that" },
     { kind: "chip", expectAsk: "What's the third medication", label: "I don't have that" },
     { kind: "chip", expectAsk: "Your contact details for the report", label: "I don't have that" },

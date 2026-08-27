@@ -21,12 +21,20 @@
 // layout and the surfaces themselves are the browser driver's half, and a
 // pure simulation claiming them would be the "green suite, rejected
 // build" failure this round already had once.
-import { applyActionToFields, dismissAcknowledgment, dismissableFieldIds, widgetTurnText } from "./chip-grammar";
+import {
+  applyActionToFields,
+  DISMISS_CHIPS,
+  dismissAcknowledgment,
+  dismissableFieldIds,
+  widgetTurnText,
+  type DismissChipLabel,
+} from "./chip-grammar";
 import { askDeterministic } from "./ask";
 import { createExtractFnFrom } from "./extract";
 import { createScriptedProposeFn, type ExtractionScript } from "./scripted-extract";
 import { initTalkSession, processTurn, startTalk, applyProposedActions, type TalkSession, type TalkStep } from "./talk";
-import { nextStep, setRepeatCount } from "./topics";
+import { nextStep, setRepeatCount, type RepeatGroup } from "./topics";
+import { applyNarrativeProposals } from "./narrative-extract";
 import { repeatDecisionOptions } from "./chip-grammar";
 
 // One step's outcome: what the clinician was looking at, what they did,
@@ -55,6 +63,10 @@ export interface SimulationResult {
 // The subset of a GateCase this module needs. Declared structurally
 // rather than imported from fixtures/: src/lib never depends on
 // fixtures/, and this keeps the simulator usable for any step list.
+// The one expectAsk value that means "nothing to assert here", spelled
+// out so it is a choice in a diff rather than an absent field.
+export const REPEAT_COUNT_FOLLOW_THROUGH = "(count chips, same turn as the repeat decision)";
+
 export interface SimulableStep {
   kind: "type" | "chip" | "start-over";
   expectAsk?: string;
@@ -68,14 +80,6 @@ function askIdOf(session: TalkSession): string {
   if (step.kind === "repeat-decision") return step.repeatGroup;
   return "done";
 }
-
-// The chip labels AskForm renders, mapped to the action they write. A
-// repeat-decision chip ("Yes"/"No"/a count) is handled separately — it
-// writes a count, not a field action.
-const DISMISS_ACTIONS: Record<string, "mark_unknown" | "decline"> = {
-  "I don't have that": "mark_unknown",
-  "Rather not say": "decline",
-};
 
 export async function simulateCase(
   steps: SimulableStep[],
@@ -91,7 +95,12 @@ export async function simulateCase(
     if (cased.kind === "start-over") break; // the browser driver's half
     const ask = step.reply;
     const askId = askIdOf(step.session);
-    if (cased.expectAsk !== undefined && !ask.includes(cased.expectAsk)) {
+    // The sentinel marks the one step whose question is the decision it
+    // already asserted (the count chips share a turn with it). Compared
+    // by identity so a blank or missing assertion is still a mismatch —
+    // see GateChipStep.expectAsk.
+    const asserts = cased.expectAsk !== undefined && cased.expectAsk !== REPEAT_COUNT_FOLLOW_THROUGH;
+    if (asserts && !ask.includes(cased.expectAsk ?? "")) {
       mismatches.push(
         `step ${index} (${cased.kind} ${JSON.stringify(cased.message ?? cased.label)}) expected an ask containing ` +
           `${JSON.stringify(cased.expectAsk)} but the walk was at ${askId}: ${JSON.stringify(ask)}`,
@@ -138,7 +147,9 @@ export async function simulateCase(
       continue;
     }
 
-    const action = DISMISS_ACTIONS[cased.label ?? ""];
+    // chip-grammar.ts's map, which is also what AskForm renders from —
+    // a second copy here is how a chip rename stayed invisible.
+    const action = DISMISS_CHIPS[(cased.label ?? "") as DismissChipLabel];
     if (action === undefined) {
       // Recorded and the run stopped, rather than thrown: a case that has
       // drifted has usually drifted at several steps, and the caller
@@ -186,17 +197,30 @@ async function recompute(session: TalkSession, replyPrefix?: string): Promise<Ta
   };
 }
 
-// The record a case's narrative would leave behind after a Read-back
-// confirm — the state Follow-ups actually starts from. Applied through
-// talk.ts's own applyProposedActions, the one write path.
+// The record a case's narrative leaves behind after a Read-back confirm
+// — the state Follow-ups actually starts from.
+//
+// Through applyNarrativeProposals(), which is what ReadBack's own confirm
+// calls, NOT through applyProposedActions() directly. The difference is
+// not cosmetic: the read-back path additionally applies rule 3's
+// bare-age default (PR #106 F4 added it precisely so a dictated age does
+// not leave four unit checkboxes open) and commits any repeat decisions
+// the narrative proposed. Seeding without it left C1 and C3 four fields
+// short of the app's own state — invisible in the walk today, and a
+// regression in the bare-age default would have been invisible to this
+// whole test file, since nothing here would have called it (reviewer
+// pass on #96).
 export function seedFromNarrative(
   narrative: string,
   actions: Parameters<typeof applyProposedActions>[1],
+  repeatDecisions: { repeatGroup: RepeatGroup; count: number }[] = [],
 ): TalkSession {
   const base = initTalkSession();
+  const applied = applyNarrativeProposals(base.record, base.repeatCounts, actions, repeatDecisions);
   return {
     ...base,
-    record: applyProposedActions(base.record, actions),
+    record: applied.record,
+    repeatCounts: applied.repeatCounts,
     transcript: [{ role: "clinician", text: narrative }],
   };
 }

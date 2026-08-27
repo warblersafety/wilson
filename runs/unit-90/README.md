@@ -77,3 +77,9 @@ which is exactly the gap this note records.
 - **The Ready surface shows a PDF-generation failure.**
   `api/generate-pdf.py` is a Vercel Python function that `next dev` does
   not serve, so the fetch 404s locally. Not a defect.
+
+> **Note (unit #96).** `scripts/artifact-session.mjs` and
+> `scripts/artifact-seed.ts` no longer exist — they were replaced by
+> `scripts/gate-case-driver.mjs`, which walks Start through Ready with
+> typed turns as well as chips (`CASE=C1`). This file records what was
+> run at the time; the reproduce instructions above are historical.

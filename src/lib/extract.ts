@@ -45,9 +45,11 @@ import { TOPICS, nextStep, openFollowUpFields, type Topic } from "./topics";
 // processTurn's own `Deps.topics`/`Deps.fields` — nextStep() is only
 // guaranteed to recompute the step processTurn's respond() already saw
 // when both calls agree on what the topic map and field manifest are.
-// There is currently exactly one production call site and it takes both
-// defaults, so this can't diverge today; a future caller overriding one
-// set without the other would silently extract against the wrong step.
+// A caller overriding one set without the other would silently extract
+// against the wrong step. Since #96 that reaches createExtractFnFrom()
+// too: a proposer built with default topics/fields and a wrapper given
+// custom ones is the same divergence, one seam further out.
+
 // What a model — or a scripted stand-in — proposes for one turn, before
 // any of extraction's own checks have run. Named as a seam so the
 // fake-model path the round-gate driver uses (#96) replaces EXACTLY the
@@ -77,6 +79,14 @@ export interface TurnContext {
 }
 
 export type ProposeFn = (context: TurnContext) => Promise<TurnProposal | null>;
+
+// Extraction is keyed to the step that was actually asked, not
+// re-derived from message phrasing — computed from `session`'s PRE-turn
+// state, which is exactly the state nextStep() saw when it produced the
+// step the clinician's message is now answering (processTurn calls
+// extract() before applying this turn's writes, so nothing has changed
+// in between). `topics`/`fields` must be the SAME arrays a caller passes
+// as processTurn's own Deps — see the note above the seam.
 
 // The real proposer: one structured-output call to the Extractor model.
 function modelProposer(client: Anthropic, topics: Topic[], fields: FormFieldSpec[]): ProposeFn {

@@ -8,6 +8,8 @@
 //   - `case`:     the steps to perform, and the surfaces they must reach
 //   - `script`:   what the fake extractor answers (src/lib/scripted-extract.ts)
 //   - `expected`: the walk the simulator says these steps produce
+//   - the surface enumeration and the follow-through sentinel, so the
+//     driver holds no second copy of either
 //
 // `expected` is what makes the run checkable rather than merely recorded:
 // the driver compares the transcript the BROWSER produced against the
@@ -16,7 +18,7 @@
 // not a screenshot nobody reads.
 //
 //   npx tsx scripts/gate-emit-case.ts C3 > case.json
-import { GATE_CASES, gateCase, scriptFor, type GateCase } from "../fixtures/gate/cases";
+import { GATE_CASES, GATE_SURFACES, gateCase, REPEAT_COUNT_FOLLOW_THROUGH, scriptFor, type GateCase } from "../fixtures/gate/cases";
 import { simulateCase, seedFromNarrative } from "../src/lib/gate-simulate";
 import { ALL_FIELD_TYPES, validateCandidates } from "../src/lib/extraction-validator";
 import { FORM_3500_FIELDS } from "../src/lib/form-3500-fields";
@@ -73,6 +75,14 @@ async function main() {
       {
         case: found,
         followOn,
+        // Emitted, not duplicated in the driver: the union check AC-3
+        // rests on is only as good as the list it checks against, and a
+        // hand-copied list drifts silently the moment a surface is added
+        // (reviewer pass on #96).
+        allSurfaces: GATE_SURFACES,
+        // The one expectAsk value that means "nothing to assert here".
+        // The driver has to recognise it, not match it literally.
+        followThroughSentinel: REPEAT_COUNT_FOLLOW_THROUGH,
         script: scriptFor(found),
         expected: {
           transcript: primary.session.transcript,

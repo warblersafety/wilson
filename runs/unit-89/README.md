@@ -55,3 +55,9 @@ but for the removed gray duplicate.
   404s locally. Not a defect — the same page works on a Vercel deploy.
 - Two turns log "identical text earlier in history": distinct topics whose
   template copy renders byte-identical. Also #90.
+
+> **Note (unit #96).** `scripts/artifact-session.mjs` and
+> `scripts/artifact-seed.ts` no longer exist — they were replaced by
+> `scripts/gate-case-driver.mjs`, which walks Start through Ready with
+> typed turns as well as chips (`CASE=C1`). This file records what was
+> run at the time; the reproduce instructions above are historical.

@@ -58,3 +58,9 @@ seven surface states. Twelve of thirteen screenshots byte-identical.
   Ready still shows a PDF failure (`next dev` does not serve the Vercel
   Python function) — all #90 part 2 or environment, as `runs/unit-90/`
   records.
+
+> **Note (unit #96).** `scripts/artifact-session.mjs` and
+> `scripts/artifact-seed.ts` no longer exist — they were replaced by
+> `scripts/gate-case-driver.mjs`, which walks Start through Ready with
+> typed turns as well as chips (`CASE=C1`). This file records what was
+> run at the time; the reproduce instructions above are historical.

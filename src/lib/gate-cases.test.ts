@@ -14,6 +14,7 @@ import { ALL_FIELD_TYPES, validateCandidates } from "./extraction-validator";
 import { fieldById, FORM_3500_FIELDS } from "./form-3500-fields";
 import { initTalkSession, type TalkSession } from "./talk";
 import { nextStep } from "./topics";
+import { DISMISS_CHIPS } from "./chip-grammar";
 
 function seedFor(c: GateCase): TalkSession {
   if (!c.narrative) return initTalkSession();
@@ -63,6 +64,35 @@ describe("the pinned case set", () => {
   it("the six cases between them declare every surface", () => {
     const declared = new Set(GATE_CASES.flatMap((c) => c.surfaces));
     expect([...GATE_SURFACES].filter((s) => !declared.has(s))).toEqual([]);
+  });
+
+  // doc-review on #96: both checkers skip a step with no assertion, so an
+  // optional expectAsk made the drift tripwire disarmable by deleting a
+  // token — the fastest green for a unit whose ask change turned three
+  // chip steps red. Required in the type now; asserted non-empty here so
+  // `expectAsk: ""` is not the same hole spelled differently.
+  it("every step asserts the ask it is performed at", () => {
+    for (const c of GATE_CASES) {
+      for (const [index, step] of c.steps.entries()) {
+        if (step.kind === "start-over") continue;
+        expect(step.expectAsk, `${c.id} step ${index}`).toBeTruthy();
+      }
+    }
+  });
+
+  // The chips a case taps are the ones AskForm renders, from one map —
+  // the driver clicks them by visible text, so a rename that only
+  // touched the component used to break 122 of 139 steps with the whole
+  // suite green.
+  it("taps only chips the build actually renders", () => {
+    const repeatChips = new Set(["Yes", "No", ...Array.from({ length: 10 }, (_, i) => String(i + 1))]);
+    for (const c of GATE_CASES) {
+      for (const step of c.steps) {
+        if (step.kind !== "chip") continue;
+        const known = step.label in DISMISS_CHIPS || repeatChips.has(step.label);
+        expect(known, `${c.id} taps ${JSON.stringify(step.label)}, which no surface renders`).toBe(true);
+      }
+    }
   });
 
   it("names only real manifest fields", () => {
@@ -175,10 +205,31 @@ describe("the cases exercise what docs/round-gate.md says they exercise", () => 
     expect(ids).toContain("SP-9");
   });
 
-  it("C5 forces rule 9's re-ask frames and uses both dismiss chips", async () => {
+  // Asserted by COUNTING frames, not by matching a pattern. The obvious
+  // version — /Got it\. Still need:|And the / over the whole walk —
+  // passes for C2 and C4 too, which have no partial answers at all: the
+  // second arm matches ordinary asks like "And the report type?". An
+  // assertion that cannot tell C5 from a case with none of its defining
+  // behaviour is not asserting that behaviour (reviewer pass on #96).
+  const reAskFrames = (steps: { askId: string }[]) => {
+    const seen = new Set<string>();
+    return steps.filter((s) => (seen.has(s.askId) ? true : (seen.add(s.askId), false))).length;
+  };
+
+  it("C5 forces more rule-9 re-asks than any all-chips case, and uses both dismiss chips", async () => {
     const c = gateCase("C5");
     const result = await simulateCase(c.steps as never, scriptFor(c), seedFor(c));
-    expect(result.steps.map((s) => s.ask).join("\n")).toMatch(/Got it\. Still need:|And the /);
+    // A re-ask is the same ask id reached twice — a partial answer left
+    // facts open. C5 answers three asks partially by construction.
+    expect(reAskFrames(result.steps)).toBeGreaterThanOrEqual(3);
+    expect(result.steps.map((s) => s.ask).join("\n")).toContain("Got it. Still need:");
+
+    // The comparison that gives the number meaning: an all-chips walk
+    // never re-asks anything, because a dismiss resolves every fact.
+    const c2 = gateCase("C2");
+    const allChips = await simulateCase(c2.steps as never, scriptFor(c2), seedFor(c2));
+    expect(reAskFrames(allChips.steps)).toBe(0);
+
     const labels = c.steps.filter((s) => s.kind === "chip").map((s) => s.label);
     expect(labels).toContain("I don't have that");
     expect(labels).toContain("Rather not say");
