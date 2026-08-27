@@ -19,7 +19,7 @@
 // (scripts/tests/) plus form-3500-fields*.test.ts passing in the same CI
 // run — not re-asserted here.
 import { describe, expect, it } from "vitest";
-import { dispositionOf, isListableGap } from "./ask-inventory";
+import { anchorOf, dispositionOf, isListableGap } from "./ask-inventory";
 import { NARRATIVE_EXTRACTION_FIXTURES } from "../../fixtures/narrative-extraction/cases";
 import { initAgenda } from "./agenda";
 import { askDeterministic } from "./ask";
@@ -176,14 +176,18 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
     expect(entries.length).toBeGreaterThan(0);
     // At "done" every ASK field is resolved — that is what done means —
     // so an `unknown` entry is a fact the clinician was asked for and
-    // didn't have. The `not-asked` entries are ask-copy.md rule 3's
-    // derive companions, left open on purpose: a bare weight writes its
-    // value and leaves lb/kg open, "visible at Review". Nothing else may
-    // be listed, and auto/write-target fields never are (rules 4 and 5).
+    // didn't have. A `not-asked` entry is a derive companion whose anchor
+    // this run answered (ask-copy.md rule 3) — never an auto or
+    // write-target field, and never a companion with nothing answered
+    // behind it.
     for (const entry of entries) {
       const disposition = dispositionOf(entry.fieldId);
       expect(["ask", "derive"], entry.fieldId).toContain(disposition);
-      if (entry.reasonKind === "not-asked") expect(disposition, entry.fieldId).toBe("derive");
+      if (disposition === "derive") {
+        const anchorId = anchorOf(entry.fieldId);
+        expect(anchorId, `${entry.fieldId} is listed with no anchor`).toBeDefined();
+        expect(done.record[anchorId!].state, entry.fieldId).toBe("answered");
+      }
       if (entry.reasonKind === "unknown") expect(done.record[entry.fieldId].state).toBe("unknown");
     }
     expect(entries.some((e) => e.reasonKind === "unknown")).toBe(true);

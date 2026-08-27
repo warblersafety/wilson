@@ -123,13 +123,12 @@ export function openFieldEntries(
       if (!Object.hasOwn(record, fieldId)) {
         throw new Error(`openFieldEntries: record missing field id: ${fieldId}`);
       }
-      // ask-copy.md's dispositions: an auto field (ReportDate, stamped at
-      // export), a lab write-target row, and an ask whose condition does
-      // not hold (the date of death with no death recorded) are never
-      // gaps — rule 5 is explicit that "an empty row 4 is never a phantom
-      // gap in open-fields or the counts". A derive companion IS one:
-      // rule 3 leaves a bare weight's lb/kg open on purpose, "visible at
-      // Review".
+      // ask-copy.md's dispositions decide what counts as a gap at all
+      // (ask-inventory.ts's isListableGap): an auto field, a lab
+      // write-target row, and an ask whose condition does not hold are
+      // never gaps, and a derive companion becomes one only once the fact
+      // it hangs off is answered — a stated bare weight makes lb/kg a
+      // live question, an age nobody gave does not.
       if (!isListableGap(fieldId, record)) continue;
       const reasonKind = reasonKindFor(record[fieldId].state);
       if (reasonKind === null) continue;

@@ -229,14 +229,31 @@ flow is six surfaces:
    click away rather than leading the layout — legible values and
    obvious gaps beat pen-sized paper for editing; the paper is there
    for trust. (Chosen over paper-led review.)
-5. **Open fields** — what's still `unknown` or unasked, listed with its
-   reason, each answerable from here; "file as it stands" always
+5. **Open fields** — what's still `unknown` or unasked **and actually
+   answerable**, listed with its reason, each answerable from here;
+   "file as it stands" always
    available ("finish as it stands" in the built copy — the mockup's
    "File as it stands" takes the no-submission-claims vocabulary
    below). A partial report is a valid report; this surface nudges,
    it never gates. Presented as a dialog over the Review surface
    (screen 06), not a separate page — it is enumerated as a surface
    because it carries its own rules and state, not its own screen.
+   *Amended 2026-08-27 (#101).* "Unasked" alone listed fields no
+   clinician could act on, so this surface asks a narrower question:
+   **is this field answerable now?** `ask-copy.md` decides, and the
+   answer is not a single property. An auto field is determined, not
+   open. A lab write-target row past LD-1's anchor is never
+   independently open (rule 5). A conditional ask whose condition does
+   not hold was never in play. And a derive companion is open only once
+   the fact it hangs off has been ANSWERED — anchor state, not its
+   disposition (rule 3): a stated bare weight makes lb/kg a live
+   question, an age nobody gave makes its four unit checkboxes noise.
+   Excluding companions by disposition instead was tried and rejected
+   in review, because it also hid facts the asks voice out loud. Without
+   any of this the dialog headed a 28-question session with "122 fields
+   are still open", first four rows those very checkboxes, immediately
+   before sign-off. A companion is visible on its anchor's Review row
+   whether or not it is currently listed here.
 6. **Ready** — honest completion: the filled PDF to download,
    answered/unknown/declined counts, and the reminder that wilson
    stores nothing on its own servers, so the download is the
@@ -403,8 +420,10 @@ per-topic authored asks (21 in the ungated single-product walk, hard
 ceiling 24), a disposition for all 227 fields (ask / derive / auto /
 gated), gates that keep device, availability, and
 purchase topics out of reports they don't belong to, derive rules so
-unit checkboxes and one-hot pairs fill as companions of stated facts
-rather than being asked, and short display names used by every
+unit checkboxes and "other" enums fill as companions of stated facts
+rather than being asked (a one-hot group is a fact's only
+representation, so it is asked, not a companion — ask-copy.md rule 3),
+and short display names used by every
 acknowledgment, correction offer, open-fields row, and Review label.
 Template generation of clinician-facing text is a defect; the UX
 floor checks in CI — over an exhaustive enumeration of the pure copy

@@ -9,6 +9,7 @@ import {
   GATED_TOPIC_IDS,
   asksForTopic,
   askApplies,
+  anchorOf,
   dispositionOf,
   isListableGap,
   unresolvedAskFieldIds,
@@ -171,66 +172,155 @@ describe("the authored ask inventory", () => {
     const DEATH_DATE = "Page1.SecA_Patient.DeathDate";
     const LAB_ANCHOR = "Page3.TestDataTable.Row1.TestData1";
 
-    it("excludes exactly these fields and no others, on a fresh record", () => {
+    // Hand-written, and hand-written means hand-written: an earlier round
+    // built this set by calling dispositionOf(), the table isListableGap()
+    // itself delegates to, so it could only ever agree with the
+    // implementation (reviewer passes on PR #98 finding 1, and PR #104
+    // finding 2 for the repeat). These are literal ids and a literal
+    // count.
+    it("excludes exactly these 74 fields on a fresh record, and no others", () => {
       const excluded = FORM_3500_FIELDS.map((f) => f.id).filter((id) => !isListableGap(id, record));
-      // Hand-written, not derived: rule 4's one auto field, rule 5's 31
-      // lab write-target rows, and the date of death, whose ask does not
-      // apply with no death recorded.
-      expect(excluded.sort()).toEqual(
-        [
-          REPORT_DATE,
-          DEATH_DATE,
-          "Page3.TestDataTable.Row1.TLowRange1",
-          "Page3.TestDataTable.Row1.THighRange1",
-          "Page3.TestDataTable.Row1.TDate1",
-          "Page3.TestDataTable.Row2.TestData2",
-          "Page3.TestDataTable.Row2.TLowRange2",
-          "Page3.TestDataTable.Row2.THighRange2",
-          "Page3.TestDataTable.Row2.TDate2",
-          "Page3.TestDataTable.Row3.TestData3",
-          "Page3.TestDataTable.Row3.TLowRange3",
-          "Page3.TestDataTable.Row3.THighRange3",
-          "Page3.TestDataTable.Row4.TestData4",
-          "Page3.TestDataTable.Row4.TLowRange4",
-          "Page3.TestDataTable.Row4.THighRange4",
-          "Page3.TestDataTable.Row5.TestData5",
-          "Page3.TestDataTable.Row5.TLowRange5",
-          "Page3.TestDataTable.Row5.THighRange5",
-          "Page3.TestDataTable.Row6.TestData6",
-          "Page3.TestDataTable.Row6.TLowRange6",
-          "Page3.TestDataTable.Row6.THighRange6",
-          "Page3.TestDataTable.Row7.TestData7",
-          "Page3.TestDataTable.Row7.TLowRange7",
-          "Page3.TestDataTable.Row8.TestData8",
-          "Page3.TestDataTable.Row8.TLowRange8",
-          "Page3.TestDataTable.Row8.THighRange8",
-          "Page3.TestDataTable.Row8.TDate8",
-          "Page3.TestDataTable.Row8.THighRange7",
-          "Page3.TestDataTable.Row8.TDate3",
-          "Page3.TestDataTable.Row8.TDate4",
-          "Page3.TestDataTable.Row8.TDate5",
-          "Page3.TestDataTable.Row8.TDate6",
-          "Page3.TestDataTable.Row8.TDate7",
-        ].sort(),
+      expect(excluded).toHaveLength(74);
+      // Rule 4's auto field, and the ask whose condition does not hold.
+      expect(excluded).toContain(REPORT_DATE);
+      expect(excluded).toContain(DEATH_DATE);
+      // Rule 5's 31 write-target rows: the whole lab table but LD-1's anchor.
+      const labRows = FORM_3500_FIELDS.map((f) => f.id).filter(
+        (id) => id.startsWith("Page3.TestDataTable.Row") && id !== LAB_ANCHOR && !id.endsWith("PicYes"),
       );
-      expect(excluded).toHaveLength(33);
-    });
-
-    it("keeps LD-1's own anchor listable — openness attaches to it", () => {
-      expect(isListableGap(LAB_ANCHOR, record)).toBe(true);
-    });
-
-    it("keeps every derive companion listable — rule 3 leaves them open on purpose", () => {
-      for (const fieldId of [
+      expect(labRows).toHaveLength(31);
+      for (const id of labRows) expect(excluded, id).toContain(id);
+      // Rule 3's companions, all 41 of them, none of whose anchors is
+      // answered on a fresh record.
+      for (const id of [
         "Page1.SecA_Patient.AgeYears",
+        "Page1.SecA_Patient.AgeMonths",
+        "Page1.SecA_Patient.AgeWeeks",
+        "Page1.SecA_Patient.AgeDays",
         "Page1.SecA_Patient.WeightLB",
         "Page1.SecA_Patient.WeightKG",
+        "Page3.TestDataTable.ReturnDate",
         "Page4.Prod1.Prod1StrengthUnit",
+        "Page4.Prod1.Prod1DoseUnit",
+        "Page4.Prod1.Prod1FreqOther",
+        "Page4.Prod1.Prod1RouteOther",
         "Page4.Prod1.Prod1TherapyDuration",
+        "Page4.Prod1.Prod1TherapyDurUnit",
+        "Page6.SecE_Device.ReprocInfo",
+        "Page6.SecF_Other.Table1.Row1.Start1",
+        "Page6.SecF_Other.Table1.Row1.End1",
         "Page7.SecG_Reporter.Country",
       ]) {
-        expect(isListableGap(fieldId, record), fieldId).toBe(true);
+        expect(excluded, id).toContain(id);
       }
+      // 1 auto + 1 conditional + 31 write-target + 41 companions = 74.
+      expect(1 + 1 + 31 + 41).toBe(74);
+    });
+
+    // The fix that finding 1 of PR #104's reviewer pass demanded: the
+    // discriminator is anchor state, not the derive bucket. Each of these
+    // is a fact an ask voices out loud, and a blanket derive exclusion
+    // hid every one of them.
+    describe("a companion becomes a gap once its anchor is answered", () => {
+      const answered = (fieldId: string, value: string) => ({
+        ...record,
+        [fieldId]: { state: "answered" as const, value },
+      });
+
+      it("lists a bare weight's lb/kg — rule 3's own worked example", () => {
+        const withWeight = answered("Page1.SecA_Patient.WeightValue", "80");
+        expect(isListableGap("Page1.SecA_Patient.WeightLB", withWeight)).toBe(true);
+        expect(isListableGap("Page1.SecA_Patient.WeightKG", withWeight)).toBe(true);
+        // ...and still not the age units, which nothing anchors.
+        expect(isListableGap("Page1.SecA_Patient.AgeYears", withWeight)).toBe(false);
+      });
+
+      it("lists PA-1's return date only when the product WAS returned", () => {
+        expect(isListableGap("Page3.TestDataTable.ReturnDate", answered("Page3.TestDataTable.EvalRetd", "false"))).toBe(
+          false,
+        );
+        expect(isListableGap("Page3.TestDataTable.ReturnDate", answered("Page3.TestDataTable.EvalRetd", "true"))).toBe(
+          true,
+        );
+      });
+
+      it("lists DV-3's reprocessor only when it WAS a reprocessed device", () => {
+        expect(isListableGap("Page6.SecE_Device.ReprocInfo", answered("Page6.SecE_Device.ReuseYes", "false"))).toBe(
+          false,
+        );
+        expect(isListableGap("Page6.SecE_Device.ReprocInfo", answered("Page6.SecE_Device.ReuseYes", "true"))).toBe(true);
+      });
+
+      it("lists a named medication's therapy dates", () => {
+        const named = answered("Page6.SecF_Other.Table1.Row1.Prod1", "lisinopril");
+        expect(isListableGap("Page6.SecF_Other.Table1.Row1.Start1", named)).toBe(true);
+        expect(isListableGap("Page6.SecF_Other.Table1.Row1.End1", named)).toBe(true);
+      });
+
+      it("lists a stated dose's unit and a stated strength's unit", () => {
+        expect(isListableGap("Page4.Prod1.Prod1DoseUnit", answered("Page4.Prod1.Prod1Dose", "1 tablet"))).toBe(true);
+        expect(isListableGap("Page4.Prod1.Prod1StrengthUnit", answered("Page4.Prod1.Prod1Strength", "875"))).toBe(true);
+      });
+
+      it("never lists an anchorless companion — it fills from the words or not at all", () => {
+        for (const id of [
+          "Page4.Prod1.Prod1TherapyDuration",
+          "Page5.Prod2.Prod2TherapyDuration",
+          "Page7.SecG_Reporter.Country",
+        ]) {
+          expect(anchorOf(id), id).toBeUndefined();
+          const anythingAnswered = answered("Page4.Prod1.Prod1TherapyStartDate", "1 Jan");
+          expect(isListableGap(id, anythingAnswered), id).toBe(false);
+        }
+      });
+
+      it("closes a unit question's alternatives once any of them is answered", () => {
+        const aged = answered("Page1.SecA_Patient.AgeValue", "61");
+        // Nothing derived yet: which unit it is remains a live question.
+        expect(isListableGap("Page1.SecA_Patient.AgeYears", aged)).toBe(true);
+        expect(isListableGap("Page1.SecA_Patient.AgeMonths", aged)).toBe(true);
+        // Rule 3's bare-age default lands (a bare age is years), and the
+        // other three stop being gaps — the question is settled.
+        const derived = { ...aged, "Page1.SecA_Patient.AgeYears": { state: "answered" as const, value: "true" } };
+        for (const unit of [
+          "Page1.SecA_Patient.AgeMonths",
+          "Page1.SecA_Patient.AgeWeeks",
+          "Page1.SecA_Patient.AgeDays",
+        ]) {
+          expect(isListableGap(unit, derived), unit).toBe(false);
+        }
+      });
+
+      it("does not treat a medication's start and stop dates as alternatives", () => {
+        // Two facts, not one question: answering the start leaves the
+        // stop open, unlike a unit group.
+        const named = answered("Page6.SecF_Other.Table1.Row1.Prod1", "lisinopril");
+        const started = {
+          ...named,
+          "Page6.SecF_Other.Table1.Row1.Start1": { state: "answered" as const, value: "Jan" },
+        };
+        expect(isListableGap("Page6.SecF_Other.Table1.Row1.End1", started)).toBe(true);
+      });
+
+      it("does not list a companion whose anchor is unknown or declined", () => {
+        for (const action of ["mark_unknown", "decline"] as const) {
+          const dismissed = { ...record, "Page1.SecA_Patient.WeightValue": { state: action === "mark_unknown" ? ("unknown" as const) : ("declined" as const) } };
+          expect(isListableGap("Page1.SecA_Patient.WeightLB", dismissed), action).toBe(false);
+        }
+      });
+
+      it("names an anchor for every companion that any ask voices out loud", () => {
+        // The four the blanket exclusion hid, pinned by name so a future
+        // disposition change cannot quietly drop one back out.
+        for (const [companion, anchor] of [
+          ["Page3.TestDataTable.ReturnDate", "Page3.TestDataTable.EvalRetd"],
+          ["Page6.SecE_Device.ReprocInfo", "Page6.SecE_Device.ReuseYes"],
+          ["Page6.SecF_Other.Table1.Row1.Start1", "Page6.SecF_Other.Table1.Row1.Prod1"],
+          ["Page1.SecA_Patient.WeightLB", "Page1.SecA_Patient.WeightValue"],
+        ] as const) {
+          expect(anchorOf(companion), companion).toBe(anchor);
+        }
+      });
     });
 
     it("keeps every ask field of an applicable ask listable", () => {

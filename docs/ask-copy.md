@@ -49,16 +49,61 @@ design conversation first.
    - Unit checkboxes from a stated unit: `AgeYears/Months/Weeks/Days`
      from the age phrasing; `WeightLB/KG` from the weight phrasing;
      `StrengthUnit`/`DoseUnit` enums from "500 mg".
-   - One-hot pairs from one answer: `SexM/SexF`; `OngoingYes/No`;
-     `ProYes/ProNo`; the Abated and Reappear trios.
    - "Other" companions: `FreqOther`/`RouteOther` only when the stated
      value matches no enum option.
+   - **One-hot groups are ASKED, not companions** (corrected 2026-08-27,
+     #101's doc-review): `SexM/SexF`, `OngoingYes/No`, `ProYes/ProNo`
+     and the Abated and Reappear trios fill together from one answer,
+     which is a *filling* mechanic, not a disposition. Every one of them
+     is voiced — PB-1 asks the sex, SP-4 asks whether therapy is
+     ongoing, SP-7 and SP-8 are nothing but their trios, RA-1 asks
+     whether you're a health professional — so each belongs to its ask's
+     field set: the walk waits on it, a dismiss chip reaches it, and it
+     appears as an open gap when unresolved. An earlier version of this
+     list called them companions "rather than being asked", which is
+     both false about the inventory and, since companions now need an
+     anchor to count as open (below), would have made a missing patient
+     sex appear on the open-fields dialog nowhere at all. A one-hot
+     group is a fact's ONLY representation, so it can never name an
+     anchor — which is exactly why it must not be a companion.
    - **Stated-only rule for units, with one recorded exception**: a unit
      is derived only from the clinician's words. Exception: a bare age
      defaults to years (unqualified clinical ages are years; infant ages
      are always qualified). A bare weight gets NO default — lb/kg is
      genuinely ambiguous — the value writes and the unit stays open,
-     visible at Review.
+     visible at Review. **When a companion counts as OPEN, amended
+     2026-08-27 (#101):** a derive companion is an open gap — listed in
+     the open-fields dialog, counted with the rest — **once the fact it
+     hangs off has been answered, and not before**. Each companion names
+     its anchor; a companion with no anchor (the stated-only reporter
+     country, a therapy duration nobody stated) fills from the
+     clinician's words or not at all and is never a gap. A checkbox
+     anchor must be answered *true*: a product not returned to the
+     manufacturer has no return date to give.
+     Anchor state, not disposition, is the discriminator, and the
+     difference is the whole point. A stated bare weight makes lb/kg a
+     live, answerable question — this rule's own worked example. An age
+     nobody gave makes its four unit checkboxes noise, and listing them
+     headed a 28-question session with "122 fields are still open",
+     first four rows those very checkboxes, on the surface immediately
+     before sign-off. Rule 5 already excludes write-target rows for a
+     related reason; this is the companion case, and it needs the
+     anchor test rather than a blanket exclusion because the asks voice
+     some companions out loud (PA-1's "and when?", DV-3's "who
+     reprocessed it?", CM-1's "with rough start and stop dates").
+     **Alternatives close together**: where companions are mutually
+     exclusive answers to one question — which unit is this? — answering
+     any of them settles the question, so its siblings stop being gaps.
+     A stated age derived as years leaves no open question about months,
+     weeks or days. Independent facts are not alternatives: a
+     concomitant medication's start and stop dates hang off the same
+     anchor and stay open separately.
+     The per-companion anchor table, the exclusive groups, and the
+     anchorless exceptions are carried with the dispositions in
+     `src/lib/ask-inventory.ts` and asserted field-by-field there; this
+     rule states the semantics they implement.
+     A companion left open is always visible on its anchor's Review row,
+     whether or not it is currently a listed gap.
    - A sex stated outside the form's M/F boxes checks neither box and
      leaves both unwritten; wilson does not force the form's vocabulary
      onto the clinician's words.
@@ -112,8 +157,27 @@ design conversation first.
    text fields as "Unknown" (`scripts/fill-3500.py`'s sentinel), which
    would state the opposite of what the clinician said on the
    FDA-bound form. Companions and further rows stay untouched.
-8. **Voice.** Second person, contractions, one question mark per ask,
-   no exclamation marks, mockup screen-04's register. Patterns:
+8. **Voice.** Second person, contractions, no exclamation marks,
+   mockup screen-04's register. **One TOPIC per ask, at most two
+   question marks** (amended 2026-08-27, #103; amended again the same
+   day after review). The original wording, "one question mark per ask",
+   was violated by six of this document's own authored asks: WH-1 and
+   SP-2 are imperatives and carry none, SP-4/DV-2/DV-3/RA-2 are
+   two-part and carry two. The first amendment said "one question per
+   ask", which is no better — DV-3 and RA-2 plainly ask two. What the
+   rule actually protects is that an ask covers one topic a clinician
+   holds in mind at once, so its parts can be answered together.
+   **That half is an authoring judgment and no check can hold it** — an
+   ask satisfies it by declaring it ("Two housekeeping items —"), so it
+   is recorded here by example and enforced at authoring, not by CI.
+   Saying so plainly matters because the judgment has a consequence rule
+   2 does not: a dismiss chip covers the whole ask, so one tap on RA-2
+   resolves the identity-withholding choice along with the
+   also-reported-to boxes and labels it "you didn't have it". The
+   mechanical half, which CI can hold: **no exclamation marks, and no
+   more than two question marks**, with the six asks above the recorded
+   set that depart from one. A seventh is a copy change someone has to
+   justify. Patterns:
    - Out-of-ask write: `Also noted — {name}: {value}.`
    - Unknown/declined tap: `Marked {name} as not on hand.` /
      `Marked {name} as declined.`
@@ -136,6 +200,23 @@ design conversation first.
    authored, not improvised: a bare weight gets "Was that pounds or
    kilograms?" (PB-2). Re-ask frames and clarifications are authored
    copy under rule 1 and sit outside the primary-ask count.
+   **Bulk-mapped asks are one fact, amended 2026-08-27 (#100):** an ask
+   whose entire field set carries ONE fact, filled from a single answer
+   — RC-1 (your contact details), DV-1 (the device's identifiers), SP-9
+   (the purchase) — counts as one fact for re-ask purposes and carries
+   its own authored line. Field COUNT is not the discriminator and must
+   not be used as one: SP-6 owns nine fields and correctly names two
+   facts, "product type" and "expiration date". The bound that follows
+   is that no re-ask names more than four facts. The reason is that
+   enumerating its fields is the recite-the-field-list failure this
+   whole contract exists to remove. The frames it would otherwise
+   produce read "Got it. Still need: your first name, your address,
+   your city, your state/province, your ZIP, your phone, and your
+   email." — authored strings every copy-equality check passes, and
+   still the thing Steve rejected. Their lines: RC-1 "And the rest of
+   your contact details?" · DV-1 "And the rest of the device details?"
+   · SP-9 "And the rest of the purchase details?" No other ask changes;
+   PB-1 still re-asks "And the sex?".
 
 ## Inventory
 

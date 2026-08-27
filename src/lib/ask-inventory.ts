@@ -37,6 +37,7 @@
 // where that ordering belongs. Recorded here, not silent — Steve's call.
 import type { AgendaRecord } from "./agenda";
 import { displayName } from "./display-names";
+import { fieldById } from "./form-3500-fields";
 import { isResolved } from "./field-state";
 
 // A fact an ask asks for that is carried by more than one field — a
@@ -409,6 +410,22 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
         q("Website"),
         q("PurchaseDate"),
       ],
+      // Rule 9's bulk-mapped clause: eight fields from one answer.
+      facts: [
+        {
+          name: "rest of the purchase details",
+          fieldIds: [
+            p("PlaceName"),
+            p("Address"),
+            q("City"),
+            q("State"),
+            zipCode,
+            q("Country"),
+            q("Website"),
+            q("PurchaseDate"),
+          ],
+        },
+      ],
       companionFieldIds: [],
     },
   ];
@@ -434,6 +451,24 @@ function device(): AuthoredAsk[] {
         d("ExpDate"),
         d("SerialNum"),
         d("UDInum"),
+      ],
+      // Rule 9's bulk-mapped clause: ten fields from one answer.
+      facts: [
+        {
+          name: "rest of the device details",
+          fieldIds: [
+            d("BrandName"),
+            d("CommName"),
+            d("Procode"),
+            d("ManuName"),
+            d("ModelNum"),
+            d("LotNum"),
+            d("CatNum"),
+            d("ExpDate"),
+            d("SerialNum"),
+            d("UDInum"),
+          ],
+        },
       ],
       companionFieldIds: [],
     },
@@ -503,6 +538,23 @@ function reporter(): AuthoredAsk[] {
         g("ZipCode"),
         g("PhoneNum"),
         g("Email"),
+      ],
+      // Rule 9's bulk-mapped clause: nine fields from one answer is ONE
+      // fact, so a partial answer re-asks as a line rather than a list.
+      facts: [
+        {
+          name: "rest of your contact details",
+          fieldIds: [
+            g("LastName"),
+            g("FirstName"),
+            g("Address"),
+            g("City"),
+            g("State"),
+            g("ZipCode"),
+            g("PhoneNum"),
+            g("Email"),
+          ],
+        },
       ],
       // Country is stated-only (ask-copy.md RC-1): it fills when the
       // clinician's address names one, and is never a question.
@@ -617,6 +669,88 @@ export function askApplies(ask: AuthoredAsk, record: AgendaRecord): boolean {
 //   so an empty row 4 is never a phantom gap in open-fields or the counts."
 export type FieldDisposition = "ask" | "derive" | "auto" | "write-target";
 
+// Which fact a derive companion hangs off (ask-copy.md rule 3, as amended
+// 2026-08-27 — see isListableGap below). Authored, one entry per
+// companion, because "is this an open gap?" is a different question from
+// "how does this field get filled?" and only the anchor can answer it: a
+// bare weight makes lb/kg a live, answerable gap, while an age nobody
+// gave makes its four unit checkboxes noise. A companion with NO anchor
+// listed fills only if the clinician's own words carry it (the stated-only
+// country, a therapy duration nobody stated) and is never a gap.
+const COMPANION_ANCHOR_LEAVES: Record<string, string> = {
+  StrengthUnit: "Strength",
+  DoseUnit: "Dose",
+  FreqOther: "Freq",
+  RouteOther: "Route",
+  TherapyDurUnit: "TherapyDuration",
+};
+
+function productAnchors(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [prefix, leafPrefix] of [
+    ["Page4.Prod1.", "Prod1"],
+    ["Page5.Prod2.", "Prod2"],
+  ] as const) {
+    for (const [companion, anchor] of Object.entries(COMPANION_ANCHOR_LEAVES)) {
+      out[`${prefix}${leafPrefix}${companion}`] = `${prefix}${leafPrefix}${anchor}`;
+    }
+  }
+  return out;
+}
+
+function concomitantAnchors(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let n = 1; n <= 10; n += 1) {
+    const row = `Page6.SecF_Other.Table1.Row${n}`;
+    const name = `${row}.Prod${n}`;
+    out[`${row}.Start${n}`] = name;
+    out[n <= 2 ? `${row}.End${n}` : `${row}.Cell4`] = name;
+  }
+  return out;
+}
+
+// Companions that are mutually exclusive answers to ONE question — which
+// unit is this? — rather than independent facts. Once any member is
+// answered the question is settled, so its siblings stop being gaps. A
+// concomitant medication's start and stop dates are deliberately NOT a
+// group: they are two facts, and answering one leaves the other open.
+const EXCLUSIVE_COMPANION_GROUPS: string[][] = [
+  [
+    "Page1.SecA_Patient.AgeYears",
+    "Page1.SecA_Patient.AgeMonths",
+    "Page1.SecA_Patient.AgeWeeks",
+    "Page1.SecA_Patient.AgeDays",
+  ],
+  ["Page1.SecA_Patient.WeightLB", "Page1.SecA_Patient.WeightKG"],
+];
+
+const EXCLUSIVE_GROUP_OF = new Map<string, string[]>(
+  EXCLUSIVE_COMPANION_GROUPS.flatMap((group) => group.map((fieldId) => [fieldId, group] as const)),
+);
+
+const COMPANION_ANCHORS: Record<string, string> = {
+  // A stated age or weight makes its unit a real, answerable gap.
+  "Page1.SecA_Patient.AgeYears": "Page1.SecA_Patient.AgeValue",
+  "Page1.SecA_Patient.AgeMonths": "Page1.SecA_Patient.AgeValue",
+  "Page1.SecA_Patient.AgeWeeks": "Page1.SecA_Patient.AgeValue",
+  "Page1.SecA_Patient.AgeDays": "Page1.SecA_Patient.AgeValue",
+  "Page1.SecA_Patient.WeightLB": "Page1.SecA_Patient.WeightValue",
+  "Page1.SecA_Patient.WeightKG": "Page1.SecA_Patient.WeightValue",
+  // Voiced conditionals: PA-1 asks "returned to the manufacturer, and
+  // when?", DV-3 asks "and if so who reprocessed it?" — each is a real
+  // gap exactly when its condition holds.
+  "Page3.TestDataTable.ReturnDate": "Page3.TestDataTable.EvalRetd",
+  "Page6.SecE_Device.ReprocInfo": "Page6.SecE_Device.ReuseYes",
+  ...productAnchors(),
+  // CM-1/CM-2 voice "with rough start and stop dates": once a medication
+  // is named, its dates are answerable.
+  ...concomitantAnchors(),
+  // Deliberately absent, and therefore never gaps: the stated-only
+  // reporter country, and a therapy duration the contract says fills from
+  // stated words only ("never computed from the dates").
+};
+
+
 const AUTO_FIELD_IDS: ReadonlySet<string> = new Set(["Page1.SecA_Patient.ReportDate"]);
 const WRITE_TARGET_FIELD_IDS: ReadonlySet<string> = new Set(LAB_WRITE_TARGET_FIELD_IDS);
 const ASK_BY_FIELD_ID = new Map<string, AuthoredAsk>(
@@ -634,14 +768,41 @@ export function dispositionOf(fieldId: string): FieldDisposition {
 // what the open-fields dialog lists and what the report's counts treat as
 // outstanding.
 //
-// Auto and write-target fields never are. Nor is an ask field whose ask
-// does not apply to this record: with no death recorded, OC-2 is not part
-// of the walk, so "date of death" is a phantom gap of exactly the kind
-// rule 5 rejects for an empty lab row — the record was never silent about
-// it, the question was simply never in play.
+// Auto and write-target fields never are (rules 4 and 5). An ask field is,
+// while its ask is in play: with no death recorded, OC-2 is not part of
+// the walk, so "date of death" is a phantom gap of exactly the kind rule
+// 5 rejects for an empty lab row — the record was never silent about it,
+// the question was never in play.
+//
+// A derive companion is a gap **once the fact it hangs off is answered**,
+// and not before (rule 3, amended 2026-08-27, #101). Disposition alone is
+// the wrong discriminator, and getting that wrong was the first fix's own
+// defect: excluding the whole derive bucket hid a bare weight's lb/kg —
+// the very case rule 3 is written around — alongside PA-1's "and when?"
+// and DV-3's "who reprocessed it?", both of which the asks voice out
+// loud. Anchor state separates them. An age nobody gave makes its four
+// unit checkboxes noise; a stated bare weight makes lb/kg a live,
+// answerable question. A checkbox anchor must be answered TRUE: a
+// product not returned to the manufacturer has no return date to give.
 export function isListableGap(fieldId: string, record: AgendaRecord): boolean {
   const disposition = dispositionOf(fieldId);
   if (disposition === "auto" || disposition === "write-target") return false;
-  if (disposition === "derive") return true;
-  return askApplies(ASK_BY_FIELD_ID.get(fieldId)!, record);
+  if (disposition === "ask") return askApplies(ASK_BY_FIELD_ID.get(fieldId)!, record);
+
+  const anchorId = COMPANION_ANCHORS[fieldId];
+  if (anchorId === undefined) return false;
+  const anchor = record[anchorId];
+  if (anchor?.state !== "answered") return false;
+  if (fieldById(anchorId)?.type === "checkbox" && anchor.value !== "true") return false;
+  // A settled unit question closes its alternatives: an age derived as
+  // years leaves no open question about months, weeks or days.
+  const group = EXCLUSIVE_GROUP_OF.get(fieldId);
+  return group === undefined || !group.some((sibling) => record[sibling]?.state === "answered");
+}
+
+// Exported for the disposition tests, which must be able to name every
+// companion and its anchor without reading them back out of the function
+// under test.
+export function anchorOf(fieldId: string): string | undefined {
+  return COMPANION_ANCHORS[fieldId];
 }

@@ -4,6 +4,7 @@
 // path)."
 import { describe, expect, it } from "vitest";
 import { displayName } from "./display-names";
+import { openFieldEntries } from "./open-fields";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
@@ -308,6 +309,32 @@ describe("reviewFieldRows", () => {
     const dose = rowsFor(dosed, "suspect-product-1").find((r) => r.fieldId === "Page4.Prod1.Prod1Dose");
     expect(dose?.text).toBe("1 tablet BID");
     expect(dose?.label).toBe("dose and frequency");
+  });
+
+  // Rule 3 as amended (#101): a companion is visible on its anchor's
+  // Review row either way, and becomes a LISTED gap once the anchor is
+  // answered. The bare weight is the case the rule was authored for, so
+  // both halves are asserted on it.
+  it("shows an open derive companion on Review, and lists it once its anchor is answered", () => {
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.WeightValue", { type: "answer" }, "80");
+    const rows = rowsFor(record, "patient-basics");
+    expect(rows.find((r) => r.fieldId === "Page1.SecA_Patient.WeightValue")?.text).toBe("80");
+    for (const unit of ["Page1.SecA_Patient.WeightLB", "Page1.SecA_Patient.WeightKG"]) {
+      expect(rows.map((r) => r.fieldId), unit).toContain(unit);
+      expect(openFieldEntries(record, ONE_EACH).map((e) => e.fieldId), unit).toContain(unit);
+    }
+  });
+
+  it("shows an unanchored companion on Review while listing it nowhere", () => {
+    // No age given, so the four age-unit checkboxes are noise in the
+    // dialog and still legible on the card.
+    const record = initAgenda();
+    const rows = rowsFor(record, "patient-basics").map((r) => r.fieldId);
+    const listed = openFieldEntries(record, ONE_EACH).map((e) => e.fieldId);
+    for (const unit of ["Page1.SecA_Patient.AgeYears", "Page1.SecA_Patient.AgeDays"]) {
+      expect(rows, unit).toContain(unit);
+      expect(listed, unit).not.toContain(unit);
+    }
   });
 
   it("keeps the anchor's own name where the composition folds in only that fact's unit", () => {
