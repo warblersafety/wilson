@@ -452,15 +452,34 @@ device · reprocessor · serviced by third party.
   across the repeat-instance pair. It is also the shape of the v1.1
   build rejected on 2026-08-26: the same sentence twice, with nothing to
   tell the clinician the second one is a new question.
-  The fix follows the suspect-product group's existing per-instance
-  pattern one section earlier ("the second suspect product", SP-1-2),
-  which is why that group never had the defect. The ordinal counts
-  MEDICATIONS, not turns: instance 2 is "the second medication" because
-  CM-1 asked for the first. Bare "medication" rather than "other
-  medication" — CM-1 established the topic, and the conversational
-  register rule 8 asks for does not repeat a qualifier the previous turn
-  just set. Display names keep "other medication {n}" (below): a Review
-  row has no preceding turn to lean on.
+  The fix follows the suspect-product group's per-instance pattern one
+  section earlier — SP-1 reads "the second suspect product" for
+  instance 2 — which is why that group's repeat never lands on
+  CONSECUTIVE turns. It is not why that group is clean: SP-2 through
+  SP-9 are byte-identical across instances, so a two-product walk
+  repeats seven asks nine turns apart, and only the distance hides it
+  (doc-review on #111; filed as #117). Do not read this amendment as
+  a statement that the suspect-product group is done.
+  **The ordinal counts MEDICATIONS, not turns**: instance 2 is "the
+  second medication" because row 1 holds the first. Bare "medication"
+  rather than "other medication", because the turn immediately before
+  instance 2 has always established the topic.
+  **That last clause is a premise, not an observation, and the walk does
+  not currently enforce it.** CM-1 is skipped whenever `Row1.Prod1` is
+  already resolved — which the opening narrative's read-back does — so
+  the turn actually carrying the topic is the group's repeat decision
+  ("Is there another medication to add?"), and #43 wiring narrative
+  repeat-count proposals through read-back would remove that turn too.
+  With both gone, "What's the second medication?" can land directly
+  after "Was there another suspect product?", where a clinician
+  reasonably reads it as the second suspect drug and the answer writes
+  to a concomitant row. So: **every CM-2-{n} must be reached either
+  immediately after this group's repeat-decision turn or after
+  CM-2-{n-1}, and instance n only when rows 1..n-1 are accounted for.**
+  A unit that breaks that adjacency (#43, #77's count revision) must
+  re-author this copy, not just preserve the ordinal.
+  Display names keep "other medication {n}" (below): a Review row has no
+  preceding turn to lean on.
   Additions after the count is decided remain #77's open design
   question; nothing here forecloses it.
 

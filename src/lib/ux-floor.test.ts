@@ -225,11 +225,19 @@ describe("every gate state, not just the reference path", () => {
   // class, authored by the contract rather than introduced by the build.
   // This test carried the departure as an exact `CM-2-3`..`CM-2-10` pin
   // while #111 was open. The amendment (2026-08-27) gives each instance
-  // its ordinal, so the pin is DELETED rather than widened, and the
-  // property this file was always trying to state holds with no
-  // exceptions at all: across every gate state and every repeat count,
-  // no walk repeats a turn.
-  it("repeats no turn in any walk shape — no departures", () => {
+  // its ordinal, so the pin is DELETED rather than widened.
+  //
+  // What holds now, stated exactly: across every gate state and every
+  // repeat count, no walk repeats a turn CONSECUTIVELY, with no
+  // departures. Not "no walk repeats a turn" — consecutiveDuplicateViolations()
+  // compares turns[i] to turns[i-1] and nothing else. The difference is
+  // load-bearing rather than pedantic: a two-suspect-product walk repeats
+  // seven asks NINE turns apart (SP-2..SP-8 are byte-identical across
+  // instances) and this check is silent on all of them. That is a real
+  // copy defect, filed as #117; naming the check honestly is what
+  // keeps it from being buried under a green test called
+  // "repeats no turn in any walk shape" (doc-review on #111).
+  it("repeats no turn CONSECUTIVELY in any walk shape — no departures", () => {
     const repeating: string[] = [];
     for (const [gate, seed] of GATE_STATE_SEEDS) {
       for (const [choice, choose] of REPEAT_COUNT_CHOICES) {
