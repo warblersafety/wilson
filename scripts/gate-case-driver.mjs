@@ -145,7 +145,10 @@ async function driveCase(id) {
   // Set cannot tell "both walks reached Review" from "the first one did"
   // (reviewer pass on #96).
   const surfacesByWalk = {};
-  let currentWalk = "(before the first walk)";
+  // Set to the walk in progress before anything is reached: Start is
+  // genuinely part of a walk (both of C6's pass through it), so
+  // attributing it to a pre-walk bucket credited it to neither.
+  let currentWalk = id;
   const reach = (name) => {
     surfaces.add(name);
     (surfacesByWalk[currentWalk] ??= new Set()).add(name);
@@ -187,7 +190,6 @@ async function driveCase(id) {
     // --- Surface 1: Start ---
     await page.goto(BASE);
     await page.waitForSelector("main");
-    reach("start");
     // ReportChrome wraps every surface including Start, so this matches
     // on the first load and evidences nothing on its own. Kept because
     // its ABSENCE would be real, and narrowed to the actual class rather
@@ -257,6 +259,10 @@ async function driveCase(id) {
 
   async function runWalk(gateCase, expected) {
     currentWalk = gateCase.id;
+    // Every walk starts here — the first on load, the second after Start
+    // over — so it is reached once per walk, not once per run.
+    await page.waitForSelector(".start-surface", { timeout: 20000 });
+    reach("start");
     // --- Surface 2: Read-back (only for a case that dictates one) ---
     if (gateCase.narrative) {
       await page.fill(".start-surface__composer", gateCase.narrative.text);
@@ -268,11 +274,6 @@ async function driveCase(id) {
       say(`\n[surface] read-back — panel:\n${panel.trim().slice(0, 900)}`);
       await page.click(".read-back__confirm");
       await page.waitForSelector(".ask-form, .repeat-decision", { timeout: 20000 });
-    } else {
-      // No narrative: the walk is entered by submitting nothing but the
-      // minimum the Start surface accepts. C5 is the case that proves
-      // Follow-ups is reachable without Read-back at all.
-      await page.waitForSelector(".start-surface");
     }
 
     reach("follow-ups");
