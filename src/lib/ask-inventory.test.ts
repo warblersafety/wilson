@@ -171,66 +171,43 @@ describe("the authored ask inventory", () => {
     const DEATH_DATE = "Page1.SecA_Patient.DeathDate";
     const LAB_ANCHOR = "Page3.TestDataTable.Row1.TestData1";
 
-    it("excludes exactly these fields and no others, on a fresh record", () => {
+    it("excludes every field that is not an ask field, on a fresh record", () => {
       const excluded = FORM_3500_FIELDS.map((f) => f.id).filter((id) => !isListableGap(id, record));
-      // Hand-written, not derived: rule 4's one auto field, rule 5's 31
-      // lab write-target rows, and the date of death, whose ask does not
-      // apply with no death recorded.
-      expect(excluded.sort()).toEqual(
-        [
-          REPORT_DATE,
-          DEATH_DATE,
-          "Page3.TestDataTable.Row1.TLowRange1",
-          "Page3.TestDataTable.Row1.THighRange1",
-          "Page3.TestDataTable.Row1.TDate1",
-          "Page3.TestDataTable.Row2.TestData2",
-          "Page3.TestDataTable.Row2.TLowRange2",
-          "Page3.TestDataTable.Row2.THighRange2",
-          "Page3.TestDataTable.Row2.TDate2",
-          "Page3.TestDataTable.Row3.TestData3",
-          "Page3.TestDataTable.Row3.TLowRange3",
-          "Page3.TestDataTable.Row3.THighRange3",
-          "Page3.TestDataTable.Row4.TestData4",
-          "Page3.TestDataTable.Row4.TLowRange4",
-          "Page3.TestDataTable.Row4.THighRange4",
-          "Page3.TestDataTable.Row5.TestData5",
-          "Page3.TestDataTable.Row5.TLowRange5",
-          "Page3.TestDataTable.Row5.THighRange5",
-          "Page3.TestDataTable.Row6.TestData6",
-          "Page3.TestDataTable.Row6.TLowRange6",
-          "Page3.TestDataTable.Row6.THighRange6",
-          "Page3.TestDataTable.Row7.TestData7",
-          "Page3.TestDataTable.Row7.TLowRange7",
-          "Page3.TestDataTable.Row8.TestData8",
-          "Page3.TestDataTable.Row8.TLowRange8",
-          "Page3.TestDataTable.Row8.THighRange8",
-          "Page3.TestDataTable.Row8.TDate8",
-          "Page3.TestDataTable.Row8.THighRange7",
-          "Page3.TestDataTable.Row8.TDate3",
-          "Page3.TestDataTable.Row8.TDate4",
-          "Page3.TestDataTable.Row8.TDate5",
-          "Page3.TestDataTable.Row8.TDate6",
-          "Page3.TestDataTable.Row8.TDate7",
-        ].sort(),
+      // Hand-written, not derived through the function: rule 4's one auto
+      // field, rule 5's 31 lab write-target rows, rule 3's derive
+      // companions (amended 2026-08-27, #101 — visible at Review, not
+      // listed here), and the date of death, whose ask does not apply
+      // with no death recorded.
+      const auto = [REPORT_DATE];
+      const conditional = [DEATH_DATE];
+      const writeTargets = FORM_3500_FIELDS.map((f) => f.id).filter(
+        (id) => dispositionOf(id) === "write-target",
       );
-      expect(excluded).toHaveLength(33);
+      const derives = FORM_3500_FIELDS.map((f) => f.id).filter((id) => dispositionOf(id) === "derive");
+      expect(writeTargets).toHaveLength(31);
+      expect(new Set(excluded)).toEqual(new Set([...auto, ...conditional, ...writeTargets, ...derives]));
     });
 
-    it("keeps LD-1's own anchor listable — openness attaches to it", () => {
-      expect(isListableGap(LAB_ANCHOR, record)).toBe(true);
-    });
-
-    it("keeps every derive companion listable — rule 3 leaves them open on purpose", () => {
+    // Spot-checks by name, so the set above can't drift into agreeing
+    // with a wrong disposition table.
+    it("excludes the age-unit checkboxes and the weight unit by name", () => {
       for (const fieldId of [
         "Page1.SecA_Patient.AgeYears",
+        "Page1.SecA_Patient.AgeMonths",
+        "Page1.SecA_Patient.AgeWeeks",
+        "Page1.SecA_Patient.AgeDays",
         "Page1.SecA_Patient.WeightLB",
         "Page1.SecA_Patient.WeightKG",
         "Page4.Prod1.Prod1StrengthUnit",
-        "Page4.Prod1.Prod1TherapyDuration",
         "Page7.SecG_Reporter.Country",
       ]) {
-        expect(isListableGap(fieldId, record), fieldId).toBe(true);
+        expect(isListableGap(fieldId, record), fieldId).toBe(false);
       }
+    });
+
+    it("keeps LD-1's own anchor and the weight itself listable", () => {
+      expect(isListableGap(LAB_ANCHOR, record)).toBe(true);
+      expect(isListableGap("Page1.SecA_Patient.WeightValue", record)).toBe(true);
     });
 
     it("keeps every ask field of an applicable ask listable", () => {

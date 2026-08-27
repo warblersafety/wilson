@@ -58,7 +58,16 @@ design conversation first.
      defaults to years (unqualified clinical ages are years; infant ages
      are always qualified). A bare weight gets NO default — lb/kg is
      genuinely ambiguous — the value writes and the unit stays open,
-     visible at Review.
+     visible at Review. **"Visible at Review" is exact, amended
+     2026-08-27 (#101):** a derive companion left open renders on its
+     anchor's Review row and is excluded from the open-fields dialog and
+     the written/unknown counts — the same exclusion rule 5 gives
+     write-target rows, for the same reason. Listing them headed a
+     28-question session with "122 fields are still open", whose first
+     four rows were the four age-unit checkboxes nobody was ever
+     offered: a number that reads as failure on the surface immediately
+     before sign-off, burying the fields the clinician actually skipped.
+     Design.md surface 5's "unasked" means an unasked ASK field.
    - A sex stated outside the form's M/F boxes checks neither box and
      leaves both unwritten; wilson does not force the form's vocabulary
      onto the clinician's words.
@@ -112,8 +121,14 @@ design conversation first.
    text fields as "Unknown" (`scripts/fill-3500.py`'s sentinel), which
    would state the opposite of what the clinician said on the
    FDA-bound form. Companions and further rows stay untouched.
-8. **Voice.** Second person, contractions, one question mark per ask,
-   no exclamation marks, mockup screen-04's register. Patterns:
+8. **Voice.** Second person, contractions, no exclamation marks,
+   mockup screen-04's register. **One question per ask — not one
+   question mark** (amended 2026-08-27, #103: the original wording said
+   "one question mark per ask", which six of this document's own
+   authored asks violate). An imperative ask carries none (WH-1, SP-2);
+   an explicitly two-part ask carries two (SP-4, DV-2, DV-3, RA-2). What
+   the rule forbids is stacking unrelated questions into one ask, which
+   none of those six does. Patterns:
    - Out-of-ask write: `Also noted — {name}: {value}.`
    - Unknown/declined tap: `Marked {name} as not on hand.` /
      `Marked {name} as declined.`
@@ -136,6 +151,19 @@ design conversation first.
    authored, not improvised: a bare weight gets "Was that pounds or
    kilograms?" (PB-2). Re-ask frames and clarifications are authored
    copy under rule 1 and sit outside the primary-ask count.
+   **Bulk-mapped asks are one fact, amended 2026-08-27 (#100):** an ask
+   this inventory maps onto a large field set from a single answer —
+   RC-1 (nine), DV-1 (ten), SP-9 (eight) — counts as ONE fact for
+   re-ask purposes and carries its own authored line, because
+   enumerating its fields is the recite-the-field-list failure this
+   whole contract exists to remove. The frames it would otherwise
+   produce read "Got it. Still need: your first name, your address,
+   your city, your state/province, your ZIP, your phone, and your
+   email." — authored strings every copy-equality check passes, and
+   still the thing Steve rejected. Their lines: RC-1 "And the rest of
+   your contact details?" · DV-1 "And the rest of the device details?"
+   · SP-9 "And the rest of the purchase details?" No other ask changes;
+   PB-1 still re-asks "And the sex?".
 
 ## Inventory
 

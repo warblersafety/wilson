@@ -409,6 +409,22 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
         q("Website"),
         q("PurchaseDate"),
       ],
+      // Rule 9's bulk-mapped clause: eight fields from one answer.
+      facts: [
+        {
+          name: "rest of the purchase details",
+          fieldIds: [
+            p("PlaceName"),
+            p("Address"),
+            q("City"),
+            q("State"),
+            zipCode,
+            q("Country"),
+            q("Website"),
+            q("PurchaseDate"),
+          ],
+        },
+      ],
       companionFieldIds: [],
     },
   ];
@@ -434,6 +450,24 @@ function device(): AuthoredAsk[] {
         d("ExpDate"),
         d("SerialNum"),
         d("UDInum"),
+      ],
+      // Rule 9's bulk-mapped clause: ten fields from one answer.
+      facts: [
+        {
+          name: "rest of the device details",
+          fieldIds: [
+            d("BrandName"),
+            d("CommName"),
+            d("Procode"),
+            d("ManuName"),
+            d("ModelNum"),
+            d("LotNum"),
+            d("CatNum"),
+            d("ExpDate"),
+            d("SerialNum"),
+            d("UDInum"),
+          ],
+        },
       ],
       companionFieldIds: [],
     },
@@ -503,6 +537,23 @@ function reporter(): AuthoredAsk[] {
         g("ZipCode"),
         g("PhoneNum"),
         g("Email"),
+      ],
+      // Rule 9's bulk-mapped clause: nine fields from one answer is ONE
+      // fact, so a partial answer re-asks as a line rather than a list.
+      facts: [
+        {
+          name: "rest of your contact details",
+          fieldIds: [
+            g("LastName"),
+            g("FirstName"),
+            g("Address"),
+            g("City"),
+            g("State"),
+            g("ZipCode"),
+            g("PhoneNum"),
+            g("Email"),
+          ],
+        },
       ],
       // Country is stated-only (ask-copy.md RC-1): it fills when the
       // clinician's address names one, and is never a question.
@@ -632,16 +683,21 @@ export function dispositionOf(fieldId: string): FieldDisposition {
 
 // Whether an unresolved field is a real gap a clinician could still fill —
 // what the open-fields dialog lists and what the report's counts treat as
-// outstanding.
+// outstanding. Only ask fields are, and only while their ask is in play.
 //
-// Auto and write-target fields never are. Nor is an ask field whose ask
-// does not apply to this record: with no death recorded, OC-2 is not part
-// of the walk, so "date of death" is a phantom gap of exactly the kind
-// rule 5 rejects for an empty lab row — the record was never silent about
-// it, the question was simply never in play.
+// Auto and write-target fields never are (rules 4 and 5). Nor is a derive
+// companion, as of rule 3's 2026-08-27 amendment (#101): it stays
+// "visible at Review" on its anchor's row, but listing it here headed a
+// 28-question session with "122 fields are still open" — its first four
+// rows the age-unit checkboxes nobody was ever offered — on the surface
+// immediately before sign-off, burying the fields the clinician actually
+// skipped under ones they were never asked about.
+//
+// Nor is an ask field whose ask does not apply to this record: with no
+// death recorded, OC-2 is not part of the walk, so "date of death" is a
+// phantom gap of exactly the kind rule 5 rejects for an empty lab row —
+// the record was never silent about it, the question was never in play.
 export function isListableGap(fieldId: string, record: AgendaRecord): boolean {
-  const disposition = dispositionOf(fieldId);
-  if (disposition === "auto" || disposition === "write-target") return false;
-  if (disposition === "derive") return true;
+  if (dispositionOf(fieldId) !== "ask") return false;
   return askApplies(ASK_BY_FIELD_ID.get(fieldId)!, record);
 }

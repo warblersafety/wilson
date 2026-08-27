@@ -105,7 +105,11 @@ describe("authored ask copy", () => {
     for (const ask of AUTHORED_ASKS) expect(ask.copy, ask.id).not.toContain("!");
   });
 
-  it("departs from rule 8's one-question-mark rule in exactly six places", () => {
+  // Rule 8 as amended 2026-08-27 (#103): one QUESTION per ask, not one
+  // question mark. An imperative ask carries none, an explicitly
+  // two-part ask carries two. This pins the six the amendment names, so
+  // a seventh appearing is a copy change someone has to justify.
+  it("carries a non-standard question-mark count in exactly the six asks rule 8 names", () => {
     const departures = AUTHORED_ASKS
       // Instance 2 and concomitant instances 2-10 reuse the same copy
       // pattern; counting them would just multiply the same departures.
@@ -126,6 +130,63 @@ describe("authored ask copy", () => {
 });
 
 describe("rule 9's re-ask frames", () => {
+  // AC for #100: no re-ask may recite a field list. Checked at every
+  // single-field-resolved state, which is where the most facts are still
+  // open and therefore where a frame is longest. Four, not three: SP-4
+  // names therapy start date, stop date, status, and dose-reduced-on —
+  // four distinct clinical facts, not a recited field list. The bound
+  // that carries the unit is the bulk-mapped one below.
+  it("never names more than four facts, for any ask at any partial state", () => {
+    const record = initAgenda();
+    for (const ask of AUTHORED_ASKS) {
+      for (const resolved of ask.askFieldIds) {
+        const partial = { ...record, [resolved]: { state: "answered" as const, value: "x" } };
+        const names = unresolvedFactNames(ask, partial);
+        if (names.length === 0) continue;
+        expect(names.length, `${ask.id} after resolving ${resolved}: ${names.join(" / ")}`).toBeLessThanOrEqual(4);
+      }
+    }
+  });
+
+  // The structural bound, on the three asks rule 9 names — not on a field
+  // count, which is the wrong discriminator: SP-6 owns nine fields and
+  // correctly names two facts ("product type" and "expiration date").
+  // These three map their whole field set onto ONE fact from one answer,
+  // so enumerating them reproduces the recite-the-field-list defect
+  // through copy every equality check passes.
+  it("resolves each bulk-mapped ask to exactly one fact, at every partial state", () => {
+    const record = initAgenda();
+    const bulkMapped = ["RC-1", "DV-1", "SP-9", "SP-9-2"];
+    for (const askId of bulkMapped) {
+      const ask = AUTHORED_ASKS.find((a) => a.id === askId)!;
+      expect(ask.askFieldIds.length, askId).toBeGreaterThanOrEqual(8);
+      for (const resolved of ask.askFieldIds) {
+        const partial = { ...record, [resolved]: { state: "answered" as const, value: "x" } };
+        expect(unresolvedFactNames(ask, partial), `${askId} after resolving ${resolved}`).toHaveLength(1);
+      }
+    }
+  });
+
+  it("re-asks each bulk-mapped ask as one authored line, never as its field list", () => {
+    const record = initAgenda();
+    for (const [askId, expected] of [
+      ["RC-1", "And the rest of your contact details?"],
+      ["DV-1", "And the rest of the device details?"],
+      ["SP-9", "And the rest of the purchase details?"],
+      ["SP-9-2", "And the rest of the purchase details?"],
+    ] as const) {
+      const ask = AUTHORED_ASKS.find((a) => a.id === askId)!;
+      const partial = { ...record, [ask.askFieldIds[0]]: { state: "answered" as const, value: "x" } };
+      expect(askCopy(ask, partial), askId).toBe(expected);
+    }
+  });
+
+  it("leaves every other ask's frames as authored — PB-1 still names its own facts", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const partial = { ...initAgenda(), [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" } };
+    expect(askCopy(pb1, partial)).toBe("Got it. Still need: age and sex.");
+  });
+
   it("names one still-open fact with the short frame", () => {
     expect(reAskFrame(["age"])).toBe("And the age?");
   });
