@@ -40,9 +40,28 @@ describe("applyAction", () => {
     expect(next[id]).toEqual({ state: "declined", value: undefined });
   });
 
-  it("reopens an answered field back to unasked and clears its value", () => {
+  // Issue #44's reopen semantics (design.md: "reopen never wipes"):
+  // superseded from an earlier version of this test that asserted the
+  // opposite (value cleared on reopen) — reopening is the review-stage
+  // re-ask path, and a clinician who reopens a topic but doesn't get
+  // around to re-answering one of its fields this turn must not lose the
+  // value they already gave. The value is only ever replaced by a new
+  // "answer" action, never blanked by reopen itself.
+  it("reopens an answered field back to unasked but RETAINS its prior value until a replacement is written", () => {
     const answered = applyAction(initAgenda(), id, { type: "answer" }, "42");
     const next = applyAction(answered, id, { type: "reopen" });
+    expect(next[id]).toEqual({ state: "unasked", value: "42" });
+  });
+
+  it("reopening then re-answering replaces the retained value, not appends to it", () => {
+    const answered = applyAction(initAgenda(), id, { type: "answer" }, "42");
+    const reopened = applyAction(answered, id, { type: "reopen" });
+    const reanswered = applyAction(reopened, id, { type: "answer" }, "45");
+    expect(reanswered[id]).toEqual({ state: "answered", value: "45" });
+  });
+
+  it("reopening a field with no prior value (never answered) stays valueless", () => {
+    const next = applyAction(initAgenda(), id, { type: "reopen" });
     expect(next[id]).toEqual({ state: "unasked", value: undefined });
   });
 

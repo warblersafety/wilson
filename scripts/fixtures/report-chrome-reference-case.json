@@ -1,0 +1,51 @@
+{
+  "Page1.SecA_Patient.PatientIdentifier": { "state": "answered", "value": "M.R. 4471-08" },
+  "Page1.SecA_Patient.AgeValue": { "state": "answered", "value": "42" },
+  "Page1.SecA_Patient.AgeYears": { "state": "answered", "value": "true" },
+  "Page1.SecA_Patient.SexF": { "state": "answered", "value": "true" },
+  "Page1.SecA_Patient.WeightValue": { "state": "answered", "value": "68" },
+  "Page1.SecA_Patient.WeightKG": { "state": "answered", "value": "true" },
+
+  "Page1.SecA_Patient.RepAdverse": { "state": "answered", "value": "true" },
+  "Page1.SecA_Patient.EventDate": { "state": "answered", "value": "2026-08-19" },
+  "Page1.SecA_Patient.ReportDate": { "state": "answered", "value": "2026-08-25" },
+  "Page2.SecB_Adverse.DescEvent": {
+    "state": "answered",
+    "value": "Diffuse urticarial rash with facial and periorbital angioedema approximately 7 days after starting amoxicillin. No airway compromise. Presented to ED, admitted overnight for observation, treated with IV diphenhydramine and methylprednisolone. Rash resolving at 48 hours."
+  },
+
+  "Page1.SecA_Patient.Hospital": { "state": "answered", "value": "true" },
+  "Page1.SecA_Patient.LifeThreaten": { "state": "declined" },
+  "Page1.SecA_Patient.OtherEvents": { "state": "unknown" },
+
+  "Page3.Sec6Data.OtherHistory": { "state": "unknown" },
+
+  "Page3.TestDataTable.Row7.PicYes": { "state": "answered", "value": "true" },
+  "Page3.TestDataTable.EvalYes": { "state": "answered", "value": "true" },
+
+  "Page4.Prod1.Prod1Name": { "state": "answered", "value": "Amoxicillin" },
+  "Page4.Prod1.Prod1Strength": { "state": "answered", "value": "875" },
+  "Page4.Prod1.Prod1StrengthUnit": { "state": "answered", "value": "MILLIGRAM(S) - MG" },
+  "Page4.Prod1.Prod1NDC_ID": { "state": "declined" },
+  "Page4.Prod1.Prod1ManuComp": { "state": "answered", "value": "Aurobindo Pharma" },
+  "Page4.Prod1.Prod1LotNum": { "state": "unknown" },
+  "Page4.Prod1.Prod1Dose": { "state": "answered", "value": "875" },
+  "Page4.Prod1.Prod1DoseUnit": { "state": "answered", "value": "MILLIGRAM(S) - MG" },
+  "Page4.Prod1.Prod1Freq": { "state": "answered", "value": "BID" },
+  "Page4.Prod1.Prod1Route": { "state": "answered", "value": "Oral" },
+  "Page4.Prod1.Prod1TherapyStartDate": { "state": "answered", "value": "2026-08-12" },
+  "Page4.Prod1.Prod1TherapyStopDate": { "state": "answered", "value": "2026-08-19" },
+  "Page4.Prod1.Prod1TherapyOngoingNo": { "state": "answered", "value": "true" },
+  "Page4.Prod1.Prod1Diagnosis": { "state": "answered", "value": "Sinusitis" },
+  "Page4.Prod1.Prod1AbatedYes": { "state": "answered", "value": "true" },
+
+  "Page6.SecF_Other.Table1.Row1.Prod1": { "state": "answered", "value": "None reported" },
+  "Page6.SecF_Other.Table1.Row1.Start1": { "state": "declined" },
+  "Page6.SecF_Other.Table1.Row1.End1": { "state": "declined" },
+
+  "Page7.SecG_Reporter.LastName": { "state": "answered", "value": "Okonkwo" },
+  "Page7.SecG_Reporter.FirstName": { "state": "answered", "value": "A." },
+  "Page7.SecG_Reporter.PhoneNum": { "state": "answered", "value": "415-555-0142" },
+  "Page7.SecG_Reporter.ProYes": { "state": "answered", "value": "true" },
+  "Page7.SecG_Reporter.Occupation": { "state": "answered", "value": "Physician" }
+}

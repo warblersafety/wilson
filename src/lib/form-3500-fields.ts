@@ -40,6 +40,39 @@ const COUNTRY_OPTIONS: string[] = [" ", "UNITED STATES", "AFGHANISTAN", "AKROTIR
 
 const OCCUPATION_OPTIONS: string[] = [" ", "Administrator/Supervisor", "Biomedical Engineer", "Dentist", "Non-Health Professional", "Nurse", "Nurse Practitioner", "Other Health Professional", "Pharmacist", "Physician", "Physician Assistant", "Risk Manager", "Third Party Servicer"];
 
+// The source PDF's own /Opt array pairs the display text "AS NECESSARY - AN"
+// (a Frequency value) with an unrelated Strength/Dose unit export code on
+// these four fields — never a legitimate answer for a Strength/Dose Unit
+// field, even though the manifest reproduces it faithfully in options[]
+// above (not corrected there — see the comment above Prod1StrengthUnit).
+// The single shared source for every consumer that must refuse it:
+// scripts/fill-3500.py's own DISALLOWED_ENUM_VALUES (the canonical,
+// PDF-export-enforced definition) and legalEnumOptions() below, which is
+// in turn the one place src/lib/extraction-validator.ts,
+// src/prompts/narrative-extractor.ts, and src/lib/ask.ts (Issue #44) all
+// get an enum field's actually-offerable options from — one TS
+// definition, not three (the widget dropdown that used to do this
+// filtering itself, src/app/wizard/TopicFields.tsx, was deleted in Issue
+// #44 — checkbox/enum fields are ordinary conversational asks now).
+export const DISALLOWED_ENUM_VALUES: Record<string, ReadonlySet<string>> = {
+  "Page4.Prod1.Prod1StrengthUnit": new Set(["AS NECESSARY - AN"]),
+  "Page4.Prod1.Prod1DoseUnit": new Set(["AS NECESSARY - AN"]),
+  "Page5.Prod2.Prod2StrengthUnit": new Set(["AS NECESSARY - AN"]),
+  "Page5.Prod2.Prod2DoseUnit": new Set(["AS NECESSARY - AN"]),
+};
+
+// An enum field's actually-legal options: its manifest options[] minus the
+// blank "unselected" placeholder (a literal " ", never a real choice) and
+// minus DISALLOWED_ENUM_VALUES (a real member of options[] the source PDF
+// itself mis-mapped — see the comment above). Returns [] for a non-enum
+// field rather than throwing — a caller sweeping every field uniformly
+// (e.g. a prompt-manifest renderer) shouldn't need to branch on type
+// first just to avoid a crash.
+export function legalEnumOptions(field: FormFieldSpec): string[] {
+  const disallowed = DISALLOWED_ENUM_VALUES[field.id];
+  return (field.options ?? []).filter((option) => option.trim().length > 0 && !disallowed?.has(option));
+}
+
 
 // Prod1StrengthUnit/Prod1DoseUnit (and their Prod2 counterparts) carry a real
 // defect from the source PDF itself: the second /Opt entry pairs the display
@@ -1878,3 +1911,34 @@ export const FORM_3500_FIELDS: FormFieldSpec[] = [
     required: false,
   },
 ];
+
+// The manifest's id lookup, built once for the process (Issue #74, closes
+// #61). Four modules each kept their own module-level
+// `new Map(FORM_3500_FIELDS.map(...))` — identical, and four chances for
+// one of them to drift if the manifest ever gains a second index.
+//
+// Deliberately NOT applied to the other lookup pattern in this codebase:
+// topics.ts, review.ts, open-fields.ts and ready.ts build a map per call
+// from an injectable `fields: FormFieldSpec[] = FORM_3500_FIELDS`
+// parameter. Collapsing those onto this constant would pin them to the
+// real 227-field manifest and make a whole class of test unwritable —
+// duplication across an injection boundary is the point there, not an
+// oversight.
+//
+// Precisely (reviewer pass, PR #83, finding 3): topics.test.ts exercises
+// that injection heavily today, including an empty-fields edge case;
+// review.test.ts, open-fields.test.ts and ready.test.ts currently call
+// through with defaults only. So for those three the parameter is an
+// available seam rather than one their current tests depend on — still
+// worth keeping, since it is what makes a synthetic-manifest test
+// possible at all, but not a claim that removing it would break the suite
+// today.
+//
+// A function rather than an exported Map: a shared mutable Map is one
+// stray `.set()` away from a manifest that disagrees with FORM_3500_FIELDS
+// for the rest of the process.
+const FIELDS_BY_ID = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
+
+export function fieldById(fieldId: string): FormFieldSpec | undefined {
+  return FIELDS_BY_ID.get(fieldId);
+}

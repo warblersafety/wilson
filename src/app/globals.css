@@ -1,125 +1,1594 @@
+@import "./brand-tokens.css";
+
+/*
+ * Everything Warbler's system does not contain, wilson has to name for
+ * itself — same split lucy uses: brand-tokens.css stays a verbatim
+ * transcription, local decisions live here (#40 AC-3, AC-4).
+ */
+:root {
+  /* brand-tokens.css declares --font-body/--font-display as bare family
+     names, which resolve to nothing until bound to the faces next/font
+     hosts from this app's own origin (see layout.tsx). */
+  --font-body: var(--font-hanken), system-ui, sans-serif;
+  --font-display: var(--font-schibsted), system-ui, sans-serif;
+
+  /*
+   * The upstream palette has no error/alert/danger color — a marketing
+   * site never needed one. Reused rather than reinvented: lucy already
+   * derived one against this same base palette (navy text on white,
+   * cream/slate surfaces) by holding saturation and lightness from its
+   * predecessor and rotating hue toward navy — 9.01:1 on white, 8.15:1 on
+   * its own background — and that derivation has nothing lucy-specific in
+   * it, so a second, independently-invented red would just be arbitrary.
+   */
+  --danger: #8c1d2f;
+  --danger-bg: #fcf1f3;
+
+  /* Shared so .report-chrome/.report-rail/.report-facsimile's viewport-
+     height calcs below can't silently desync from the header they're
+     subtracting (reviewer pass, finding 2; retargeted from the deleted
+     .wizard-layout by PR #75's own reviewer pass, finding F13). */
+  --shell-header-height: 56px;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  background: var(--surface-page);
+  color: var(--text-body);
+  /* Fallback covers --font-body itself being out of scope (not just the
+     face inside it) — e.g. a page that doesn't load this stylesheet's
+     :root block at all (reviewer pass, finding 1). */
+  font-family: var(--font-body, system-ui, sans-serif);
 }
 
-.wizard-layout {
+/* Each level's own tracking, not one borrowed value — h3's -0.01em is not
+   h1's or h2's, and only reads as "the heading rule" if you don't check
+   (reviewer pass, finding 3: two live <h2>s were already rendering at
+   h3's tracking). */
+h1 {
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h1-track);
+}
+
+h2 {
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h2-track);
+}
+
+h3 {
+  font-family: var(--font-display, system-ui, sans-serif);
+  letter-spacing: var(--type-h3-track);
+}
+
+/* --- app shell ------------------------------------------------------------ */
+
+.shell__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
-  min-height: 100vh;
+  align-items: center;
+  gap: 13px;
+  height: var(--shell-header-height);
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--header-scrim);
+  backdrop-filter: var(--blur-header);
 }
 
-.sidebar {
-  width: 260px;
-  flex-shrink: 0;
-  padding: 1rem;
-  border-right: 1px solid #ddd;
+.shell__brand {
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.shell__brand-accent {
+  color: var(--text-eyebrow);
+}
+
+.shell__divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border-hairline);
+  flex: none;
+}
+
+.shell__product {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-display, system-ui, sans-serif);
+  /* 700, not brand-tokens.css's --type-product-weight (800): that token is
+     the marketing site's larger product-name treatment, a different
+     context from this 14px header wordmark — 700 matches the mockup's own
+     literal value for this exact element (reviewer pass, altitude angle). */
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-body);
+  white-space: nowrap;
+}
+
+.shell__product-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-wilson);
+  flex: none;
+}
+
+.shell__tagline {
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+/* --- wizard (v1, pre-#40; un-touched beyond fitting under the header) ---- */
+
+.wizard {
+  padding: 1.5rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* --- report chrome (Issue #67) -------------------------------------------
+   design.md "The report chrome": the persistent frame — left topic rail,
+   center surface content, right Form 3500 facsimile — every mockup screen
+   (01-07) shares. Mounted by each surface itself (StartSurface, ReadBack,
+   Wizard) around its own existing content; see ReportChrome.tsx. Narrow-
+   width collapse to a single column is this unit's own minimal design (the
+   mockups show desktop width only — #67's named deviation). */
+
+.report-chrome {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 320px;
+  min-height: calc(100vh - var(--shell-header-height));
+}
+
+.report-chrome__content {
+  /* No padding of its own — StartSurface/ReadBack/Wizard already carry
+     their own (start-surface/read-back/wizard classes below), unchanged
+     by this unit; doubling it here would pad every surface twice. */
+  min-width: 0;
   overflow-y: auto;
 }
 
-.sidebar__section {
-  margin-bottom: 1rem;
+@media (max-width: 960px) {
+  .report-chrome {
+    grid-template-columns: 1fr;
+  }
+
+  .report-rail,
+  .report-facsimile {
+    max-height: none;
+  }
 }
 
-.sidebar__section-title {
-  font-size: 0.85rem;
+/* --- report rail (left column) --- */
+
+.report-rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-hairline);
+  background: var(--surface-chrome);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--shell-header-height));
+  position: sticky;
+  top: var(--shell-header-height);
+}
+
+.report-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-8) var(--space-7) var(--space-6);
+}
+
+.report-banner__form {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+  color: var(--text-body);
+}
+
+.report-banner__status {
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
   text-transform: uppercase;
-  color: #666;
-  margin: 0 0 0.25rem;
+  letter-spacing: var(--type-eyebrow-track);
 }
 
-.sidebar ul {
+.report-banner__patient {
+  flex-basis: 100%;
+  display: inline-block;
+  width: fit-content;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-panel);
+  font-size: var(--type-fine-size);
+  color: var(--text-prose);
+}
+
+.report-rail__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.report-rail__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--type-ui-size);
+  color: var(--text-subtle);
+}
+
+.report-rail__row-section {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-circle);
+  background: var(--surface-well);
+  color: var(--text-muted);
+  font-size: var(--type-panel-micro-size);
+  font-weight: var(--weight-semibold);
+}
+
+.report-rail__row-label {
+  flex: 1;
+}
+
+.report-rail__row-mark {
+  flex: none;
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-muted);
+}
+
+.report-rail__row--untouched {
+  color: var(--text-subtle);
+}
+
+.report-rail__row--done {
+  color: var(--text-body);
+}
+
+.report-rail__row--done .report-rail__row-section {
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row--done .report-rail__row-mark {
+  color: var(--accent-wilson);
+  font-weight: var(--weight-bold);
+}
+
+.report-rail__row--current {
+  background: var(--surface-dark);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row--current .report-rail__row-section {
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.report-rail__row-mark--current {
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+  font-weight: var(--weight-semibold);
+  color: var(--text-on-dark-muted);
+}
+
+.report-rail__row--unknown .report-rail__row-section {
+  background: var(--accent);
+  color: var(--text-body);
+}
+
+.report-rail__row-mark--unknown {
+  color: var(--gold-700);
+  font-weight: var(--weight-semibold);
+}
+
+.report-footer {
+  padding: var(--space-6) var(--space-7) var(--space-8);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.report-footer__headline {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  color: var(--text-body);
+}
+
+.report-footer__note {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+/* --- report facsimile (right column) --- */
+
+.report-facsimile {
+  border-left: 1px solid var(--border-hairline);
+  background: var(--surface-panel);
+  padding: var(--space-7);
+  overflow-y: auto;
+  max-height: calc(100vh - var(--shell-header-height));
+  position: sticky;
+  top: var(--shell-header-height);
+}
+
+.report-facsimile__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.report-facsimile__title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+}
+
+.report-facsimile__status {
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+}
+
+.report-facsimile__preview-label {
+  margin-left: auto;
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-muted);
+}
+
+.report-facsimile__paper {
+  background: var(--surface-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-paper);
+  padding: var(--space-7);
+  font-family: var(--font-form);
+}
+
+.report-facsimile__masthead {
+  margin: 0 0 var(--space-6);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-ui-size);
+  color: var(--text-muted);
+}
+
+.report-facsimile__empty {
+  margin: var(--space-11) 0;
+  padding: 0 var(--space-6);
+  text-align: center;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+.report-facsimile__section {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--border-field);
+}
+
+.report-facsimile__section:first-of-type {
+  border-top: none;
+}
+
+.report-facsimile__section-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--type-panel-title-size);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--type-kicker-track);
+}
+
+.report-facsimile__checkbox-group {
+  margin-bottom: var(--space-4);
+}
+
+.report-facsimile__checkbox-group-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+}
+
+.report-facsimile__checkbox-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+}
+
+.report-facsimile__checkbox-option {
+  font-size: var(--type-fine-size);
+  color: var(--text-subtle);
+}
+
+.report-facsimile__checkbox-option--checked {
+  color: var(--accent-wilson);
+  font-weight: var(--weight-semibold);
+}
+
+.report-facsimile__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-4);
+}
+
+.report-facsimile__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.report-facsimile__field-label {
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: var(--type-kicker-track);
+}
+
+.report-facsimile__field-value {
+  font-size: var(--type-fine-size);
+  color: var(--ink-form);
+}
+
+.report-facsimile__field-value--muted {
+  color: var(--gold-700);
+  font-style: italic;
+}
+
+.report-facsimile__text-block {
+  margin: var(--space-3) 0 0;
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+  color: var(--ink-form);
+}
+
+/* Its own modifier, not a reuse of .report-facsimile__field-value--muted:
+   that class and .report-facsimile__text-block both set `color` at equal
+   (0,1,0) specificity, so whichever rule is declared later in the
+   stylesheet silently wins regardless of which classes an element
+   carries (reviewer pass, PR #75, finding F3 — DescEvent marked unknown/
+   declined was rendering in the same ink as real dictated prose). */
+.report-facsimile__text-block--muted {
+  color: var(--gold-700);
+  font-style: italic;
+}
+
+.report-facsimile__disclosure {
+  margin: var(--space-5) 0 0;
+  color: var(--text-subtle);
+  font-size: var(--type-panel-micro-size);
+  line-height: var(--type-fine-line);
+}
+
+/* --- chip (Issue #44) -------------------------------------------------- */
+
+.chip {
+  background: var(--surface-card);
+  color: var(--text-body);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-body);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  border-color: var(--accent-wilson);
+}
+
+/* --- transcript (Issue #44) --------------------------------------------- */
+/* Screen 04's chat-thread treatment: tight bubbles (lucy's own
+   --type-bubble-size/line, never used in wilson's v1 wizard until this
+   unit), a topic-progress line above the thread, and the CURRENT ask
+   rendered separately (see .ask-form__reply/.repeat-decision__reply
+   below) as the one prominent, accent-filled bubble — wilson's teal
+   (--accent-wilson) where the mockup's own screenshot shows lucy's
+   yellow, per design.md's Design system section ("wilson takes its
+   designated accent... where lucy takes the yellow"). */
+
+.transcript-panel {
+  margin: 0 0 var(--space-7);
+}
+
+.transcript-panel__progress {
+  margin: 0 0 var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--type-eyebrow-track);
+}
+
+.transcript {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 280px;
+  overflow-y: auto;
 }
 
-.sidebar__topic {
-  font-size: 0.9rem;
-  padding: 0.15rem 0;
+.transcript__turn p {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--type-bubble-size);
+  line-height: var(--type-bubble-line);
+  max-width: 80%;
 }
 
-.sidebar__topic--done {
-  color: #2a7a2a;
+.transcript__turn--clinician p {
+  margin-left: auto;
+  background: var(--surface-neutral);
+  color: var(--text-body);
 }
 
-.sidebar__topic--current {
-  font-weight: 700;
+.transcript__turn--talker p {
+  background: var(--surface-well);
+  color: var(--text-prose);
 }
 
-.sidebar__topic--upcoming {
-  color: #999;
+.transcript__turn--widget p {
+  font-style: italic;
+  color: var(--text-muted);
+  background: var(--surface-panel);
 }
 
-.wizard {
-  flex: 1;
-  padding: 1.5rem;
-  max-width: 640px;
-}
-
-.topic-fields {
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.topic-field {
-  display: block;
-  margin-bottom: 0.5rem;
-}
+/* --- ask-form (Issue #32/#44) -------------------------------------------- */
 
 .ask-form {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-5);
 }
 
+/* The current ask — the one prominent bubble above the composer (screen
+   04's own layout authority), distinct from the plain-text history above
+   it. */
 .ask-form__reply {
-  font-weight: 600;
+  margin: 0;
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-lg);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  max-width: 80%;
 }
 
-.ask-form__error {
-  color: #b00020;
+.ask-form__corrections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
 }
 
-.topic-fields__error {
-  color: #b00020;
-  margin: 0 0 0.5rem;
+.ask-form__hint {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
 }
 
-.topic-fields:disabled {
+.ask-form__composer {
+  width: 100%;
+  padding: var(--space-6);
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-field);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: vertical;
+}
+
+.ask-form__composer:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent-wilson);
+}
+
+.ask-form__composer:disabled {
   opacity: 0.6;
 }
 
-.pdf-review__frame {
+.ask-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ask-form__actions button[type="submit"] {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: var(--space-4) var(--space-8);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+}
+
+.ask-form__actions button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ask-form__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+/* --- repeat-decision (Issue #44) ---------------------------------------- */
+
+.repeat-decision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Same prominent-bubble treatment as .ask-form__reply — a repeat-decision
+   is also "the current ask", just answered by chips instead of the
+   composer. */
+.repeat-decision__reply {
+  margin: 0;
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-lg);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-copy-size);
+  max-width: 80%;
+}
+
+.repeat-decision__prompt {
+  margin: 0;
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: var(--type-ui-size);
+}
+
+.repeat-decision__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.repeat-decision__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+/* --- start surface (Issue #42) -------------------------------------------- */
+
+.start-surface {
+  max-width: var(--measure-copy);
+  margin: 0 auto;
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+}
+
+.start-surface__heading {
+  margin: 0 0 var(--space-8);
+}
+
+.start-surface__questions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-10);
+  color: var(--text-prose);
+  font-size: var(--type-lead-size);
+  line-height: var(--type-lead-line);
+}
+
+.start-surface__questions p {
+  margin: 0;
+}
+
+.start-surface__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.start-surface__composer {
+  width: 100%;
+  min-height: 220px;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-field);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: vertical;
+}
+
+.start-surface__composer:focus-visible,
+.read-back__edit-composer:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: var(--accent-wilson);
+}
+
+.start-surface__composer:disabled,
+.read-back__edit-composer:disabled {
+  opacity: 0.6;
+}
+
+.start-surface__hint {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--type-fine-size);
+}
+
+.start-surface__form button {
+  align-self: flex-start;
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.start-surface__form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.start-surface__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.start-surface__privacy {
+  margin: var(--space-11) 0 0;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--border-hairline);
+  color: var(--text-subtle);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+/* --- read-back (Issue #43) -------------------------------------------------- */
+
+.read-back {
+  max-width: var(--measure-page);
+  margin: 0 auto;
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.read-back__heading {
+  margin: 0;
+}
+
+.read-back__narrative {
+  margin: 0;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--text-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  white-space: pre-wrap;
+}
+
+.read-back__mark {
+  background: var(--accent-flash);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+
+.read-back__mark--multi {
+  background: var(--accent-ring);
+}
+
+.read-back__edit-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: var(--type-ui-size);
+  padding: 0;
+}
+
+.read-back__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.read-back__edit-composer {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--pad-form);
+  border: 1px solid var(--border-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-field);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  resize: vertical;
+}
+
+.read-back__edit-actions {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.read-back__edit-actions button {
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+}
+
+.read-back__edit-actions button[type="submit"] {
+  border: none;
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+}
+
+.read-back__edit-actions button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.read-back__edit-actions button[type="button"] {
+  border: 1px solid var(--border-panel);
+  background: var(--surface-page);
+  color: var(--text-body);
+}
+
+.read-back__panel {
+  padding: var(--pad-card);
+  border: 1px solid var(--border-panel);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+}
+
+.read-back__panel-heading {
+  margin: 0 0 var(--space-7);
+}
+
+.read-back__panel-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.read-back__panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.read-back__panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.read-back__panel-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.read-back__panel-label {
+  color: var(--text-muted);
+  font-size: var(--type-label-size);
+}
+
+.read-back__panel-value {
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+/* --- the value <- quote pairing (Issue #73, #60) -------------------------
+   design.md: a value paired with a quote "must present it as a reading of
+   the quote". The reading sits under its value, quieter than it — the
+   value is what wilson would write, the quote is the clinician's own words
+   it was read from, and the visual order says so. */
+
+.read-back__panel-reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  text-align: right;
+}
+
+.read-back__reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+  font-size: var(--type-meta-size);
+  line-height: var(--type-small-line);
+  color: var(--text-muted);
+  max-width: 34em;
+}
+
+/* Three states, and each has to be distinguishable from the other two —
+   "this appears twice so I can't point at which" and "I can't match this
+   at all" are different claims about how far to trust the reading, and
+   collapsing them would hide the second behind the first (AC). Grounded is
+   the quiet default: it is the normal case and needs no badge. */
+.read-back__reading--ambiguous .read-back__reading-framing,
+.read-back__reading--unlocatable .read-back__reading-framing {
+  color: var(--gold-700);
+  font-weight: var(--weight-semibold);
+}
+
+.read-back__reading--unlocatable .read-back__reading-framing {
+  color: var(--danger);
+}
+
+.read-back__reading-note {
+  font-size: var(--type-panel-micro-size);
+  font-style: italic;
+  color: var(--text-subtle);
+}
+
+.read-back__panel-count {
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+}
+
+/* Error blocks carry a retry now (Issue #73, closes #63), so they are a
+   block rather than a bare paragraph. */
+.read-back__error-message,
+.start-surface__error-message {
+  margin: 0 0 var(--space-4);
+}
+
+.read-back__error button,
+.start-surface__error button {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--danger);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.read-back__panel-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.read-back__panel-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--type-ui-size);
+}
+
+.read-back__hint {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.read-back__error {
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: var(--type-copy-size);
+}
+
+.read-back__confirm {
+  align-self: flex-start;
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.read-back__confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- dialog primitive (Issue #45) ----------------------------------------- */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  /* Screen 06's own scrim. --overlay-on-dark is the opposite thing (a
+     white wash for use ON a dark surface), and there is no scrim token in
+     the system — the navy is --navy-900, named rather than a raw hex. */
+  background: color-mix(in srgb, var(--navy-900) 44%, transparent);
+}
+
+.dialog {
+  width: min(540px, 100%);
+  max-height: calc(100vh - var(--space-12));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding: var(--pad-card);
+  border-radius: var(--radius-panel);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-panel);
+}
+
+.dialog:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-panel), var(--focus-ring);
+}
+
+.dialog__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--type-h3-weight);
+  font-size: var(--type-h3-size);
+  line-height: var(--type-h3-line);
+  letter-spacing: var(--type-h3-track);
+  color: var(--text-body);
+}
+
+.dialog__body {
+  margin: 0;
+  color: var(--text-prose);
+  font-size: var(--type-copy-size);
+  line-height: var(--type-copy-line);
+}
+
+.dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.dialog__primary {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.dialog__secondary {
+  min-height: var(--hit-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.dialog__secondary:hover {
+  color: var(--text-link-hover);
+}
+
+.dialog__danger {
+  color: var(--danger);
+}
+
+/* --- open fields dialog (Issue #45, screen 06) ---------------------------- */
+
+.open-fields__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.open-fields__entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.open-fields__entry:last-child {
+  border-bottom: none;
+}
+
+.open-fields__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-ui-size);
+  color: var(--text-body);
+}
+
+.open-fields__reason {
+  flex: none;
+  font-size: var(--type-meta-size);
+  color: var(--text-muted);
+}
+
+.open-fields__reason--unknown {
+  font-weight: var(--weight-semibold);
+  color: var(--gold-700);
+}
+
+.open-fields__answer {
+  flex: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-meta-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.open-fields__answer:hover {
+  color: var(--text-link-hover);
+}
+
+/* --- review surface (Issue #45, screen 05) -------------------------------- */
+
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  /* No max-height of its own, matching .wizard/.start-surface/.read-back:
+     .report-chrome__content already scrolls where the grid constrains it,
+     and capping this element instead clipped the card list outright — the
+     cards' own `overflow: hidden` (there for the rounded border) has no
+     scrollbar to fall back on, so ten of the twelve cards became
+     unreachable. Caught by this unit's manual browser pass. */
+}
+
+.review__heading {
+  margin: 0;
+  font-size: var(--type-h2-size);
+  line-height: var(--type-h2-line);
+  font-weight: var(--type-h2-weight);
+}
+
+.review__intro {
+  margin: 0;
+  max-width: var(--measure-copy);
+  color: var(--text-prose);
+  font-size: var(--type-copy-size);
+  line-height: var(--type-copy-line);
+}
+
+.review__cards {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  background: var(--surface-well);
+  overflow: hidden;
+}
+
+.review__card-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+  background: var(--surface-card);
+}
+
+.review__card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--type-eyebrow-weight);
+  font-size: var(--type-eyebrow-size);
+  letter-spacing: var(--type-eyebrow-track);
+  text-transform: var(--type-eyebrow-transform);
+  color: var(--text-eyebrow-neutral);
+}
+
+.review__card-section {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-panel-micro-size);
+  color: var(--text-subtle);
+}
+
+.review__edit {
+  flex: none;
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-meta-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.review__edit:hover {
+  color: var(--text-link-hover);
+}
+
+.review__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin: 0;
+}
+
+.review__field {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.review__field-label {
+  flex: none;
+  /* Wider than the mockup's 96px: screen 05's labels are hand-authored
+     short ones ("Lot number"), and this surface renders the manifest's own
+     ("Race and/or Ethnicity: Native Hawaiian or Pacific Islander") — the
+     enumerated flat-rendering deviation. */
+  width: 160px;
+  font-size: var(--type-meta-size);
+  color: var(--text-subtle);
+}
+
+.review__field-value {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--type-ui-size);
+  line-height: var(--type-ui-line);
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
+.review__field-value--muted {
+  font-weight: var(--weight-semibold);
+  color: var(--gold-700);
+}
+
+/* A reopened field's retained prior value — deliberately quieter than a
+   current answer: it is what the clinician said before, and the re-ask
+   for it is still outstanding. */
+.review__field-value--retained {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.review__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.review__sign-off {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent-wilson);
+  color: var(--text-on-dark);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.review__paper-toggle,
+.review__actions button:not(.review__sign-off) {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.review__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.review__pdf-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-copy-size);
+}
+
+.review__pdf-status p {
+  margin: 0;
+}
+
+.review__pdf-status--error {
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.review__paper-frame {
   width: 100%;
   height: 480px;
-  border: 1px solid #ddd;
-  margin-bottom: 1rem;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
 }
 
-.pdf-review__error {
-  color: #b00020;
+/* --- ready surface (Issue #45, screen 07) --------------------------------- */
+
+.ready {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--pad-section-y) var(--pad-gutter-x);
+  min-height: calc(100vh - var(--shell-header-height));
+  background: var(--surface-dark);
+  color: var(--text-on-dark);
 }
 
-.wizard__edit-error {
-  color: #b00020;
+/* Screen 07's confirmation mark. The mockup animates its ring twice on
+   entry; that is omitted — this unit adds no motion, and the repo has no
+   reduced-motion handling to hang one off yet. */
+.ready__mark {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  color: var(--text-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--type-h3-size);
+  font-weight: var(--weight-bold);
 }
 
-.pdf-review__topic {
-  border-top: 1px solid #ddd;
-  padding: 0.75rem 0;
+.ready__heading {
+  margin: 0;
+  max-width: var(--measure-title);
+  font-size: var(--type-h1-size);
+  line-height: var(--type-h1-line);
+  font-weight: var(--type-h1-weight);
+  color: var(--text-on-dark);
 }
 
-.pdf-review__field dt {
-  font-weight: 600;
-  font-size: 0.85rem;
+.ready__subhead {
+  margin: 0;
+  max-width: var(--measure-lead);
+  color: var(--text-on-dark-prose);
+  font-size: var(--type-lead-size);
+  line-height: var(--type-lead-line);
+  text-wrap: pretty;
 }
 
-.pdf-review__field dd {
-  margin: 0 0 0.5rem;
+.ready__summary {
+  margin: var(--space-4) 0 0;
+  max-width: 520px;
+  border: 1px solid var(--border-on-dark);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ready__summary-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--border-on-dark);
+}
+
+.ready__summary-row:last-child {
+  border-bottom: none;
+}
+
+.ready__summary-label {
+  flex: none;
+  width: 132px;
+  font-size: var(--type-eyebrow-size-dark);
+  font-weight: var(--type-eyebrow-weight-dark);
+  letter-spacing: var(--type-eyebrow-track);
+  text-transform: var(--type-eyebrow-transform);
+  color: var(--text-on-dark-muted);
+}
+
+.ready__summary-value {
+  margin: 0;
+  font-size: var(--type-ui-size);
+  color: var(--text-on-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.ready__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+  flex-wrap: wrap;
+}
+
+.ready__download {
+  min-height: var(--hit-min);
+  padding: var(--space-5) var(--space-9);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--text-body);
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-action-size);
+  cursor: pointer;
+  transition: var(--transition-button);
+}
+
+.ready__download:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ready__start-over {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.ready__start-over:hover {
+  color: var(--text-on-dark);
+}
+
+.ready__pdf-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+  color: var(--text-on-dark-dim);
+  font-size: var(--type-copy-size);
+}
+
+.ready__pdf-status p {
+  margin: 0;
+}
+
+.ready__pdf-status--error {
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-on-dark-strong);
+  color: var(--text-on-dark);
+}
+
+.ready__storage {
+  /* Pinned to the bottom of the panel, as screen 07 does — the privacy
+     line is the last thing on the surface, not a footnote to the buttons. */
+  margin: var(--space-6) 0 0;
+  margin-top: auto;
+  max-width: 520px;
+  padding-top: var(--space-7);
+  border-top: 1px solid var(--border-on-dark);
+  color: var(--text-on-dark-dim);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+/* --- intake hydration gap (Issue #72) ------------------------------------
+   Shown only while IntakeFlow reads storage to decide which surface to
+   resume. Deliberately unwrapped by the report chrome, matching
+   .wizard's own loading branch — nothing about the record is known yet,
+   so chrome here would assert something untrue for as long as it shows. */
+
+.intake-loading {
+  padding: var(--pad-section-y-tight) var(--pad-gutter-x);
+  color: var(--text-muted);
+  font-size: var(--type-copy-size);
 }

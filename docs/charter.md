@@ -17,10 +17,15 @@ as possible.
 
 A clinician, working alone, originates an adverse-event report from
 scratch — not derived from any prior patient submission. The interaction
-model leans conversational, following lucy's lead, but this is open to
-change once the design conversation gets into specifics; a clinician
-already knows the clinical facts in structured terms, unlike a patient
-telling a narrative, so the right shape may differ from lucy's.
+model was provisionally conversational, "open to change once the design
+conversation gets into specifics" — that conversation happened
+2026-08-25 and settled it: **dictation-first**. The clinician states the
+case in one dictated or typed narrative, wilson extracts what it can and
+reads it back for confirmation, then asks targeted follow-ups for only
+what's missing — rather than lucy's turn-by-turn walk, because a
+clinician already knows the clinical facts and the interface's job is
+receiving them fast, not eliciting them. Specifics live in
+`docs/design.md` ("Interaction model and UI").
 
 Environment: hosted on Vercel, like lucy. Anticipated load is light —
 individual clinicians, not sustained high-volume traffic.
@@ -81,7 +86,12 @@ check, e2e, or an explicit manual-check note), mechanically enforced in CI
 via typecheck/test/build jobs. Any model-touching eval suites get a free
 "dry" structural check (no API calls, runs every PR, validates corpus/
 vocabulary/wiring) with live sweeps as a separately-triggered job — same
-split lucy uses for its triage and conversation evals.
+split lucy uses for its triage and conversation evals. That mandate
+binds whatever model-touching components wilson actually ships — in v1
+that is the Extractor (whose split already exists:
+`scripts/eval-extraction.ts` dry checks per PR, live sweeps separately
+triggered) — and was never specific to the since-cut Suggestion layer
+(resolves Issue #31).
 
 ## End condition (v1, falsifiable)
 
@@ -93,3 +103,27 @@ correctness against a fixture corpus.
 
 The lucy handoff, multi-user workflow, and coding/classification
 suggestions are explicitly out of this end condition — see Non-goals.
+
+## End condition (v1.1 UI rebuild, falsifiable)
+
+The 2026-08-25 interaction-model decision needs its own bar: the v1
+condition above was already met by the wizard the rebuild replaces, so
+it cannot measure the rebuild. Done means a clinician can take the
+reference case (the amoxicillin narrative from the design mockups)
+end-to-end through the six surfaces of `docs/design.md`'s "Interaction
+model and UI": dictate or type the opening narrative; see a read-back
+whose panel pairs every proposal with its supporting quote, with
+nothing written to the record before confirmation (test-asserted);
+answer follow-ups conversationally, with chips only at the repeat
+decisions and the one-tap "I don't have that" / "rather not say"
+affordances on field asks; review field-led cards; see open fields
+with their reasons (a dialog over review); export the PDF — with v1's
+field-mapping tests still green. Proven by the narrative-extraction
+fixture corpus (including the real-quote/fabricated-value adversarial
+case) and a scripted end-to-end flow test over the reference case
+against a fake model, which proves the state transitions; surface
+shape (chip inventory, dialog-vs-page) is proven by the per-unit
+mockup side-by-sides the manual-check notes carry under design.md's
+fidelity rule. The rebuild is the six units filed 2026-08-25 plus the
+report-chrome unit the 2026-08-25 amendment added (#67); this
+condition is met when all are merged and that flow test passes.

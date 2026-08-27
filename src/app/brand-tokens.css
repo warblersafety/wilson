@@ -1,0 +1,250 @@
+/*
+ * Warbler Safety — design tokens
+ * ==============================
+ *
+ * TRANSCRIBED, NOT AUTHORED. Every value below was extracted verbatim from the
+ * live marketing site's source. Nothing here was invented, adjusted or
+ * reordered; where the site is odd, this file is odd in the same way.
+ *
+ *   Source      https://github.com/noahdelay-tech/Warblersafetyweb — index.html @ d2361681
+ *               (serves https://warblersafety.com via GitHub Pages)
+ *   Extracted   2026-08-12
+ *   Method      parsed the five sequential `:root` blocks in source order
+ *   Count       188 declarations (62 colour / 63 type / 34 space / 17 radius+fx / 12 motion)
+ *   Cross-check an independent read of the live DOM via getComputedStyle
+ *               returned the same 188. Two methods, same result.
+ *
+ * WHAT THIS FILE DOES NOT CONTAIN, and you will need:
+ *
+ *   - No error, alert, warning or danger colour. The palette has none — a
+ *     marketing site never needed one. Any product surfacing an emergency or a
+ *     validation failure must invent it, and should record that decision here.
+ *   - No dark mode. The site declares no `prefers-color-scheme` block.
+ *   - No logo. See ../identity/logo/ — there is no vector master yet.
+ *
+ * Fonts: `Hanken Grotesk` and `Schibsted Grotesk`, self-hosted by the site as
+ * base64 woff2. Licence terms are NOT recorded anywhere yet — confirm before
+ * bundling them into a product.
+ */
+
+/* ------------------------------------------------------------------
+   Colour
+   Primitives first, then the semantic layer that maps them to jobs.
+   ------------------------------------------------------------------ */
+:root {
+  --navy-900: #141B2E;
+  --navy-700: #3D4658;
+  --navy-500: #5C6678;
+  --navy-400: #6B7488;
+  --navy-300: #9AA2B1;
+  --navy-200: #AEB6C6;
+  --navy-100: #C6CCD8;
+  --navy-075: #C3C8D2;
+  --yellow-500: #F4B400;
+  --gold-600: #B07C00;
+  --gold-700: #8A6100;
+  --teal-600: #0F8A86;
+  --white: #ffffff;
+  --cream-100: #F7F6F2;
+  --cream-050: #FBFBF9;
+  --cream-200: #e7e5df;
+  --cream-line: #E9E7DF;
+  --cream-line-2: #EDEBE4;
+  --field-line: #E2E0D8;
+  --slate-050: #FBFCFD;
+  --slate-100: #F4F5F7;
+  --slate-150: #EEF1F5;
+  --slate-200: #DFE2E8;
+  --line-100: #F0F1F4;
+  --line-200: #E5E8EE;
+  --ink-form: #14235A;
+  --text-body: var(--navy-900);
+  --text-prose: var(--navy-700);
+  --text-muted: var(--navy-500);
+  --text-subtle: var(--navy-400);
+  --text-eyebrow: var(--gold-700);
+  --text-eyebrow-neutral: var(--navy-400);
+  --text-on-dark: var(--white);
+  --text-on-dark-prose: var(--navy-100);
+  --text-on-dark-muted: var(--navy-300);
+  --text-on-dark-dim: var(--navy-200);
+  --text-link: var(--navy-900);
+  --text-link-hover: var(--gold-600);
+  --surface-page: var(--white);
+  --surface-warm: var(--cream-100);
+  --surface-dark: var(--navy-900);
+  --surface-card: var(--white);
+  --surface-panel: var(--slate-050);
+  --surface-neutral: var(--slate-150);
+  --surface-field: var(--cream-050);
+  --surface-well: var(--slate-200);
+  --surface-chrome: var(--slate-100);
+  --border-hairline: var(--line-100);
+  --border-card: var(--cream-line);
+  --border-panel: var(--line-200);
+  --border-field: var(--field-line);
+  --border-on-dark: rgba(255,255,255,.12);
+  --border-on-dark-strong: rgba(255,255,255,.16);
+  --overlay-on-dark: rgba(255,255,255,.08);
+  --header-scrim: rgba(255,255,255,.94);
+  --accent: var(--yellow-500);
+  --accent-deep: var(--gold-600);
+  --accent-lucy: var(--yellow-500);
+  --accent-wilson: var(--teal-600);
+  --accent-magnolia: var(--navy-075);
+  --accent-flash: rgba(244,180,0,.16);
+  --accent-ring: rgba(244,180,0,.45);
+}
+
+/* ------------------------------------------------------------------
+   Typography
+   Two families plus a named scale. Sizes are fluid `clamp()` where they need to be.
+   ------------------------------------------------------------------ */
+:root {
+  --font-display: 'Schibsted Grotesk',system-ui,sans-serif;
+  --font-body: 'Hanken Grotesk',system-ui,sans-serif;
+  --font-form: 'Helvetica Neue',Helvetica,Arial,sans-serif;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+  --type-h1-size: clamp(34px,7.2vw,58px);
+  --type-h1-line: 1.03;
+  --type-h1-track: -.03em;
+  --type-h1-weight: 800;
+  --type-h2-size: clamp(25px,4.4vw,34px);
+  --type-h2-line: 1.18;
+  --type-h2-track: -.022em;
+  --type-h2-weight: 700;
+  --type-h2-lead-size: clamp(27px,5vw,40px);
+  --type-h2-lead-line: 1.14;
+  --type-h2-lead-track: -.028em;
+  --type-pullquote-size: clamp(19px,3vw,25px);
+  --type-pullquote-line: 1.42;
+  --type-pullquote-track: -.015em;
+  --type-pullquote-weight: 600;
+  --type-h3-size: 17px;
+  --type-h3-line: 1.3;
+  --type-h3-track: -.01em;
+  --type-h3-weight: 700;
+  --type-product-size: 27px;
+  --type-product-weight: 800;
+  --type-product-track: -.01em;
+  --type-wordmark-size: 19px;
+  --type-wordmark-weight: 700;
+  --type-wordmark-track: -.01em;
+  --type-eyebrow-size: 11.5px;
+  --type-eyebrow-weight: 600;
+  --type-eyebrow-track: .19em;
+  --type-eyebrow-transform: uppercase;
+  --type-eyebrow-size-dark: 11px;
+  --type-eyebrow-weight-dark: 700;
+  --type-kicker-track: .14em;
+  --type-lead-size: clamp(16px,2.4vw,18px);
+  --type-lead-line: 1.55;
+  --type-prose-size: 16.5px;
+  --type-prose-line: 1.62;
+  --type-body-size: 16px;
+  --type-body-line: 1.62;
+  --type-copy-size: 15.5px;
+  --type-copy-line: 1.55;
+  --type-small-size: 15px;
+  --type-small-line: 1.6;
+  --type-ui-size: 14px;
+  --type-ui-line: 1.4;
+  --type-action-size: 14.5px;
+  --type-meta-size: 13.5px;
+  --type-label-size: 13px;
+  --type-fine-size: 12.5px;
+  --type-fine-line: 1.65;
+  --type-bubble-size: 12.8px;
+  --type-bubble-line: 1.5;
+  --type-panel-title-size: 13.5px;
+  --type-panel-meta-size: 11.5px;
+  --type-panel-micro-size: 11px;
+  --type-panel-tag-size: 9.5px;
+}
+
+/* ------------------------------------------------------------------
+   Spacing and layout
+   A 12-step scale, fluid section padding, and reading-measure caps.
+   ------------------------------------------------------------------ */
+:root {
+  --space-1: 3px;
+  --space-2: 6px;
+  --space-3: 8px;
+  --space-4: 10px;
+  --space-5: 12px;
+  --space-6: 14px;
+  --space-7: 16px;
+  --space-8: 18px;
+  --space-9: 22px;
+  --space-10: 26px;
+  --space-11: 30px;
+  --space-12: 38px;
+  --pad-section-y: clamp(60px,8vw,88px);
+  --pad-section-y-tight: clamp(56px,8vw,86px);
+  --pad-gutter-x: clamp(20px,5vw,56px);
+  --pad-header-y: clamp(14px,3vw,22px);
+  --pad-card: clamp(20px,3vw,26px) clamp(20px,3vw,28px);
+  --pad-form: clamp(20px,3.5vw,30px);
+  --gap-grid: clamp(24px,4vw,40px);
+  --gap-grid-wide: clamp(24px,4vw,56px);
+  --gap-columns: clamp(32px,5vw,64px);
+  --gap-nav: clamp(14px,2.4vw,26px);
+  --gap-row: clamp(12px,3vw,32px);
+  --space-heading-after: clamp(32px,5vw,46px);
+  --space-block-after: clamp(36px,5vw,52px);
+  --measure-page: 1000px;
+  --measure-demo: 960px;
+  --measure-prose: 52em;
+  --measure-lead: 31em;
+  --measure-copy: 34em;
+  --measure-title: 15em;
+  --hit-min: 44px;
+  --scroll-offset: 74px;
+  --row-y: 30px;
+}
+
+/* ------------------------------------------------------------------
+   Radius, shadow and effects
+   ------------------------------------------------------------------ */
+:root {
+  --radius-sm: 8px;
+  --radius-md: 9px;
+  --radius-lg: 10px;
+  --radius-tabgroup: 11px;
+  --radius-toast: 13px;
+  --radius-card: 14px;
+  --radius-panel: 16px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+  --border-width: 1px;
+  --border-accent-width: 3px;
+  --border-tab-width: 2px;
+  --shadow-panel: 0 24px 60px -34px rgba(20,27,46,.45);
+  --shadow-paper: 0 18px 44px -22px rgba(20,27,46,.55);
+  --shadow-toast: 0 18px 40px -18px rgba(20,27,46,.7);
+  --focus-ring: 0 0 0 3px rgba(20,27,46,.08);
+  --blur-header: blur(8px);
+}
+
+/* ------------------------------------------------------------------
+   Motion
+   ------------------------------------------------------------------ */
+:root {
+  --dur-press: .12s;
+  --dur-hover: .15s;
+  --dur-row: .18s;
+  --dur-fade: .3s;
+  --dur-paper: 1.1s;
+  --ease-standard: ease;
+  --ease-paper: cubic-bezier(.4,0,.2,1);
+  --transition-button: transform var(--dur-press) var(--ease-standard),box-shadow var(--dur-press) var(--ease-standard);
+  --transition-link: color var(--dur-hover);
+  --transition-field: border-color var(--dur-hover),box-shadow var(--dur-hover);
+  --transition-row: background var(--dur-row) var(--ease-standard);
+  --lift-hover: translateY(-1px);
+}
+

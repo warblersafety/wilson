@@ -34,6 +34,19 @@ export function applyAction(
   }
   const entry = record[fieldId];
   const state = transition(entry.state, action);
-  const nextValue = action.type === "answer" ? value : undefined;
+  // "reopen" retains whatever value was already recorded (Issue #44,
+  // design.md's reopen semantics: "reopened fields retain their prior
+  // values until a replacement is written — reopen never wipes"). The
+  // review-stage re-ask path sends a field back to `unasked` so it flows
+  // through the normal ask/extract turn again, but a clinician who
+  // reopens a topic and doesn't immediately re-answer every one of its
+  // fields must still see what they said before, not a blanked field
+  // that reads as never-answered. Every other transition keeps clearing
+  // the value on non-"answer" actions: `mark_unknown`/`decline` have no
+  // value of their own to carry, and always overwriting on those two
+  // (rather than conditionally retaining like reopen does) keeps a
+  // stale prior value from resurfacing if a field is later reopened
+  // again after being marked unknown/declined in between.
+  const nextValue = action.type === "answer" ? value : action.type === "reopen" ? entry.value : undefined;
   return { ...record, [fieldId]: { state, value: nextValue } };
 }

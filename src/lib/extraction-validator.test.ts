@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { TalkTurn } from "./talk";
 import {
+  ALL_FIELD_TYPES,
   validateCandidates,
   validateRepeatCandidate,
   type ExtractionCandidate,
@@ -13,6 +14,21 @@ const DATE_FIELD = FORM_3500_FIELDS.find((f) => f.type === "date")!;
 const ENUM_FIELD = FORM_3500_FIELDS.find((f) => f.type === "enum")!;
 const CHECKBOX_FIELD = FORM_3500_FIELDS.find((f) => f.type === "checkbox")!;
 const FIELDS: FormFieldSpec[] = [TEXT_FIELD, DATE_FIELD, ENUM_FIELD, CHECKBOX_FIELD];
+
+describe("ALL_FIELD_TYPES", () => {
+  it("names exactly the four real field types — a runtime companion to the satisfies-based compile-time check", () => {
+    expect(new Set(ALL_FIELD_TYPES)).toEqual(new Set(["text", "date", "checkbox", "enum"]));
+  });
+});
+
+// One of the four fields scripts/fill-3500.py and form-3500-fields.ts both
+// document as carrying a real PDF /Opt defect — "AS NECESSARY - AN" is a
+// legal member of options[] but never a legitimate answer (Issue #41's
+// fixed-choice narrative-extraction fixtures below rely on the same fact).
+const DISALLOWED_ENUM_FIELD = FORM_3500_FIELDS.find(
+  (f) => f.id === "Page4.Prod1.Prod1StrengthUnit",
+)!;
+const FIELDS_WITH_DISALLOWED: FormFieldSpec[] = [...FIELDS, DISALLOWED_ENUM_FIELD];
 
 function transcriptWith(...clinicianTexts: string[]): TalkTurn[] {
   const turns: TalkTurn[] = [];
@@ -244,6 +260,216 @@ describe("validateCandidates", () => {
       { fieldId: TEXT_FIELD.id, type: "answer", value: "unrelated made-up answer" },
     ]);
   });
+
+  // Issue #41: the narrative-extraction pass sweeps fixed-choice fields too
+  // (design.md "Extraction scope" — v1's blanket not_extractable_field_type
+  // exclusion doesn't carry over to it), opted into per-call via
+  // allowedTypes rather than as a new default — every test above this point
+  // exercises the unchanged default ["text", "date"] and must keep passing
+  // unmodified.
+  describe("fixed-choice fields, opted in via allowedTypes", () => {
+    const ALL_TYPES = ALL_FIELD_TYPES;
+
+    it("accepts a grounded checkbox value of \"true\"", () => {
+      const transcript = transcriptWith("she was hospitalized overnight");
+      const candidate: ExtractionCandidate = {
+        fieldId: CHECKBOX_FIELD.id,
+        kind: "value",
+        value: "true",
+        quote: { turnIndex: 1, text: "hospitalized overnight" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS, ALL_TYPES);
+      expect(result.accepted).toEqual([{ fieldId: CHECKBOX_FIELD.id, type: "answer", value: "true" }]);
+      expect(result.rejected).toEqual([]);
+    });
+
+    it("accepts a grounded checkbox value of \"false\" — an explicit negative is as real a proposal as an affirmative", () => {
+      const transcript = transcriptWith("no airway compromise at any point");
+      const candidate: ExtractionCandidate = {
+        fieldId: CHECKBOX_FIELD.id,
+        kind: "value",
+        value: "false",
+        quote: { turnIndex: 1, text: "no airway compromise" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS, ALL_TYPES);
+      expect(result.accepted).toEqual([{ fieldId: CHECKBOX_FIELD.id, type: "answer", value: "false" }]);
+    });
+
+    it("rejects a checkbox value that isn't literally \"true\" or \"false\" — matches fill-3500.py's own contract", () => {
+      const transcript = transcriptWith("yes, that happened");
+      const candidate: ExtractionCandidate = {
+        fieldId: CHECKBOX_FIELD.id,
+        kind: "value",
+        value: "yes",
+        quote: { turnIndex: 1, text: "yes, that happened" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS, ALL_TYPES);
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected).toEqual([{ candidate, reason: "not_a_legal_option" }]);
+    });
+
+    it("accepts a grounded enum value that's a real option on the manifest", () => {
+      // A field found by explicit id, not ENUM_FIELD (whichever enum
+      // field happens to sort first) — several manifest enum fields share
+      // UNIT_OPTIONS, whose own index 1 is the disallowed value covered
+      // below, so picking "some enum field's option by position" is not a
+      // safe way to construct a plain-acceptance fixture.
+      const freqField = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1Freq")!;
+      const transcript = transcriptWith("taken twice a day");
+      const candidate: ExtractionCandidate = {
+        fieldId: freqField.id,
+        kind: "value",
+        value: "BID",
+        quote: { turnIndex: 1, text: "twice a day" },
+      };
+      const result = validateCandidates(transcript, [candidate], [...FIELDS, freqField], ALL_TYPES);
+      expect(result.accepted).toEqual([{ fieldId: freqField.id, type: "answer", value: "BID" }]);
+    });
+
+    it("rejects an enum value that isn't one of the field's legal options", () => {
+      const transcript = transcriptWith("taken twice a day");
+      const candidate: ExtractionCandidate = {
+        fieldId: ENUM_FIELD.id,
+        kind: "value",
+        value: "not a real option on this field",
+        quote: { turnIndex: 1, text: "twice a day" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS, ALL_TYPES);
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected).toEqual([{ candidate, reason: "not_a_legal_option" }]);
+    });
+
+    it("rejects the blank placeholder option — an \"answered\" entry must carry a non-blank value", () => {
+      const blank = DISALLOWED_ENUM_FIELD.options!.find((o) => o.trim().length === 0)!;
+      const transcript = transcriptWith("not sure of the unit");
+      const candidate: ExtractionCandidate = {
+        fieldId: DISALLOWED_ENUM_FIELD.id,
+        kind: "value",
+        value: blank,
+        quote: { turnIndex: 1, text: "not sure" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS_WITH_DISALLOWED, ALL_TYPES);
+      expect(result.rejected).toEqual([{ candidate, reason: "not_a_legal_option" }]);
+    });
+
+    it("rejects a disallowed enum value even though it's a real member of options[] — the documented PDF /Opt defect", () => {
+      const transcript = transcriptWith("dosed as necessary");
+      const candidate: ExtractionCandidate = {
+        fieldId: DISALLOWED_ENUM_FIELD.id,
+        kind: "value",
+        value: "AS NECESSARY - AN",
+        quote: { turnIndex: 1, text: "dosed as necessary" },
+      };
+      // Sanity check the fixture itself: if this ever stops being a real
+      // option, the rejection below would pass for the wrong reason.
+      expect(DISALLOWED_ENUM_FIELD.options).toContain("AS NECESSARY - AN");
+      const result = validateCandidates(transcript, [candidate], FIELDS_WITH_DISALLOWED, ALL_TYPES);
+      expect(result.rejected).toEqual([{ candidate, reason: "not_a_legal_option" }]);
+    });
+
+    it("still rejects a field type not named in the given allowedTypes, even when other fixed-choice types are opted in", () => {
+      const transcript = transcriptWith("twice a day");
+      const candidate: ExtractionCandidate = {
+        fieldId: ENUM_FIELD.id,
+        kind: "value",
+        value: ENUM_FIELD.options![1],
+        quote: { turnIndex: 1, text: "twice a day" },
+      };
+      // checkbox opted in, enum deliberately left out
+      const result = validateCandidates(transcript, [candidate], FIELDS, ["text", "date", "checkbox"]);
+      expect(result.rejected).toEqual([{ candidate, reason: "not_extractable_field_type" }]);
+    });
+
+    it("an unknown/declined candidate on a fixed-choice field needs no legal-option check — it carries no value", () => {
+      const transcript = transcriptWith("we don't have her exact route on file");
+      const candidate: ExtractionCandidate = {
+        fieldId: ENUM_FIELD.id,
+        kind: "unknown",
+        quote: { turnIndex: 1, text: "don't have her exact route" },
+      };
+      const result = validateCandidates(transcript, [candidate], FIELDS, ALL_TYPES);
+      expect(result.accepted).toEqual([{ fieldId: ENUM_FIELD.id, type: "mark_unknown" }]);
+    });
+  });
+});
+
+// Issue #44's citation-pool rule (design.md: "the citation pool is the
+// current turn only, enforced in the validator (a turn-index constraint),
+// never just the prompt... a proposal the narrative pass missed... could
+// re-enter turns later citing the narrative and be written with no
+// read-back pairing" — this resolves #59). `currentTurnIndex` is an
+// OPTIONAL 5th/4th parameter (validateCandidates/validateRepeatCandidate
+// respectively): omitted, both functions behave exactly as before (every
+// test above this point exercises the unconstrained default and must keep
+// passing unmodified) — the narrative-extraction pass has only ever had
+// one clinician turn to cite anyway, so it has no need to pass this.
+describe("validateCandidates — currentTurnIndex constraint (Issue #44, resolves #59)", () => {
+  it("accepts a candidate whose quote cites exactly the current turn", () => {
+    const transcript = transcriptWith("first answer", "42 years old");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 3, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "answer", value: "42" }]);
+  });
+
+  it("rejects a candidate citing an EARLIER clinician turn, with a named reason distinct from quote_not_found", () => {
+    const transcript = transcriptWith("42 years old", "and the lot number is 8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      // Real, grounded quote — just from the WRONG (earlier) turn. Index 1
+      // is the first clinician turn; the current turn is index 3.
+      quote: { turnIndex: 1, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
+
+  it("rejects a candidate citing the opening narrative (turn 0) once follow-up turns exist", () => {
+    const transcript: TalkTurn[] = [
+      { role: "clinician", text: "42-year-old woman, amoxicillin for sinusitis." },
+      { role: "talker", text: "What's the lot number?" },
+      { role: "clinician", text: "8834" },
+    ];
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 0, text: "42-year-old woman" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 2);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
+
+  it("is unconstrained when currentTurnIndex is omitted — any real clinician-turn citation is still accepted", () => {
+    const transcript = transcriptWith("42 years old", "and the lot number is 8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "42",
+      quote: { turnIndex: 1, text: "42 years old" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS);
+    expect(result.accepted).toEqual([{ fieldId: TEXT_FIELD.id, type: "answer", value: "42" }]);
+  });
+
+  it("checks turn-index before quote-grounding — a wrong-turn citation is rejected even when its text isn't grounded there either", () => {
+    const transcript = transcriptWith("42 years old", "8834");
+    const candidate: ExtractionCandidate = {
+      fieldId: TEXT_FIELD.id,
+      kind: "value",
+      value: "x",
+      quote: { turnIndex: 1, text: "something never said anywhere" },
+    };
+    const result = validateCandidates(transcript, [candidate], FIELDS, undefined, 3);
+    expect(result.rejected).toEqual([{ candidate, reason: "quote_outside_current_turn" }]);
+  });
 });
 
 describe("validateRepeatCandidate", () => {
@@ -324,6 +550,57 @@ describe("validateRepeatCandidate", () => {
     expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({
       accepted: false,
       reason: "wrong_repeat_group",
+    });
+  });
+
+  // Issue #44's citation-pool rule applies here too — a repeat-decision
+  // candidate is grounded the same way any other proposal is.
+  describe("currentTurnIndex constraint (Issue #44, resolves #59)", () => {
+    it("accepts a candidate whose quote cites exactly the current turn", () => {
+      const transcript = transcriptWith("no, that's the only one", "yes, there was a second one");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 3, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product", 3)).toEqual({ accepted: true });
+    });
+
+    it("rejects a candidate citing an earlier clinician turn, with a named reason distinct from quote_not_found", () => {
+      const transcript = transcriptWith("yes, there was a second one", "8834");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 1, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product", 3)).toEqual({
+        accepted: false,
+        reason: "quote_outside_current_turn",
+      });
+    });
+
+    it("checks the group match, then turn-index, then quote grounding — in that order", () => {
+      const transcript = transcriptWith("yes, there was a second one");
+      const wrongGroup: RepeatCandidate = {
+        repeatGroup: "concomitant-medication",
+        count: 2,
+        quote: { turnIndex: 0, text: "not the current turn either" },
+      };
+      // Wrong group wins even though the turn index is also wrong.
+      expect(validateRepeatCandidate(transcript, wrongGroup, "suspect-product", 1)).toEqual({
+        accepted: false,
+        reason: "wrong_repeat_group",
+      });
+    });
+
+    it("is unconstrained when currentTurnIndex is omitted", () => {
+      const transcript = transcriptWith("yes, there was a second one");
+      const candidate: RepeatCandidate = {
+        repeatGroup: "suspect-product",
+        count: 2,
+        quote: { turnIndex: 1, text: "yes, there was a second one" },
+      };
+      expect(validateRepeatCandidate(transcript, candidate, "suspect-product")).toEqual({ accepted: true });
     });
   });
 });

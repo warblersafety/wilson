@@ -29,13 +29,23 @@
 // stance is consistent with this: the clinician's review before
 // submission, not this validator, is the load-bearing safety control.
 //
-// Scoped to `text`/`date` fields only, per the 2026-08-22 design
-// conversation: `enum`/`checkbox` fields never reach this path at all —
-// wilson has far more fixed-choice fields than lucy's record, so where
-// lucy accepts "no runtime check on mapped-value correctness" as a
-// tradeoff, wilson instead sidesteps it: the wizard shows the clinician
-// the actual choices for an enum/checkbox field directly, no
-// interpretation, nothing for a validator to check.
+// Scoped to `text`/`date` fields by default, per the 2026-08-22 design
+// conversation: `enum`/`checkbox` fields don't reach this path in v1's
+// per-turn Extractor — wilson has far more fixed-choice fields than lucy's
+// record, so where lucy accepts "no runtime check on mapped-value
+// correctness" as a tradeoff, wilson instead sidesteps it there: the
+// wizard shows the clinician the actual choices for an enum/checkbox field
+// directly, no interpretation, nothing for a validator to check.
+//
+// The narrative-extraction pass (Issue #41) is the one caller that opts
+// fixed-choice fields back in via `allowedTypes` — design.md's "Extraction
+// scope" is explicit that this exclusion must NOT carry over there ("admitted
+// her overnight" needs to fill the Hospitalization checkbox, not just the
+// surrounding dates), under a tighter contract than free text: a value
+// candidate for a checkbox/enum field must also name one of that field's
+// actual legal options, checked mechanically against the manifest
+// (isLegalFixedChoiceValue below) — grounding alone isn't enough for these,
+// unlike text/date.
 //
 // This module ships only the check, not the model call that produces
 // what gets checked — same deferral pattern as the Talker orchestrator
@@ -44,7 +54,7 @@
 // ExtractionCandidate[], then wrap this validator's synchronous result
 // to satisfy ExtractFn's async, message-driven signature — this module
 // is that inner check, not a drop-in ExtractFn itself.
-import type { FormFieldSpec } from "./form-3500-fields";
+import { legalEnumOptions, type FormFieldSpec } from "./form-3500-fields";
 import type { ProposedAction, TalkTurn } from "./talk";
 import type { RepeatGroup } from "./topics";
 
@@ -69,7 +79,9 @@ export type RejectionReason =
   | "unknown_field"
   | "not_extractable_field_type"
   | "quote_not_found"
-  | "value_not_grounded";
+  | "value_not_grounded"
+  | "not_a_legal_option"
+  | "quote_outside_current_turn";
 
 export interface RejectedCandidate {
   candidate: ExtractionCandidate;
@@ -81,32 +93,93 @@ export interface ValidationResult {
   rejected: RejectedCandidate[];
 }
 
-function isExtractableFieldType(type: FormFieldSpec["type"]): boolean {
+// `satisfies Record<FormFieldSpec["type"], true>`, not a plain array
+// literal, is what actually makes this exhaustive: a bare `readonly
+// FormFieldSpec["type"][]` array typechecks fine even missing a union
+// member (reviewer pass, finding — the isExtractableFieldType() switch
+// below fails to compile on a 5th type; this constant, on its own, did
+// not). Object.keys() is well-defined key order for string keys, so the
+// resulting array is stable.
+const FIELD_TYPE_MEMBERSHIP = {
+  text: true,
+  date: true,
+  checkbox: true,
+  enum: true,
+} satisfies Record<FormFieldSpec["type"], true>;
+export const ALL_FIELD_TYPES: readonly FormFieldSpec["type"][] = Object.keys(
+  FIELD_TYPE_MEMBERSHIP,
+) as FormFieldSpec["type"][];
+
+function isExtractableFieldType(
+  type: FormFieldSpec["type"],
+  allowedTypes: readonly FormFieldSpec["type"][],
+): boolean {
+  // Exhaustiveness guard, same shape field-state.ts's transition() uses: a
+  // 5th FormFieldType added later without updating ALL_FIELD_TYPES above
+  // fails to compile here, rather than this function silently treating an
+  // unconsidered type as "not extractable" by default.
   switch (type) {
     case "text":
     case "date":
-      return true;
     case "checkbox":
     case "enum":
-      return false;
+      break;
     default: {
       const exhaustive: never = type;
       throw new Error(`unhandled field type: ${JSON.stringify(exhaustive)}`);
     }
   }
+  return allowedTypes.includes(type);
 }
+
+// Checkbox/enum fields' mechanical legality check (design.md "Extraction
+// scope": a fixed-choice proposal "must name one of the field's legal
+// options... checked mechanically against the manifest"). Checkbox has no
+// options[] of its own — "true"/"false" is the contract
+// scripts/fill-3500.py's render_value() enforces at PDF-export time
+// ("Whatever eventually writes a checkbox answer (Extractor, or a UI)
+// needs to honor this string shape"), so this produces exactly that
+// shape rather than a looser boolean-ish check that would just fail later,
+// less legibly, at export. Enum's legalEnumOptions(field)
+// (form-3500-fields.ts) IS the legal set — the manifest's own options[]
+// minus the blank placeholder (never a real "answered" value) and minus
+// DISALLOWED_ENUM_VALUES (a real member of options[] the source PDF
+// itself mis-mapped) — one shared definition, not a second copy of that
+// filter here.
+function isLegalFixedChoiceValue(field: FormFieldSpec, value: string): boolean {
+  if (field.type === "checkbox") {
+    return value === "true" || value === "false";
+  }
+  if (field.type === "enum") {
+    return legalEnumOptions(field).includes(value);
+  }
+  return true;
+}
+
+// The character class only, not a compiled RegExp — read-back.ts's quote
+// highlighter needs the identical set of characters this validator
+// treats as noise (so it strips exactly what grounding already ignored,
+// not a second hand-derived copy that could drift), but as a *non*-global
+// RegExp for a repeated single-character `.test()`, where a `/g` flag's
+// stateful `lastIndex` would go stale and start returning false forever.
+// This string builds both flavors from one source.
+export const PUNCT_CHARS = "[.,!?;:'\"’‘“”—–…-]";
 
 // Unicode NFKC, case-fold, whitespace-collapse, strip common sentence
 // punctuation (including curly/smart quotes, which speech-to-text and
 // model output disagree on far more often than straight quotes) —
 // deliberately not fuzzy or stemmed. Loosening this further would let a
 // proposal pass on something close to, but not actually, what the
-// clinician said.
+// clinician said. Whole-string transforms, not a per-character loop: JS's
+// `toLowerCase()` on a full string correctly applies Unicode's
+// context-sensitive casing (e.g. Greek final sigma) and handles
+// surrogate-pair (astral-plane) characters, neither of which a
+// character-by-character version gets right (reviewer pass, finding).
 function normalize(text: string): string {
   return text
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[.,!?;:'"’‘“”—–…-]/g, "")
+    .replace(new RegExp(PUNCT_CHARS, "g"), "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -153,7 +226,7 @@ export interface RepeatCandidate {
   quote: Quote;
 }
 
-export type RepeatRejectionReason = "wrong_repeat_group" | "quote_not_found";
+export type RepeatRejectionReason = "wrong_repeat_group" | "quote_not_found" | "quote_outside_current_turn";
 
 export interface RepeatValidationResult {
   accepted: boolean;
@@ -168,13 +241,29 @@ export interface RepeatValidationResult {
 // already is in validateCandidates() ("unknown_field" /
 // "not_extractable_field_type"), rather than trusted on quote-grounding
 // alone.
+//
+// `currentTurnIndex` (Issue #44, design.md's citation-pool rule, resolves
+// #59): when given, a quote citing any OTHER turn index is rejected
+// before grounding is even checked — the widened follow-up sweep's own
+// per-turn extraction always passes the clinician's just-appended
+// message's index here, so a candidate citing the opening narrative (or
+// any earlier follow-up turn) can never be written with no read-back
+// pairing behind it. Optional and checked AFTER the group match (a wrong
+// group is rejected regardless of which turn it cites) but BEFORE quote
+// grounding — omitted, this function is fully unconstrained, which is
+// what the narrative-extraction pass needs: it only ever has one
+// clinician turn to cite in the first place.
 export function validateRepeatCandidate(
   transcript: TalkTurn[],
   candidate: RepeatCandidate,
   expectedGroup: RepeatGroup,
+  currentTurnIndex?: number,
 ): RepeatValidationResult {
   if (candidate.repeatGroup !== expectedGroup) {
     return { accepted: false, reason: "wrong_repeat_group" };
+  }
+  if (currentTurnIndex !== undefined && candidate.quote.turnIndex !== currentTurnIndex) {
+    return { accepted: false, reason: "quote_outside_current_turn" };
   }
   const turnText = clinicianTurnText(transcript, candidate.quote.turnIndex);
   if (!quoteIsGrounded(turnText, candidate.quote)) {
@@ -183,10 +272,19 @@ export function validateRepeatCandidate(
   return { accepted: true };
 }
 
+// `currentTurnIndex` (Issue #44, design.md's citation-pool rule, resolves
+// #59): same optional turn-index constraint as validateRepeatCandidate()
+// above, checked per-candidate after the field-shape checks
+// (unknown_field/not_extractable_field_type) and before quote grounding.
+// Omitted, every existing caller (the per-ask extractor prior to this
+// unit, the narrative-extraction pass) is fully unconstrained, unchanged
+// from before this parameter existed.
 export function validateCandidates(
   transcript: TalkTurn[],
   candidates: ExtractionCandidate[],
   fields: FormFieldSpec[],
+  allowedTypes: readonly FormFieldSpec["type"][] = ["text", "date"],
+  currentTurnIndex?: number,
 ): ValidationResult {
   const fieldsById = new Map(fields.map((field) => [field.id, field]));
   // Memoized per call: a single clinician turn commonly grounds several
@@ -209,17 +307,28 @@ export function validateCandidates(
       rejected.push({ candidate, reason: "unknown_field" });
       continue;
     }
-    if (!isExtractableFieldType(field.type)) {
+    if (!isExtractableFieldType(field.type, allowedTypes)) {
       rejected.push({ candidate, reason: "not_extractable_field_type" });
+      continue;
+    }
+    if (currentTurnIndex !== undefined && candidate.quote.turnIndex !== currentTurnIndex) {
+      rejected.push({ candidate, reason: "quote_outside_current_turn" });
       continue;
     }
     if (!quoteIsGrounded(memoizedTurnText(candidate.quote.turnIndex), candidate.quote)) {
       rejected.push({ candidate, reason: "quote_not_found" });
       continue;
     }
-    if (candidate.kind === "value" && normalize(candidate.value).length === 0) {
-      rejected.push({ candidate, reason: "value_not_grounded" });
-      continue;
+    if (candidate.kind === "value") {
+      const isFixedChoice = field.type === "checkbox" || field.type === "enum";
+      if (isFixedChoice && !isLegalFixedChoiceValue(field, candidate.value)) {
+        rejected.push({ candidate, reason: "not_a_legal_option" });
+        continue;
+      }
+      if (!isFixedChoice && normalize(candidate.value).length === 0) {
+        rejected.push({ candidate, reason: "value_not_grounded" });
+        continue;
+      }
     }
     accepted.push(toProposedAction(candidate));
   }
