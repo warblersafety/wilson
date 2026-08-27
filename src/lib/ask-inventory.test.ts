@@ -91,6 +91,28 @@ describe("the authored ask inventory", () => {
     expect(ungated.length).toBeLessThanOrEqual(24);
   });
 
+  // ask-copy.md CM-2-{n}, amended 2026-08-27 (#111). Transcribed as an
+  // exact list rather than checked for distinctness: "all ten differ" is
+  // satisfied by nine wrong ordinals too, and this file's job is that the
+  // inventory says what the document says.
+  it("gives each later concomitant instance the ordinal the contract authors", () => {
+    const copyOf = (id: string) => AUTHORED_ASKS.find((ask) => ask.id === id)!.copy;
+    expect(copyOf("CM-1")).toBe(
+      "Is the patient on other medications? Name them, with rough start and stop dates if you have them.",
+    );
+    const ordinals = ["second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
+    ordinals.forEach((ordinal, index) => {
+      expect(copyOf(`CM-2-${index + 2}`)).toBe(
+        `What's the ${ordinal} medication — its name, and rough start and stop dates?`,
+      );
+    });
+    // The ordinal counts medications, not turns: instance 2 is the
+    // SECOND medication because CM-1 asked for the first. An off-by-one
+    // here reads as a plausible sentence, so it is worth its own line.
+    expect(copyOf("CM-2-2")).toContain("second");
+    expect(copyOf("CM-2-10")).toContain("tenth");
+  });
+
   it("gates exactly the topics the contract gates", () => {
     expect([...GATED_TOPIC_IDS].sort()).toEqual([
       "device-history",

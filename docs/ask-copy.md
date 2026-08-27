@@ -436,8 +436,31 @@ device · reprocessor · serviced by third party.
   known id defect; leaf position determines the mapping); the count
   proposes from the answer through the existing repeat-decision
   machinery, and rows beyond it are skipped as today.
-- **CM-2** *(later instances, on a repeat decision's "yes")* — "What's
-  the next medication — its name, and rough start and stop dates?"
+- **CM-2-{n}** *(later instances, on a repeat decision's "yes")* —
+  "What's the second medication — its name, and rough start and stop
+  dates?", with the ordinal naming the instance: **second, third,
+  fourth, fifth, sixth, seventh, eighth, ninth, tenth** for instances
+  2 through 10. Amended 2026-08-27 (#111) — this group previously
+  authored ONE string for all of instances 2–10 ("What's the next
+  medication — …"). Once a repeat count is decided no repeat-decision
+  turn separates the instances, so a clinician who answered "three
+  medications" was asked the byte-identical question on two consecutive
+  turns, and at capacity eight times in a row. That is the defect rule
+  9 names as the property its own frames protect — "a frame is never
+  byte-equal to the primary ask, so the no-consecutive-duplicates check
+  holds across the pair" — holding across the re-ask pair and failing
+  across the repeat-instance pair. It is also the shape of the v1.1
+  build rejected on 2026-08-26: the same sentence twice, with nothing to
+  tell the clinician the second one is a new question.
+  The fix follows the suspect-product group's existing per-instance
+  pattern one section earlier ("the second suspect product", SP-1-2),
+  which is why that group never had the defect. The ordinal counts
+  MEDICATIONS, not turns: instance 2 is "the second medication" because
+  CM-1 asked for the first. Bare "medication" rather than "other
+  medication" — CM-1 established the topic, and the conversational
+  register rule 8 asks for does not repeat a qualifier the previous turn
+  just set. Display names keep "other medication {n}" (below): a Review
+  row has no preceding turn to lean on.
   Additions after the count is decided remain #77's open design
   question; nothing here forecloses it.
 

@@ -218,38 +218,40 @@ describe("every gate state, not just the reference path", () => {
   // repeat groups at one instance, so a walk with three concomitant
   // medications — an ordinary session — was never checked.
   //
-  // It is not clean when it is. docs/ask-copy.md authors ONE CM-2 string
-  // for concomitant instances 2-10 ("What's the next medication — its
-  // name, and rough start and stop dates?"), and once a count is decided
-  // no repeat decision separates the instances, so instances 2 and 3 are
-  // byte-identical back-to-back turns. That is AC-2's own defect class,
-  // authored by the contract rather than introduced by the build, so it
-  // is filed (#111) rather than fixed here — a copy amendment takes a
-  // doc-review pass.
-  //
-  // Pinned as an exact set rather than described in a comment, the way
-  // ask.test.ts pins rule 8's six departures: a NINTH repeating ask, or a
-  // repetition anywhere outside the concomitant group, fails here first.
-  it("repeats only where the contract's own copy leaves it no choice", () => {
-    const repeating = new Set<string>();
+  // It was NOT clean when it was: docs/ask-copy.md used to author ONE
+  // CM-2 string for concomitant instances 2-10, and once a count is
+  // decided no repeat decision separates the instances, so instances 2
+  // and 3 were byte-identical back-to-back turns — AC-2's own defect
+  // class, authored by the contract rather than introduced by the build.
+  // This test carried the departure as an exact `CM-2-3`..`CM-2-10` pin
+  // while #111 was open. The amendment (2026-08-27) gives each instance
+  // its ordinal, so the pin is DELETED rather than widened, and the
+  // property this file was always trying to state holds with no
+  // exceptions at all: across every gate state and every repeat count,
+  // no walk repeats a turn.
+  it("repeats no turn in any walk shape — no departures", () => {
+    const repeating: string[] = [];
     for (const [gate, seed] of GATE_STATE_SEEDS) {
       for (const [choice, choose] of REPEAT_COUNT_CHOICES) {
         for (const violation of consecutiveDuplicateViolations(scriptedWalk(seed(), choose))) {
-          repeating.add(`${violation.source.replace(/^turn:\d+ \((.*)\)$/, "$1")} (${gate}/${choice})`);
+          repeating.push(`${violation.source} (${gate}/${choice}): ${violation.text}`);
         }
       }
     }
-    const askIds = new Set([...repeating].map((entry) => entry.split(" ")[0]));
-    expect([...askIds].sort()).toEqual([
-      "CM-2-10",
-      "CM-2-3",
-      "CM-2-4",
-      "CM-2-5",
-      "CM-2-6",
-      "CM-2-7",
-      "CM-2-8",
-      "CM-2-9",
-    ]);
+    expect(repeating).toEqual([]);
+  });
+
+  // The amendment's own proof, and the reason the check above can be
+  // absolute: every concomitant instance now says something different.
+  // Asserted over the walk that actually reaches all ten, not over the
+  // inventory — a per-instance string that the walk never renders would
+  // prove nothing.
+  it("gives all ten concomitant instances distinct copy", () => {
+    const atCapacity = REPEAT_COUNT_CHOICES.find(([name]) => name === "every-group-at-capacity")![1];
+    const walk = scriptedWalk(initAgenda(), atCapacity);
+    const concomitant = walk.filter((turn) => turn.kind === "ask" && turn.id.startsWith("CM-"));
+    expect(concomitant).toHaveLength(10);
+    expect(new Set(concomitant.map((turn) => turn.text)).size).toBe(10);
   });
 
   it("keeps the suspect-product group clean — its second instance is authored apart", () => {
