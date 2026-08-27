@@ -1,0 +1,104 @@
+{
+  "devSha": "31e63162ad6f19ab3de276aa5bacc7b3a12f777c",
+  "cases": [
+    {
+      "id": "C1",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    },
+    {
+      "id": "C2",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    },
+    {
+      "id": "C3",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    },
+    {
+      "id": "C4",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "gate-opened-device",
+        "gate-opened-product-handling",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    },
+    {
+      "id": "C5",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    },
+    {
+      "id": "C6",
+      "failures": [],
+      "surfaces": [
+        "start",
+        "report-chrome",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ]
+    }
+  ],
+  "surfacesUnion": [
+    "follow-ups",
+    "gate-opened-device",
+    "gate-opened-product-handling",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "neverReached": []
+}

@@ -83,9 +83,20 @@ gate's falsifiability, not an exit from it.
 
 ## The case set (v1 — entries are added freely, removed only by Steve)
 
-The verbatim inputs for all cases are pinned by the case-driver unit;
-where no build unit carries the driver, it is filed as its own intake
-(done at this unit's merge: see the driver unit).
+The verbatim inputs for all cases are pinned in
+[`fixtures/gate/cases.ts`](../fixtures/gate/cases.ts) (unit #96), and
+driven by [`scripts/gate-case-driver.mjs`](../scripts/gate-case-driver.mjs)
+— `REPO=<repo> CASE=all node gate-case-driver.mjs`, which writes
+`runs/gate/<dev-SHA>/<case>/` and exits non-zero on any failure. The
+driver's own header carries the setup.
+
+A case pins its steps AND the extractions the fake model answers with,
+together, so the two cannot drift apart. `src/lib/gate-cases.test.ts`
+runs in the ordinary test job and fails when a case stops describing the
+walk — so the reviewer inherits cases that still work, rather than
+discovering mid-run that one was written against an older ask inventory.
+The reviewer is expected to deviate from the scripted cases wherever
+suspicion leads; they are the floor, not the ceiling.
 
 - **C1 — reference case**: the amoxicillin narrative from the design
   mockups, dictated once, follow-ups answered plainly.
