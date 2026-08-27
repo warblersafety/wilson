@@ -127,3 +127,24 @@ mockup side-by-sides the manual-check notes carry under design.md's
 fidelity rule. The rebuild is the six units filed 2026-08-25 plus the
 report-chrome unit the 2026-08-25 amendment added (#67); this
 condition is met when all are merged and that flow test passes.
+
+## End condition (v1.2 recovery, falsifiable)
+
+The v1.1 condition above was met — every artifact green — by a build
+Steve rejected on first contact with the deployed product (2026-08-26):
+its gates verified each unit against its spec, and nothing verified the
+product against this charter. v1.2 closes that gap and is deliberately
+operator-anchored. The recovery is: authored ask copy per
+`docs/ask-copy.md`, the UX floor in CI, the session-export surface, the
+rollup-driven walk, and the visual-composition pass. It is done when
+**Steve takes the reference case end-to-end on a deployed staging build
+and records acceptance** (on the round's promotion PR or the standing
+handoff) — with v1.1's flow test and v1's field-mapping tests still
+green, the UX floor green, and both live evals run against the
+recovery build (a commit including the authored-copy unit), each
+report linked from that same promotion PR or handoff, with any failure
+dispositioned by Steve before acceptance — a stale or failing run
+satisfies nothing. Until that acceptance is recorded the rebuild is not
+done, whatever the artifacts say. UI rounds thereafter keep the same
+shape: operator acceptance of a deployed build, at round granularity —
+never per unit — is part of done-ness.
