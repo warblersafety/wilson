@@ -19,7 +19,8 @@ import { AUTHORED_ASKS, askApplies, unresolvedFactNames } from "./ask-inventory"
 import { displayName } from "./display-names";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { initTalkSession, type TalkSession } from "./talk";
-import { initRepeatCounts, nextStep, setRepeatCount, TOPICS } from "./topics";
+import { scriptedWalk } from "./ux-floor";
+import { TOPICS } from "./topics";
 
 function sessionWith(record: AgendaRecord): TalkSession {
   return { ...initTalkSession(), record };
@@ -32,25 +33,10 @@ function dismiss(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
   return fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "mark_unknown" }), record);
 }
 
-// Every ask the walk actually voices, in order, from a fresh session
-// dismissed straight through to done.
-function scriptedWalk(): string[] {
-  let record = initAgenda();
-  let counts = initRepeatCounts();
-  const asked: string[] = [];
-  for (let guard = 0; guard < 200; guard += 1) {
-    const step = nextStep(record, counts);
-    if (step.kind === "done") return asked;
-    if (step.kind === "repeat-decision") {
-      asked.push(REPEAT_DECISION_COPY[step.repeatGroup]);
-      counts = setRepeatCount(counts, step.repeatGroup, step.afterInstance);
-      continue;
-    }
-    asked.push(askCopy(step.ask, record));
-    record = dismiss(record, step.fieldIds);
-  }
-  throw new Error("scriptedWalk: the walk never reached done");
-}
+// The walk driver lives in ux-floor.ts (Issue #91), not here: it is what
+// the UX floor's count and no-repetition checks run over, and two
+// definitions of "the scripted walk" that could quietly disagree is the
+// one thing a floor must not have.
 
 describe("authored ask copy", () => {
   // AC-1's structural test. Every ask, every topic, both repeat
@@ -262,30 +248,29 @@ describe("machinery copy", () => {
 });
 
 describe("a scripted full walk", () => {
+  // ux-floor.ts's driver, so the copy claims here and the UX floor's
+  // count and no-repetition checks (#91) run over the same walk.
   const walk = scriptedWalk();
+  const asked = walk.map((turn) => turn.text);
 
   // The count the contract states, reached by actually walking rather
   // than by summing the inventory — 58-82 template asks is what Steve
-  // was shown.
+  // was shown. The count itself is the UX floor's own check
+  // (askCountViolations); what this pins is the shape around it — 21
+  // asks and exactly two repeat decisions.
   it("asks the contract's 21 ungated questions plus the two repeat decisions, not 58-82", () => {
     // Exactly the count docs/ask-copy.md states for "the ungated
     // single-product no-device walk", now that rule 5's gates keep the
     // device, availability and purchase asks out of a report that is
     // none of those things.
-    expect(walk.filter((q) => !Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(21);
-    expect(walk.filter((q) => Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(2);
+    expect(walk.filter((turn) => turn.kind === "ask")).toHaveLength(21);
+    expect(walk.filter((turn) => turn.kind === "repeat-decision")).toHaveLength(2);
     expect(walk).toHaveLength(23);
-  });
-
-  it("never asks the same thing twice in a row", () => {
-    for (let i = 1; i < walk.length; i += 1) {
-      expect(walk[i], `turn ${i} repeats turn ${i - 1}`).not.toBe(walk[i - 1]);
-    }
   });
 
   it("asks only authored strings", () => {
     const authored = new Set([...AUTHORED_ASKS.map((a) => a.copy), ...Object.values(REPEAT_DECISION_COPY)]);
-    for (const question of walk) expect(authored.has(question), question).toBe(true);
+    for (const question of asked) expect(authored.has(question), question).toBe(true);
   });
 
   it("never voices a gated topic in a report that is none of those things", () => {
@@ -296,35 +281,25 @@ describe("a scripted full walk", () => {
       "Where and when was it purchased — the store or website, and the date?",
       "Is the product itself still available — do you have it or a picture of it, or was it returned to the manufacturer, and when?",
     ]) {
-      expect(walk, gated).not.toContain(gated);
+      expect(asked, gated).not.toContain(gated);
     }
-    expect(walk.some((q) => q.startsWith("What's the device"))).toBe(false);
-    expect(walk.some((q) => q.startsWith("Who was operating the device"))).toBe(false);
-    expect(walk.some((q) => q.startsWith("Two device-history checks"))).toBe(false);
+    expect(asked.some((q) => q.startsWith("What's the device"))).toBe(false);
+    expect(asked.some((q) => q.startsWith("Who was operating the device"))).toBe(false);
+    expect(asked.some((q) => q.startsWith("Two device-history checks"))).toBe(false);
   });
 
   it("brings the gated asks back the moment the record says they belong", () => {
     // Rule 5's Timing clause: a product problem stated mid-walk opens
     // availability and purchase, and the walk reaches them on its next
     // pass rather than having decided once on arrival.
-    let record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
-    let counts = initRepeatCounts();
-    const asked: string[] = [];
-    for (let guard = 0; guard < 200; guard += 1) {
-      const step = nextStep(record, counts);
-      if (step.kind === "done") break;
-      if (step.kind === "repeat-decision") {
-        counts = setRepeatCount(counts, step.repeatGroup, step.afterInstance);
-        continue;
-      }
-      asked.push(askCopy(step.ask, record));
-      record = dismiss(record, step.fieldIds);
-    }
-    expect(asked).toContain(
+    const opened = scriptedWalk(
+      applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true"),
+    ).map((turn) => turn.text);
+    expect(opened).toContain(
       "Is the product itself still available — do you have it or a picture of it, or was it returned to the manufacturer, and when?",
     );
-    expect(asked).toContain("Where and when was it purchased — the store or website, and the date?");
+    expect(opened).toContain("Where and when was it purchased — the store or website, and the date?");
     // Still no device asks: a product problem is not a device.
-    expect(asked.some((q) => q.startsWith("What's the device"))).toBe(false);
+    expect(opened.some((q) => q.startsWith("What's the device"))).toBe(false);
   });
 });
