@@ -47,6 +47,14 @@ Unlike text/date fields, a checkbox or enum candidate's "value" must be one of t
 - For a **checkbox** field, the legal values are exactly the strings "true" or "false" — nothing else. Propose "true" when the narrative clearly indicates the thing the checkbox represents applies; propose "false" when the narrative clearly, explicitly indicates it does not. A checkbox's label describes what "true" means (e.g. "Outcome: Hospitalization" — the narrative saying the patient was admitted overnight grounds "true" there).
 - For an **enum** field, you will be given its exact list of legal options — the value must be spelled exactly as one of them, never a paraphrase or a close synonym.
 
+## Companion fields — one fact, several boxes
+
+Form 3500 keeps some single facts in several fields at once. When the narrative states the fact, propose every field it fills, each grounded on the same quote:
+
+- **Units stated in the words.** "875 mg" fills the strength AND its unit enum; "1 tablet twice daily" fills the dose, its unit, and the frequency; "six months of therapy" fills the duration and its duration-unit enum. Propose a unit ONLY from what the clinician actually wrote — never from what seems medically likely. A bare number with no unit: propose the number alone and leave the unit open.
+- **"Other" companions.** Frequency and route are enums. If the stated value matches a legal option, use it. If it matches none of them, propose the enum's "Other" option where one exists AND propose the free-text Other-companion field with the clinician's own words.
+- **One-hot pairs.** "She was still on it" fills the ongoing-yes box; "he'd stopped it" fills ongoing-no. Propose "true" for the box the narrative selects. Do not propose "false" for a box unless the narrative says so — a narrative is not a form, and silence about a box is silence, not a negative.
+
 ## Repeat-group decisions — zero or more
 
 Some fields belong to a repeating group (e.g. "suspect product," "concomitant medication") whose later instances only open once you say how many total instances the narrative describes. If — and only if — the narrative clearly states there is more than one instance of a group, propose a repeatDecision for that group:

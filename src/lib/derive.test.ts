@@ -4,7 +4,8 @@
 // defaults to years" is that a bare WEIGHT does not.
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
-import { AUTHORED_ASKS } from "./ask-inventory";
+import { AUTHORED_ASKS, factCompletesFromOne, unresolvedAskFieldIds } from "./ask-inventory";
+import { fieldById } from "./form-3500-fields";
 import { deriveCompanionWrites } from "./derive";
 import type { ProposedAction } from "./talk";
 import { TOPICS, type NextStep } from "./topics";
@@ -133,6 +134,80 @@ describe("the bare-age default", () => {
   it("gives a bare WEIGHT no default at all", () => {
     const derived = deriveCompanionWrites(stepFor("PB-2"), initAgenda(), [answer(WEIGHT_VALUE, "80")]);
     expect(derived).toEqual([]);
+  });
+});
+
+describe("the bound on group completion (reviewer pass, PR #106, F1)", () => {
+  it("completes nothing for a multi-select the ask does not enumerate — race/ethnicity", () => {
+    // PB-3 asks for "race or ethnicity" without naming its seven boxes,
+    // and they are not alternatives: Hispanic ethnicity is orthogonal to
+    // race on this form, so "she's White" says NOTHING about
+    // EthnicLatino, and writing it false would be wrong, not merely
+    // unheard.
+    const derived = deriveCompanionWrites(stepFor("PB-3"), initAgenda(), [
+      answer("Page1.SecA_Patient.RaceWhite", "true"),
+    ]);
+    expect(derived).toEqual([]);
+  });
+
+  it("completes nothing for SP-6's product type, whose 'other' the ask never voices", () => {
+    const derived = deriveCompanionWrites(stepFor("SP-6"), initAgenda(), [
+      answer("Page4.Prod1.Prod1Brand", "true"),
+    ]);
+    expect(derived).toEqual([]);
+  });
+
+  it("still closes a non-completing group's ask from one answer, so it never re-asks forever", () => {
+    const pb3 = AUTHORED_ASKS.find((a) => a.id === "PB-3")!;
+    const answered = {
+      ...initAgenda(),
+      "Page1.SecA_Patient.RaceWhite": { state: "answered" as const, value: "true" },
+    };
+    expect(unresolvedAskFieldIds(pb3, answered)).toEqual([]);
+  });
+
+  it("makes every checkbox fact declare why it may or may not complete", () => {
+    // Authoring has to decide, per fact — a checkbox group that declares
+    // neither is treated as non-completing, and this asserts the two that
+    // do so are the two we mean.
+    const nonCompleting: string[] = [];
+    for (const ask of AUTHORED_ASKS) {
+      for (const fact of ask.facts ?? []) {
+        if (!fact.fieldIds.every((id) => fieldById(id)?.type === "checkbox")) continue;
+        if (!factCompletesFromOne(fact)) nonCompleting.push(`${ask.id}/${fact.name}`);
+      }
+    }
+    expect(nonCompleting.filter((n) => !/^SP-\d-2|^CM-2/.test(n)).sort()).toEqual([
+      "PB-3/race or ethnicity",
+      "SP-6/product type",
+    ]);
+  });
+});
+
+describe("the bare-age default reaches the dictation path too", () => {
+  it("fires on a confirmed narrative batch, not only on a follow-up turn", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { record } = applyNarrativeProposals(
+      initAgenda(),
+      initRepeatCounts(),
+      [answer(AGE_VALUE, "61")],
+      [],
+    );
+    expect(record[AGE_YEARS]).toEqual({ state: "answered", value: "true" });
+    expect(record[AGE_MONTHS]).toEqual({ state: "answered", value: "false" });
+  });
+
+  it("still gives a dictated bare weight no default", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { record } = applyNarrativeProposals(
+      initAgenda(),
+      initRepeatCounts(),
+      [answer(WEIGHT_VALUE, "80")],
+      [],
+    );
+    expect(record["Page1.SecA_Patient.WeightLB"].state).toBe("unasked");
   });
 });
 

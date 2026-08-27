@@ -13,34 +13,46 @@ do not appear here at all.
 
 They are proved instead by `src/lib/derive.test.ts` (every rule with its
 negative — the bare-age default, and the bare weight that deliberately
-gets none) and by an end-to-end test in `src/lib/extract.test.ts` that
-drives a real `createExtractFn` turn and asserts a hospitalisation answer
-completes all seven outcome boxes, death included.
+gets none, plus the two multi-selects that deliberately complete nothing)
+and by an end-to-end test in `src/lib/extract.test.ts` that drives a real
+`createExtractFn` turn and asserts a hospitalisation answer completes all
+seven outcome boxes, death included.
+
+Nor does it show Review's new "No" rendering for an answered-false
+checkbox: the scripted walk dismisses everything as `unknown`, so it
+produces no answered falses at all. `review.test.ts` covers it.
 
 What this run *is* good for is the negative: **no surface regression.**
-28 turns, 55 transcript turns, 0 double-renders, 0 template echoes, all
-seven surface states, and the open-fields dialog still at 109. Every
-screenshot is byte-identical to `runs/unit-100/` except `01-start.png` —
-see below.
+28 turns, all seven surface states, 0 double-renders, 0 template echoes,
+the open-fields dialog still at 109. The evidence for that is
+`session.txt`, which is **byte-identical to `runs/unit-100/session.txt`** —
+every ask, every transcript turn, and every later surface's rendered text,
+unchanged.
 
 Real-model contact is a done-ness precondition for the round, not for this
 PR: the round gate (#96, `docs/round-gate.md`) is where a build meets a
 live extractor before Steve sees it.
 
-## A note on `01-start.png`, and a correction
+## The screenshots are NOT comparable to `runs/unit-100/`, and a correction
 
-`01-start.png` differs from `runs/unit-100/`'s copy, and not because
-anything on the Start surface changed. Next.js's dev-mode indicator
-renders into a `nextjs-portal` element asynchronously, so it was present
-in some captures and absent from others taken moments apart. That made the
-Start screenshot vary **run to run on an unchanged build**, which means
-PR #104's "exactly one of thirteen differs" claim was partly luck rather
-than measurement.
+**All thirteen** differ from `runs/unit-100/`'s copies — each about 1.7 KB
+smaller at identical dimensions. Nothing on any of those surfaces changed:
+this PR's own driver change is the cause. Next.js's dev-mode indicator
+renders into a `nextjs-portal` element asynchronously, and
+`scripts/artifact-session.mjs` now hides it before every capture, because
+it is tool chrome rather than the product.
 
-`scripts/artifact-session.mjs` now hides that element before every
-capture — it is tool chrome, not the product — and two consecutive runs of
-the same build were verified byte-identical afterwards. From this artifact
-on, a screenshot difference means a real difference.
+That same asynchrony is why `01-start.png` had been varying **run to run
+on an unchanged build** — which means PR #104's claim that "exactly one of
+thirteen differs" was partly luck rather than measurement, and this
+README's first version repeated the error in the other direction by
+claiming twelve were identical. Both are corrected here.
+
+Two consecutive runs of this build were verified byte-identical
+afterwards, and the screenshots here match the run made before this PR's
+review round. From this artifact on, a screenshot difference means a real
+difference; comparisons that straddle the dev-chrome change do not mean
+anything and `session.txt` is the honest instrument across it.
 
 ## Still true, and still out of scope here
 

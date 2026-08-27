@@ -225,6 +225,20 @@ describe("reviewFieldRows", () => {
     expect(rows.find((r) => r.fieldId === PROD_NAME)?.label).toBe("product name, strength, and manufacturer");
   });
 
+  // Rule 7's group completion writes falses in bulk — six at a time on
+  // OC-1 — and displayFor() renders an unchecked box blank, because on
+  // the PDF that is what it is. Review's job is verification, so it says
+  // "No" out loud (reviewer pass, PR #106, F2).
+  it("renders an answered-false checkbox as No, distinct from never asked", () => {
+    const HOSPITAL = "Page1.SecA_Patient.Hospital";
+    const LIFE = "Page1.SecA_Patient.LifeThreaten";
+    const record = applyAction(initAgenda(), HOSPITAL, { type: "answer" }, "false");
+    const rows = rowsFor(record, "outcome");
+    expect(rows.find((r) => r.fieldId === HOSPITAL)?.text).toBe("No");
+    // A box nobody has answered still reads as blank, not "No".
+    expect(rows.find((r) => r.fieldId === LIFE)?.text).toBeNull();
+  });
+
   it("renders fixed-choice fields the deleted review component filtered out (#69)", () => {
     const record = applyAction(initAgenda(), SEX_F, { type: "answer" }, "true");
     expect(rowsFor(record, "patient-basics").find((r) => r.fieldId === SEX_F)?.text).toBe("Yes");

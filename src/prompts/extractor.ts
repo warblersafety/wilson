@@ -253,14 +253,17 @@ export function buildFollowUpExtractorSystem(
 // set belongs in the suffix, "never carved out of the prefix" — this
 // function never touches buildFollowUpExtractorSystem()'s output.
 //
-// `askFieldIds` names what this turn's own ask actually phrased — the
-// caller's job to compute (src/lib/extract.ts's `askFieldIds`, sliced to
-// MAX_FIELDS_PER_ASK), not this function's: re-slicing step.fieldIds in
-// here would risk drifting from the SAME cap classifyFollowUpActions()
-// uses to decide in-ask vs. out-of-ask (extract.ts is the one place that
-// must agree with itself). Using the raw, uncapped step.fieldIds instead
-// used to tell the model this turn asked about fields the clinician was
-// never actually shown a question about (reviewer pass on PR #64).
+// `askFieldIds` names what this turn's own ask actually phrased. The
+// caller computes it (src/lib/extract.ts) and passes the same value to
+// classifyFollowUpActions(), so the model's idea of what was asked and
+// the in-ask/out-of-ask decision cannot drift — extract.ts is the one
+// place that must agree with itself. There is no slicing any more: with
+// authored asks, a topic step's fieldIds IS the ask's own unresolved
+// field set. The cap this docblock used to describe existed because
+// nextStep() once returned every unresolved field of a topic while the
+// template phrased only three, which told the model the turn had asked
+// about fields the clinician was never shown (reviewer pass on PR #64);
+// that gap is closed at the source now.
 export function buildFollowUpUserContent(
   step: NextStep,
   askFieldIds: string[],

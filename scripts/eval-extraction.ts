@@ -82,7 +82,10 @@ function dryCheckFixture(fixture: ExtractionFixture): string[] {
       problems.push("built prompt content doesn't include the fixture's clinician message");
     }
     for (const action of fixture.expected.actions) {
-      if (!content.includes(action.fieldId) && !openFields.some((f) => f.id === action.fieldId)) {
+      // content.includes alone: every openFields id is rendered into the
+      // prompt's open block, so an extra membership check would be
+      // unreachable (reviewer pass, PR #106).
+      if (!content.includes(action.fieldId)) {
         problems.push(`expected action's field (${action.fieldId}) is named nowhere in the built prompt`);
       }
     }
