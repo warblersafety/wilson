@@ -84,12 +84,12 @@ export interface WalkTurn {
 // that pushes past it returns to a design conversation first." Both
 // numbers live here so a contract amendment and a build change fail in
 // the same place.
+export const STATED_UNGATED_ASK_COUNT = 21;
+export const ASK_COUNT_CEILING = 24;
+
 // dismissAcknowledgment() takes a whole NextStep, so the enumeration
 // needs each ask's own topic — the ask inventory carries only its id.
 const TOPICS_BY_ID = Object.fromEntries(TOPICS.map((topic) => [topic.id, topic]));
-
-export const STATED_UNGATED_ASK_COUNT = 21;
-export const ASK_COUNT_CEILING = 24;
 
 // --- the enumeration ------------------------------------------------------
 
@@ -211,10 +211,10 @@ export function renderedCopyInventory(): RenderedString[] {
   // chips — not a fixture pair. The acknowledgment names an ask's facts,
   // so the asks most able to leak a field list are the ones with the most
   // fields per fact (DV-1's ten, RC-1's eight), and a hand-picked fixture
-  // is exactly what would have left those out. Same reasoning as the
-  // re-ask frames above, and the same fresh record: a tap on an untouched
-  // ask resolves every fact it waits on, which is the longest sentence
-  // each one can produce.
+  // is exactly what would have left those out. Passes ask.askFieldIds
+  // directly rather than a record's unresolved slice: an untouched ask
+  // waits on all of them, so this is the longest sentence each one can
+  // produce, and it is the state to check for a leaked field list.
   for (const ask of AUTHORED_ASKS) {
     const step: NextStep = { kind: "topic", topic: TOPICS_BY_ID[ask.topicId], ask, fieldIds: ask.askFieldIds };
     for (const action of ["mark_unknown", "decline"] as const) {

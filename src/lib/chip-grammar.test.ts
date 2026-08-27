@@ -250,6 +250,22 @@ describe("dismissAcknowledgment", () => {
     expect(dismissAcknowledgment(step, "decline")).toBe("Marked age and sex as declined.");
   });
 
+  // Reviewer pass: the guard used to count field ids while the throw it
+  // guards counts composed names. A step whose fieldIds belong to no fact
+  // of its own ask passes the first and trips the second — which reaches
+  // the clinician as AskForm's generic failure message, after the tap's
+  // record write has already been made.
+  it("returns undefined, never throws, when a step's fields name nothing in its ask", () => {
+    const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
+    const step: NextStep = {
+      kind: "topic",
+      topic: patientBasics,
+      ask: patientBasics.asks[0],
+      fieldIds: ["Page6.SecE_Device.BrandName"],
+    };
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBeUndefined();
+  });
+
   it("has nothing to acknowledge on a step with no dismissable fields", () => {
     expect(dismissAcknowledgment({ kind: "done" }, "mark_unknown")).toBeUndefined();
     expect(

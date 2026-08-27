@@ -86,11 +86,16 @@ export function dismissableFieldIds(step: NextStep): string[] {
 // name a fact the tap left alone, or miss one it resolved.
 //
 // `undefined`, not a string, on a step with nothing to dismiss: a
-// repeat-decision or `done` step has no ask-form fields at all.
+// repeat-decision or `done` step has no ask-form fields at all. Guarded
+// on the composed NAMES rather than on the field ids, because names is
+// what describeDismissal() refuses to compose from nothing — a step
+// whose fieldIds named nothing in its own ask would otherwise pass a
+// field-count guard and throw inside AskForm, losing the tap's write
+// behind a generic failure message (reviewer pass).
 export function dismissAcknowledgment(step: NextStep, action: "mark_unknown" | "decline"): string | undefined {
-  const fieldIds = dismissableFieldIds(step);
-  if (step.kind !== "topic" || fieldIds.length === 0) return undefined;
-  return describeDismissal(standaloneFactNamesFor(step.ask, fieldIds), action);
+  if (step.kind !== "topic") return undefined;
+  const names = standaloneFactNamesFor(step.ask, dismissableFieldIds(step));
+  return names.length === 0 ? undefined : describeDismissal(names, action);
 }
 
 // AskForm's "I don't have that"/"rather not say" chips dismiss a whole
