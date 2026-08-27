@@ -267,13 +267,14 @@ describe("a scripted full walk", () => {
   // The count the contract states, reached by actually walking rather
   // than by summing the inventory — 58-82 template asks is what Steve
   // was shown.
-  it("asks 26 questions plus the two repeat decisions, not 58-82", () => {
-    // 21 ungated (ask-inventory.test.ts pins the list) + the 5 gated asks
-    // this walk still reaches, since gate evaluation is the sibling PR's
-    // scope: PA-1, SP-9, and the three device asks.
-    expect(walk.filter((q) => !Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(26);
+  it("asks the contract's 21 ungated questions plus the two repeat decisions, not 58-82", () => {
+    // Exactly the count docs/ask-copy.md states for "the ungated
+    // single-product no-device walk", now that rule 5's gates keep the
+    // device, availability and purchase asks out of a report that is
+    // none of those things.
+    expect(walk.filter((q) => !Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(21);
     expect(walk.filter((q) => Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(2);
-    expect(walk).toHaveLength(28);
+    expect(walk).toHaveLength(23);
   });
 
   it("never asks the same thing twice in a row", () => {
@@ -287,10 +288,43 @@ describe("a scripted full walk", () => {
     for (const question of walk) expect(authored.has(question), question).toBe(true);
   });
 
-  it("skips no gated topic yet — gates are the sibling unit's scope", () => {
-    // Recorded so this file says plainly what it does NOT yet prove: the
-    // gate evaluation (ask-copy.md rule 5) lands with the derive rules,
-    // so today's walk still voices the device and purchase asks.
-    expect(walk).toContain("Where and when was it purchased — the store or website, and the date?");
+  it("never voices a gated topic in a report that is none of those things", () => {
+    // A plain adverse-reaction walk: no device, no product problem, no
+    // OTC/compounded/cannabinoid/cosmetic type. Rule 5 keeps all six
+    // gated asks out of it.
+    for (const gated of [
+      "Where and when was it purchased — the store or website, and the date?",
+      "Is the product itself still available — do you have it or a picture of it, or was it returned to the manufacturer, and when?",
+    ]) {
+      expect(walk, gated).not.toContain(gated);
+    }
+    expect(walk.some((q) => q.startsWith("What's the device"))).toBe(false);
+    expect(walk.some((q) => q.startsWith("Who was operating the device"))).toBe(false);
+    expect(walk.some((q) => q.startsWith("Two device-history checks"))).toBe(false);
+  });
+
+  it("brings the gated asks back the moment the record says they belong", () => {
+    // Rule 5's Timing clause: a product problem stated mid-walk opens
+    // availability and purchase, and the walk reaches them on its next
+    // pass rather than having decided once on arrival.
+    let record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    let counts = initRepeatCounts();
+    const asked: string[] = [];
+    for (let guard = 0; guard < 200; guard += 1) {
+      const step = nextStep(record, counts);
+      if (step.kind === "done") break;
+      if (step.kind === "repeat-decision") {
+        counts = setRepeatCount(counts, step.repeatGroup, step.afterInstance);
+        continue;
+      }
+      asked.push(askCopy(step.ask, record));
+      record = dismiss(record, step.fieldIds);
+    }
+    expect(asked).toContain(
+      "Is the product itself still available — do you have it or a picture of it, or was it returned to the manufacturer, and when?",
+    );
+    expect(asked).toContain("Where and when was it purchased — the store or website, and the date?");
+    // Still no device asks: a product problem is not a device.
+    expect(asked.some((q) => q.startsWith("What's the device"))).toBe(false);
   });
 });

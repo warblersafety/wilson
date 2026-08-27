@@ -40,6 +40,7 @@
 // the same boundary Issue #13 already drew for checkbox/enum fields.
 import { applyAction, type AgendaRecord } from "./agenda";
 import { askApplies, asksForTopic, type AuthoredAsk } from "./ask-inventory";
+import { isTopicGatedOff } from "./gates";
 import { isResolved, type FieldState } from "./field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
@@ -715,6 +716,13 @@ export function nextStep(
   const fieldsById = new Map(fields.map((f) => [f.id, f]));
 
   for (const topic of topics) {
+    // ask-copy.md rule 5: a gated-off topic is out of the walk entirely.
+    // Re-evaluated here on every call, not cached on arrival — a product
+    // type stated at SP-6 opens availability and purchase, and the walk
+    // reaches them on its next pass. The contract chooses that mid-flow
+    // insertion over evaluate-once precisely because evaluate-once
+    // silently skips the cases the gate exists to include.
+    if (isTopicGatedOff(topic.id, record)) continue;
     if (topic.repeatGroup !== null && topic.repeatInstance !== null) {
       const decided = decidedCount(repeatCounts, topic.repeatGroup);
       if (decided !== undefined && topic.repeatInstance > decided) {

@@ -193,6 +193,10 @@ For each field you address, decide in this order:
 
 One message can ground several field candidates at once — sweep broadly, not just the first field the message seems to answer.
 
+## "None" is an answer, not a blank
+
+Three asks take prose or a table rather than a value: the relevant medical history, the relevant tests or labs, and anything else FDA should know. When the clinician clearly says there is nothing — "no relevant history", "none", "nothing else" — propose kind "value" with the literal string "None" for that ask's own field, NOT kind "unknown". The exported form prints an unanswered text field as "Unknown", which would tell FDA the opposite of what the clinician said. Reserve "unknown" for a clinician who does not have the information, which is a different thing from one who says there is none.
+
 ## Companion fields — one fact, several boxes
 
 Form 3500 keeps some single facts in several fields at once. When the clinician states the fact, propose every field it fills, each grounded on the same quote:

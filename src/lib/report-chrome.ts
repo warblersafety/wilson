@@ -27,8 +27,19 @@
 import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { isTopicGatedOff } from "./gates";
 
-export type RowState = "done" | "current" | "unknown" | "untouched";
+// "gated-off" is ask-copy.md rule 5's state: not part of this report,
+// which is emphatically not the same as answered-no. It reads as its own
+// thing on the rail so a clinician can see that a section was left out
+// rather than missed.
+// The rail's own short mark for a gated-off row. The full sentence
+// ask-copy.md rule 5 words — "not part of this report — add from Review
+// if needed" — is the row's title/aria text; the rail itself has room for
+// three words beside a label.
+export const GATED_OFF_RAIL_MARK = "not in report";
+
+export type RowState = "done" | "current" | "unknown" | "untouched" | "gated-off";
 
 export interface CuratedRow {
   id: string;
@@ -154,6 +165,10 @@ export function curatedRowState(
   topics: Topic[] = TOPICS,
 ): RowState {
   if (currentTopicId !== null && row.topicIds.includes(currentTopicId)) return "current";
+  // Every topic behind the row is gated off — the whole row is out of the
+  // report. A row that mixes gated and ungated topics reports on the
+  // ungated ones, since something in it is still in play.
+  if (row.topicIds.length > 0 && row.topicIds.every((id) => isTopicGatedOff(id, record))) return "gated-off";
   const topicsById = new Map(topics.map((t) => [t.id, t]));
   return stateFromFieldStates(fieldIdsForRow(row, topicsById).map((id) => record[id]?.state ?? "unasked"));
 }
@@ -172,6 +187,9 @@ export function reportRailRows(
   return curatedRows(repeatCounts, topics).map((row) => {
     if (currentTopicId !== null && row.topicIds.includes(currentTopicId)) {
       return { row, state: "current" as const };
+    }
+    if (row.topicIds.length > 0 && row.topicIds.every((id) => isTopicGatedOff(id, record))) {
+      return { row, state: "gated-off" as const };
     }
     return { row, state: stateFromFieldStates(fieldIdsForRow(row, topicsById).map((id) => record[id]?.state ?? "unasked")) };
   });

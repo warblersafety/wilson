@@ -22,6 +22,7 @@ import {
   buildFollowUpUserContent,
 } from "../prompts/extractor";
 import { deriveCompanionWrites } from "./derive";
+import { filterLabRowOverflow } from "./gates";
 import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
@@ -125,7 +126,13 @@ export function createExtractFn(
 
     // askFieldIds computed above, before the model call — see its own
     // comment for why this is the single source shared with the prompt.
-    const classified = classifyFollowUpActions(accepted, session.record, askFieldIds, topics);
+    // Rule 5's lab-row gate runs BEFORE classification, not after the
+    // reply is composed: filtering downstream made the turn announce
+    // "Also noted: test 2 — ALT 402" for a write it then discarded
+    // (reviewer pass, PR #107, F2). Everything after this point — the
+    // reply, the correction offers, the writes — sees one set of actions.
+    const inBounds = filterLabRowOverflow(session.record, accepted);
+    const classified = classifyFollowUpActions(inBounds, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 
     // ask-copy.md rule 3's mechanical derives, applied to what the turn

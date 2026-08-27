@@ -21,6 +21,8 @@ import {
 import { curatedRows, type CuratedRow } from "./report-chrome";
 import { reopenTopic, TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { displayNameFor } from "./display-names";
+import { formatReportDate, REPORT_DATE_FIELD_ID } from "./report-date";
+import { isTopicGatedOff } from "./gates";
 
 export interface ReviewFieldDisplay {
   text: string | null;
@@ -41,10 +43,17 @@ export interface ReviewFieldDisplay {
 // wipes"), and until now nothing user-facing read it back (PR #64,
 // finding 7), so a clinician who reopened a topic saw a blanked field
 // reading as never-answered.
-export function fieldDisplay(record: AgendaRecord, fieldId: string): ReviewFieldDisplay {
+export function fieldDisplay(record: AgendaRecord, fieldId: string, today: Date = new Date()): ReviewFieldDisplay {
   const entry = Object.hasOwn(record, fieldId) ? record[fieldId] : undefined;
   if (entry?.state === "unasked" && entry.value) {
     return { text: entry.value, muted: false, retained: true };
+  }
+  // Rule 4's auto field: Review shows the date the export will stamp,
+  // rather than a blank that reads as a gap in a field nobody is ever
+  // asked. Not written to the record here — the stamp belongs at export,
+  // so a draft resumed tomorrow carries tomorrow's date.
+  if (fieldId === REPORT_DATE_FIELD_ID && entry?.value === undefined) {
+    return { text: formatReportDate(today), muted: false, retained: false };
   }
   // An ANSWERED-false checkbox reads "No" here, where displayFor() —
   // which speaks for the PDF, and on the PDF an unchecked box is simply
@@ -93,21 +102,52 @@ export function reviewRows(repeatCounts: RepeatCounts, topics: Topic[] = TOPICS)
 // always asked unconditionally". Without this, the concomitant-meds card
 // would render thirty rows for a clinician who confirmed one medication,
 // twenty-seven of them permanently blank slots that don't exist.
-function reachableTopicsOfRow(row: CuratedRow, repeatCounts: RepeatCounts, topics: Topic[]): Topic[] {
+function reachableTopicsOfRow(
+  row: CuratedRow,
+  repeatCounts: RepeatCounts,
+  topics: Topic[],
+  record?: AgendaRecord,
+): Topic[] {
   const byId = new Map(topics.map((t) => [t.id, t]));
   return row.topicIds
     .map((id) => byId.get(id))
     .filter((t): t is Topic => t !== undefined)
-    .filter((t) => t.repeatGroup === null || t.repeatInstance === null || t.repeatInstance <= (repeatCounts[t.repeatGroup] ?? 1));
+    .filter((t) => t.repeatGroup === null || t.repeatInstance === null || t.repeatInstance <= (repeatCounts[t.repeatGroup] ?? 1))
+    // ask-copy.md rule 5, when a record is available to judge against: a
+    // gated-off topic contributes no rows. Rendering its fields as a wall
+    // of "—" is precisely the confirmed-absent reading rule 5 forbids,
+    // and on the surface the clinician signs off from (reviewer pass,
+    // PR #107, F4). It also removed a trap: an Edit on a gated section's
+    // card reopened its fields, which cleared the very evidence the gate
+    // reads, permanently foreclosing the section (F3).
+    .filter((t) => record === undefined || !isTopicGatedOff(t.id, record));
 }
 
 export function fieldIdsForReviewRow(
   row: CuratedRow,
   repeatCounts: RepeatCounts,
   topics: Topic[] = TOPICS,
+  record?: AgendaRecord,
 ): string[] {
-  return reachableTopicsOfRow(row, repeatCounts, topics).flatMap((t) => t.fieldIds);
+  return reachableTopicsOfRow(row, repeatCounts, topics, record).flatMap((t) => t.fieldIds);
 }
+
+// Whether a Review card is out of the report entirely — every topic
+// behind it gated off. Such a card renders its one-line state instead of
+// its fields; rule 5's "add affordance" that would bring it back is
+// warblersafety/wilson#99's open design question, so today it comes back
+// by the clinician mentioning it, not by clicking.
+export function isReviewRowGatedOff(
+  row: CuratedRow,
+  record: AgendaRecord,
+  repeatCounts: RepeatCounts,
+  topics: Topic[] = TOPICS,
+): boolean {
+  const reachable = reachableTopicsOfRow(row, repeatCounts, topics);
+  return reachable.length > 0 && reachable.every((t) => isTopicGatedOff(t.id, record));
+}
+
+export const GATED_OFF_REVIEW_COPY = "Not part of this report.";
 
 // Review's per-card Edit — "every topic's Edit reopening it through the
 // existing reopen path", at card granularity. A thin reduce over the
@@ -124,7 +164,7 @@ export function reopenReviewRow(
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): AgendaRecord {
-  return reachableTopicsOfRow(row, repeatCounts, topics).reduce(
+  return reachableTopicsOfRow(row, repeatCounts, topics, record).reduce(
     (rec, topic) => reopenTopic(rec, topic, fields),
     record,
   );
@@ -260,7 +300,7 @@ export function reviewFieldRows(
   repeatCounts: RepeatCounts,
   topics: Topic[] = TOPICS,
 ): ReviewFieldRow[] {
-  const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics);
+  const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics, record);
   const present = new Set(fieldIds);
 
   // Absorption is decided per anchor, against the record — never from the

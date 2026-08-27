@@ -10,6 +10,7 @@ import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
   fieldDisplay,
   fieldIdsForReviewRow,
+  isReviewRowGatedOff,
   reopenReviewRow,
   reviewFieldRows,
   reviewRows,
@@ -229,6 +230,32 @@ describe("reviewFieldRows", () => {
   // OC-1 — and displayFor() renders an unchecked box blank, because on
   // the PDF that is what it is. Review's job is verification, so it says
   // "No" out loud (reviewer pass, PR #106, F2).
+  // Rule 5 on the sign-off surface (reviewer pass, PR #107, F4): a
+  // gated-off section renders as its own state, never as a wall of "—"
+  // rows, which is the confirmed-absent reading the rule forbids.
+  it("contributes no rows for a gated-off section, and says so instead", () => {
+    const record = initAgenda();
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(isReviewRowGatedOff(availability, record, ONE_EACH)).toBe(true);
+    expect(reviewFieldRows(record, availability, ONE_EACH)).toEqual([]);
+    expect(fieldIdsForReviewRow(availability, ONE_EACH, TOPICS, record)).toEqual([]);
+  });
+
+  it("renders the section normally once its gate opens", () => {
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(isReviewRowGatedOff(availability, record, ONE_EACH)).toBe(false);
+    expect(reviewFieldRows(record, availability, ONE_EACH).length).toBeGreaterThan(0);
+  });
+
+  // F3: the trap this closes. Editing a gated card reopened its fields,
+  // which cleared the very evidence isDeviceReport() reads.
+  it("never reopens a gated-off section's fields, so an edit cannot foreclose it", () => {
+    const record = initAgenda();
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(reopenReviewRow(record, availability, ONE_EACH)).toEqual(record);
+  });
+
   it("renders an answered-false checkbox as No, distinct from never asked", () => {
     const HOSPITAL = "Page1.SecA_Patient.Hospital";
     const LIFE = "Page1.SecA_Patient.LifeThreaten";

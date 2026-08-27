@@ -20,6 +20,7 @@
 // run — not re-asserted here.
 import { describe, expect, it } from "vitest";
 import { anchorOf, dispositionOf, isListableGap } from "./ask-inventory";
+import { isTopicGatedOff } from "./gates";
 import { NARRATIVE_EXTRACTION_FIXTURES } from "../../fixtures/narrative-extraction/cases";
 import { initAgenda } from "./agenda";
 import { askDeterministic } from "./ask";
@@ -83,10 +84,17 @@ function alternatingDismissals(turnIndex: number): ExtractFn {
       // nothing to cap. Writing past it would resolve fields the
       // clinician was never asked about (chip-grammar.ts's
       // dismissableFieldIds() records why that used to be possible).
+      // Alternating by the field's index WITHIN its ask, not by turn
+      // index: turn parity made the whole fixture depend on how many
+      // turns the walk happens to take, so adding rule 5's gates (six
+      // fewer asks) silently flipped which fields ended up `unknown` and
+      // broke an assertion about a state nothing in this test controls.
+      // Per-ask indexing gives every ask's first field `unknown` and the
+      // rest `declined`, whatever the walk's length.
       actions: step.fieldIds
         .map((fieldId, i) => ({
           fieldId,
-          type: (turnIndex + i) % 2 === 0 ? ("mark_unknown" as const) : ("decline" as const),
+          type: i % 2 === 0 ? ("mark_unknown" as const) : ("decline" as const),
         })),
     };
   };
@@ -222,6 +230,12 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
         t.repeatInstance === null ||
         t.repeatInstance <= (done.repeatCounts[t.repeatGroup!] ?? 1),
     )
+      // ...and minus rule 5's gated-off topics, which are out of the
+      // report entirely for this case: an antibiotic rash is no device,
+      // no product problem, and no OTC/compounded/cannabinoid/cosmetic
+      // type, so Section E, availability and purchase are not gaps —
+      // they are not part of this report.
+      .filter((t) => !isTopicGatedOff(t.id, done.record))
       .flatMap((t) => t.fieldIds)
       .filter((id) => done.record[id].state === "unknown" || done.record[id].state === "unasked")
       // ...minus the fields ask-copy.md's dispositions say are not gaps at

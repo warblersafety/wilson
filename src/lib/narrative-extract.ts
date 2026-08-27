@@ -39,6 +39,7 @@ import {
   type Topic,
 } from "./topics";
 import { bareAgeDefaultWrites } from "./derive";
+import { filterLabRowOverflow } from "./gates";
 
 export interface NarrativeProposal {
   action: ProposedAction;
@@ -98,10 +99,17 @@ export function resolveNarrativeExtraction(
   // shape, which extract.ts's existing caller never needed.
   const rejectedCandidates = new Set(rejected.map((r) => r.candidate));
   const acceptedCandidates = response.candidates.filter((c) => !rejectedCandidates.has(c));
-  const proposals: NarrativeProposal[] = accepted.map((action, i) => ({
-    action,
-    quote: acceptedCandidates[i].quote,
-  }));
+  // Rule 5's lab-row gate applies HERE, at proposal time — not after the
+  // clinician confirms on read-back. Filtering downstream let a proposal
+  // they had explicitly ticked vanish with nothing said (reviewer pass,
+  // PR #107, F2); dropping it here means it is never offered, which is
+  // the honest half of the same rule. Judged against an empty record on
+  // purpose: the narrative pass is the first thing to touch the report,
+  // so the batch's own ordering is all there is to judge.
+  const inBounds = new Set(filterLabRowOverflow({}, accepted));
+  const proposals: NarrativeProposal[] = accepted
+    .map((action, i) => ({ action, quote: acceptedCandidates[i].quote }))
+    .filter(({ action }) => inBounds.has(action));
 
   // Each candidate validated against the group it itself names — for this
   // pass there is no single "the question being asked" the way a per-turn

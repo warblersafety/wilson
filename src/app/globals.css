@@ -1592,3 +1592,12 @@ h3 {
   color: var(--text-muted);
   font-size: var(--type-copy-size);
 }
+
+/* A Review card for a section rule 5 keeps out of this report. Reads as
+   its own state, not as a wall of empty fields — "gated-off is never
+   confirmed-absent". */
+.review__gated-off {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
