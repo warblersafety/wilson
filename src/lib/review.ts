@@ -236,7 +236,6 @@ export function reviewFieldRows(
   row: CuratedRow,
   repeatCounts: RepeatCounts,
   topics: Topic[] = TOPICS,
-  fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): ReviewFieldRow[] {
   const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics);
   const present = new Set(fieldIds);
