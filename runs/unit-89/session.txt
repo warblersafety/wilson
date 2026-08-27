@@ -1,0 +1,330 @@
+[screenshot] 01-start.png
+[surface] start — heading: Report an adverse event
+
+=== turn 1 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the year(s) (yes or no), the month(s) (yes or no), and the week(s) (yes or no)?
+transcript above it: 1 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 02-followups-turn-1.png
+
+=== turn 2 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the day(s) (yes or no), the date of birth, and the male (yes or no)?
+transcript above it: 3 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 03-followups-turn-2.png
+
+=== turn 3 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the female (yes or no), the weight, and the lb (yes or no)?
+transcript above it: 5 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 04-followups-turn-3.png
+
+=== turn 4 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the kg (yes or no), the american indian or alaska native (yes or no), and the asian (yes or no)?
+transcript above it: 7 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 05-followups-turn-4.png
+
+=== turn 5 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the black or african american (yes or no), the hispanic or latino (yes or no), and the middle eastern or north african (yes or no)?
+transcript above it: 9 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 6 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the native hawaiian or pacific islander (yes or no) and the white (yes or no)?
+transcript above it: 11 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 7 (topic) ===
+progress: What happened · topic 2 of 34
+ask bubble: What's the adverse event (yes or no), the product use/medication error (yes or no), and a product problem such as a defect or malfunction (yes or no)?
+transcript above it: 13 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 8 (topic) ===
+progress: What happened · topic 2 of 34
+ask bubble: What's the problem with different manufacturer of same medicine (yes or no), the date of event, and the date of this report?
+transcript above it: 15 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 9 (topic) ===
+progress: What happened · topic 2 of 34
+ask bubble: What's a description of what happened?
+transcript above it: 17 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 10 (topic) ===
+progress: Outcome · topic 3 of 34
+ask bubble: What's the death (yes or no), the date of death, and the hospitalization (initial or prolonged) (yes or no)?
+transcript above it: 19 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 11 (topic) ===
+progress: Outcome · topic 3 of 34
+ask bubble: What's the life-threatening (yes or no), the disability or permanent damage (yes or no), and the required intervention to prevent permanent impairment/damage (yes or no)?
+transcript above it: 21 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 12 (topic) ===
+progress: Outcome · topic 3 of 34
+ask bubble: What's the congenital anomaly/birth defects (yes or no) and the other serious or important medical events (yes or no)?
+transcript above it: 23 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 13 (topic) ===
+progress: Medical history · topic 4 of 34
+ask bubble: What's any other relevant medical history?
+transcript above it: 25 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 14 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 1's test/lab data, row 1's low test range, and row 1's high test range?
+transcript above it: 27 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 15 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 1's date, row 2's test/lab data, and row 2's low test range?
+transcript above it: 29 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 16 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 2's high test range, row 2's date, and row 3's test/lab data?
+transcript above it: 31 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 17 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 3's low test range, row 3's high test range, and row 4's test/lab data?
+transcript above it: 33 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 18 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 4's low test range, row 4's high test range, and row 5's test/lab data?
+transcript above it: 35 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 19 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 5's low test range, row 5's high test range, and row 6's test/lab data?
+transcript above it: 37 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 20 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 6's low test range, row 6's high test range, and row 7's test/lab data?
+transcript above it: 39 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 21 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 7's low test range, row 8's test/lab data, and row 8's low test range?
+transcript above it: 41 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 22 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 8's high test range, row 8's date, and row 7's high test range?
+transcript above it: 43 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 23 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 3's date, row 4's date, and row 5's date?
+transcript above it: 45 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 24 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: What's row 6's date and row 7's date?
+transcript above it: 47 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 25 (topic) ===
+progress: Anything else · topic 6 of 34
+ask bubble: What's the additional comments?
+transcript above it: 49 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 26 (topic) ===
+progress: Product availability · topic 7 of 34
+ask bubble: What's the yes (yes or no), the date it was returned to the manufacturer, and the returned to manufacturer (yes or no)?
+transcript above it: 51 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 27 (topic) ===
+progress: Product availability · topic 7 of 34
+ask bubble: What's the no (yes or no) and the yes (yes or no)?
+transcript above it: 53 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 28 (topic) ===
+progress: Suspect product #1: identity · topic 8 of 34
+ask bubble: What's the product name, the strength, and the unit?
+transcript above it: 55 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 29 (topic) ===
+progress: Suspect product #1: identity · topic 8 of 34
+ask bubble: What's the ndc # or unique id, the manufacturer/compounder name, and the lot #?
+transcript above it: 57 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 30 (topic) ===
+progress: Suspect product #1: dosing · topic 9 of 34
+ask bubble: What's the dose or amount, the unit, and the frequency (BID / Daily / HS / PRN / QID / TID / Other)?
+transcript above it: 59 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 31 (topic) ===
+progress: Suspect product #1: dosing · topic 9 of 34
+ask bubble: What's the other frequency you had in mind, the route, and the other route you had in mind?
+transcript above it: 61 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 32 (topic) ===
+progress: Suspect product #1: usage timeline · topic 10 of 34
+ask bubble: What's the therapy/usage started on, the therapy/usage stopped on, and the dose reduced on?
+transcript above it: 63 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 33 (topic) ===
+progress: Suspect product #1: usage timeline · topic 10 of 34
+ask bubble: What's the duration, the duration unit (Minute(s) / Hour(s) / Day(s) / Week(s) / Month(s) / Year(s)), and the yes (yes or no)?
+transcript above it: 65 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 34 (topic) ===
+progress: Suspect product #1: usage timeline · topic 10 of 34
+ask bubble: What's the no (yes or no) and the diagnosis for use (indication)?
+transcript above it: 67 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 35 (topic) ===
+progress: Suspect product #1: type and expiration · topic 11 of 34
+ask bubble: What's the compounded product (by a pharmacy or an outsourcing facility) (yes or no), the cosmetics for professional use only (yes or no), and the expiration date?
+transcript above it: 69 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 36 (topic) ===
+progress: Suspect product #1: type and expiration · topic 11 of 34
+ask bubble: What's the brand (yes or no), the generic or biosimilar (yes or no), and the over-the-counter (otc) (yes or no)?
+transcript above it: 71 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 37 (topic) ===
+progress: Suspect product #1: type and expiration · topic 11 of 34
+ask bubble: What's the other (yes or no), the cannabinoid hemp products (such as products containing cbd) (yes or no), and the cosmetics sold on a retail basis (yes or no)?
+transcript above it: 73 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 38 (topic) ===
+progress: Suspect product #1: response after stopping/restarting · topic 12 of 34
+ask bubble: What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)?
+transcript above it: 75 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 39 (topic) ===
+progress: Suspect product #1: response after stopping/restarting · topic 12 of 34
+ask bubble: What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)?
+transcript above it: 77 turns; ends with this ask: false; identical text earlier in history: 1
+note (#90, not this unit): 1 earlier turn(s) carry byte-identical template copy
+
+=== turn 40 (topic) ===
+progress: Suspect product #1: purchase details · topic 13 of 34
+ask bubble: What's the name, the address, and the country?
+transcript above it: 79 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 41 (topic) ===
+progress: Suspect product #1: purchase details · topic 13 of 34
+ask bubble: What's the city, the state/province/region, and the zip/postal code?
+transcript above it: 81 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 42 (topic) ===
+progress: Suspect product #1: purchase details · topic 13 of 34
+ask bubble: What's the website (if purchased online) and the purchase date?
+transcript above it: 83 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 43 (repeat-decision) ===
+progress: Suspect product #2: identity · topic 14 of 34
+ask bubble: Was there another suspect product?
+transcript above it: 85 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 06-followups-repeat-43.png
+
+=== turn 44 (topic) ===
+progress: Device identity · topic 20 of 34
+ask bubble: What's the brand name, the common device name, and the procode?
+transcript above it: 87 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 45 (topic) ===
+progress: Device identity · topic 20 of 34
+ask bubble: What's the manufacturer's name and location, the model #, and the lot #?
+transcript above it: 89 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 46 (topic) ===
+progress: Device identity · topic 20 of 34
+ask bubble: What's the catalog #, the expiration date, and the serial #?
+transcript above it: 91 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 47 (topic) ===
+progress: Device identity · topic 20 of 34
+ask bubble: What's the unique device identifier (udi) #?
+transcript above it: 93 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 48 (topic) ===
+progress: Device usage · topic 21 of 34
+ask bubble: What's the health professional (yes or no), the patient/consumer (yes or no), and the other (yes or no)?
+transcript above it: 95 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 49 (topic) ===
+progress: Device usage · topic 21 of 34
+ask bubble: What's the date it was implanted and the date it was explanted?
+transcript above it: 97 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 50 (topic) ===
+progress: Device history · topic 22 of 34
+ask bubble: What's the yes (yes or no), the no (yes or no), and the name and address of whoever reprocessed it?
+transcript above it: 99 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 51 (topic) ===
+progress: Device history · topic 22 of 34
+ask bubble: What's the yes (yes or no), the no (yes or no), and the unknown (yes or no)?
+transcript above it: 101 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 52 (topic) ===
+progress: Concomitant medication #1 · topic 23 of 34
+ask bubble: What's row 1's product name, row 1's therapy start date, and row 1's therapy end date?
+transcript above it: 103 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 53 (repeat-decision) ===
+progress: Concomitant medication #2 · topic 24 of 34
+ask bubble: Was there another concomitant medication?
+transcript above it: 105 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 07-followups-repeat-53.png
+
+=== turn 54 (topic) ===
+progress: Reporter contact info · topic 33 of 34
+ask bubble: What's the last name, the first name, and the address?
+transcript above it: 107 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 55 (topic) ===
+progress: Reporter contact info · topic 33 of 34
+ask bubble: What's the city, the state/province/region, and the zip/postal code?
+transcript above it: 109 turns; ends with this ask: false; identical text earlier in history: 1
+note (#90, not this unit): 1 earlier turn(s) carry byte-identical template copy
+
+=== turn 56 (topic) ===
+progress: Reporter contact info · topic 33 of 34
+ask bubble: What's the country, the phone #, and the email?
+transcript above it: 111 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 57 (topic) ===
+progress: About you · topic 34 of 34
+ask bubble: What's the yes (yes or no), the no (yes or no), and the occupation (Administrator/Supervisor / Biomedical Engineer / Dentist / Non-Health Professional / Nurse / Nurse Practitioner / Other Health Professional / Pharmacist / Physician / Physician Assistant / Risk Manager / Third Party Servicer)?
+transcript above it: 113 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 58 (topic) ===
+progress: About you · topic 34 of 34
+ask bubble: What's the manufacturer/compounder (yes or no), the user facility (yes or no), and the distributor/importer (yes or no)?
+transcript above it: 115 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 59 (topic) ===
+progress: About you · topic 34 of 34
+ask bubble: What's whether to keep your identity from the manufacturer (yes or no) and the packer (yes or no)?
+transcript above it: 117 turns; ends with this ask: false; identical text earlier in history: 0
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[follow-ups complete]
+[screenshot] 08-review.png
+
+[surface] review — body text:
+Review before you sign off.Your signature is the safety boundary, not mine. Edit anything and I’ll ask about it again.A · Patient basicsPatient InformationEditPatient IdentifierMRN 44-1902Age61Age: Year(s)—Age: Month(s)—Age: Week(s)—Age: Day(s)—Date of BirthUnknownSex: Male—Sex: Female—WeightUnknownWeight: lb—Weight: kg—Race and/or Ethnicity: American Indian or Alaska Native—Race and/or Ethnicity: Asian—Race and/or Ethnicity: Black or African American—Race and/or Ethnicity: Hispanic or Latino—Race and/or Ethnicity: Middle Eastern or North African—Race and/or Ethnicity: Native Hawaiian or Pacific Islander—Race and/or Ethnicity: White—B · What happenedAdverse Event, Product Problem (or Product Use Error)EditType of Report: Adverse Event—Type of Report: Product Use/Medication Error—Type of Report: Product Problem (e.g., defects/malfunctions)—Type of Report: Problem with Different Manufacturer of Same Medicine—Date of EventUnknownDate of this ReportUnknownDescribe Event, Problem or Product Use/Medication ErrorUnknownAdditional CommentsUnknownB · OutcomeAdverse Event, Product Problem (or Product Use Error)EditOutcome Attributed to Adverse Event: Death—Outcome Attributed to Adverse Event: Date of DeathUnknownOutcome Attributed to Adverse Event: Hospitalization (Initial or prolonged)—Outcome Attributed to Adverse Event: Life-threatening—Outcome Attributed to Adverse Event: Disability or Permanent Damage—Outcome Attributed to Adverse Event: Required Intervention to Prevent Permanent Impairment/Damage—Outcome Attributed to Adverse Event: Congenital Anomaly/Birth Defects—Outcome Attributed to Adverse Event: Other Serious or Important Medical Events—B · Medical historyAdverse Event, Product Problem (or Product Use Error)EditOther Relevant History, Including Preexisting Medical ConditionsUnknownB · Lab dataAdverse Event, Product Problem (or Product Use Error)EditRelevant Test/Laboratory Data: Row 1 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 1 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 1 — High Test RangeUnknownRelevant Test/Laboratory Data: Row 1 — DateUnknownRelevant Test/Laboratory Data: Row 2 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 2 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 2 — High Test RangeUnknownRelevant Test/Laboratory Data: Row 2 — DateUnknownRelevant Test/Laboratory Data: Row 3 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 3 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 3 —
+
+=== COMPLETE TRANSCRIPT (0 turns) ===
+[screenshot] 09-review-paper-facsimile.png
+[surface] review — Form 3500 facsimile shown
+[screenshot] 10-open-fields.png
+[surface] open-fields dialog:
+155 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.Age: Year(s)you said unknownAnswerAge: Month(s)you said unknownAnswerAge: Week(s)you said unknownAnswerAge: Day(s)you said unknownAnswerDate of Birthyou said unknownAnswerSex: Maleyou said unknownAnswerSex: Femaleyou said unknownAnswerWeightyou said unknownAnswerWeight: lbyou said unknownAnswerWeight: kgyou said unknownAnswerRace and/or Ethnicity: American Indian or Alaska Nativeyou said unknownAnswerRace and/or Ethnicity: Asianyou said unknownAnswerRace and/or Ethnicity: Black or African Americanyou said unknownAnswerRace and/or Ethnicity: Hispanic or Latinoyou said unknownAnswerRace and/or Ethnicity: Middle Eastern or North Africanyou said unknownAnswerRace and/or Ethnicity: Native Hawaiian or Pacific Islanderyou said unknownAnswerRace and/or Ethnicity: Whiteyou said unknownAnswerType of Report: Adverse Eventyou said unknownAnswerType of Report: Product Use/Medication Erroryou said unknownAnswerType of Report: Product Problem (e.g., defects/malfunctions)you said unknownAnswerType of Report: Problem with Different Manuf
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 11-ready.png
+
+[surface] ready — body text:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields2 written · 155 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againwilson stores nothing on its own servers — this download is your copy.
+
+=== SUMMARY ===
+turns driven: 59
+screenshots: 11
+double-render occurrences (this unit's bug): 0
+turns whose ask text is echoed earlier in the history (#90's template copy): 2
