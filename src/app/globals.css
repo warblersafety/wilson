@@ -1568,6 +1568,77 @@ h3 {
   color: var(--text-on-dark);
 }
 
+/* --- session downloads (Issue #92) ---------------------------------------
+   Shared by Review and Ready. Styled as a quiet block rather than a second
+   primary action: the PDF is still the artifact a clinician came for, and
+   these two are for the case where something needs looking at. */
+.session-downloads {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-top: var(--space-7);
+  max-width: 520px;
+}
+
+.session-downloads__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+}
+
+.session-downloads__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--type-fine-size);
+  line-height: var(--type-fine-line);
+}
+
+.session-downloads__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-9);
+  flex-wrap: wrap;
+}
+
+.session-downloads__actions button {
+  min-height: var(--hit-min);
+  padding: 0 var(--space-2);
+  border: none;
+  background: none;
+  color: var(--text-link);
+  font-weight: var(--weight-semibold);
+  font-size: var(--type-ui-size);
+  cursor: pointer;
+  transition: var(--transition-link);
+}
+
+.session-downloads__actions button:hover {
+  color: var(--text-link-hover);
+}
+
+/* The component is shared; the surfaces are not. Review is a light panel
+   (--text-prose/--text-muted, --text-link) and Ready is a dark one
+   (--text-on-dark-dim, --accent), so the light values above are the
+   default and Ready overrides them. Getting this wrong renders navy-900
+   buttons on a navy panel — legible in neither direction, and invisible
+   to every test in this repo, since none of them render CSS. */
+.ready .session-downloads__hint {
+  color: var(--text-on-dark-dim);
+}
+
+.ready .session-downloads__heading {
+  color: var(--text-on-dark);
+}
+
+.ready .session-downloads__actions button {
+  color: var(--accent);
+}
+
+.ready .session-downloads__actions button:hover {
+  color: var(--text-on-dark);
+}
+
 .ready__storage {
   /* Pinned to the bottom of the panel, as screen 07 does — the privacy
      line is the last thing on the surface, not a footnote to the buttons. */

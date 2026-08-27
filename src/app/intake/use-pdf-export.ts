@@ -16,7 +16,8 @@
 //   - object-URL revoke on replacement and on unmount, or they leak for
 //     the page's lifetime;
 //   - the WebKit download workaround: some Safari versions only honor a
-//     click on an <a download> that is actually attached to the document.
+//     click on an <a download> that is actually attached to the document
+//     (now shared with #92's JSON downloads, in download-file.ts).
 //
 // Genuinely new here: a retry affordance. Nothing in this codebase had
 // one before (the deleted component's error state was terminal — an
@@ -30,6 +31,7 @@ import { fetchReportPdf } from "@/lib/pdf-export";
 // ready.test.ts can reach it — src/lib is typechecked without the DOM lib,
 // so a lib test cannot import this hook (reviewer pass, PR #78, finding 3).
 import { PDF_COPY } from "@/lib/review";
+import { triggerDownload } from "./download-file";
 
 export type PdfExportStatus = "loading" | "ready" | "error";
 
@@ -84,12 +86,11 @@ export function usePdfExport(record: AgendaRecord): PdfExport {
   const download = useCallback(
     (filename = "form-3500.pdf") => {
       if (!pdfUrl) return;
-      const link = document.createElement("a");
-      link.href = pdfUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // The anchor dance, WebKit workaround included, now lives in
+      // download-file.ts — Issue #92's JSON downloads need the same one,
+      // and a second hand-rolled copy is a second chance to omit the
+      // appendChild that makes it work in Safari.
+      triggerDownload(pdfUrl, filename);
     },
     [pdfUrl],
   );
