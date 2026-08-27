@@ -140,8 +140,11 @@ rollup-driven walk, and the visual-composition pass. It is done when
 **Steve takes the reference case end-to-end on a deployed staging build
 and records acceptance** (on the round's promotion PR or the standing
 handoff) — with v1.1's flow test and v1's field-mapping tests still
-green, the UX floor green, and both live evals having produced at least
-one recorded run. Until that acceptance is recorded the rebuild is not
+green, the UX floor green, and both live evals run against the
+recovery build (a commit including the authored-copy unit), each
+report linked from that same promotion PR or handoff, with any failure
+dispositioned by Steve before acceptance — a stale or failing run
+satisfies nothing. Until that acceptance is recorded the rebuild is not
 done, whatever the artifacts say. UI rounds thereafter keep the same
 shape: operator acceptance of a deployed build, at round granularity —
 never per unit — is part of done-ness.

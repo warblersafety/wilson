@@ -22,7 +22,9 @@ walk contains exactly 21 authored asks** (3 patient + 2 what-happened +
 1 outcome + 1 history + 1 labs + 1 comments + 8 suspect-product + 1
 concomitant + 3 reporter). Conditional asks (death date)
 and gated asks (availability, purchase, device) are excluded from that
-count. Hard ceiling: 24 — an amendment that pushes past it returns to a
+count, as are rule 9's re-ask frames and clarifications and the
+Machinery copy section's strings — authored, but never primary asks.
+Hard ceiling: 24 — an amendment that pushes past it returns to a
 design conversation first.
 
 ## Rules
@@ -39,7 +41,9 @@ design conversation first.
    fields; the whole lab table = one ask). The `MAX_FIELDS_PER_ASK`
    slicing is retired for authored asks. Dismiss chips ("I don't have
    that" / "rather not say") apply to exactly the ask's *askable* fields
-   — never to derive/auto companions.
+   — never to derive/auto companions. A partially answered ask ends
+   only through rule 9's re-ask path — never by silently resolving
+   facts the clinician didn't address.
 3. **Derive fields are never asked.** A derive field is filled as a
    companion of a sibling fact, grounded on the same quote:
    - Unit checkboxes from a stated unit: `AgeYears/Months/Weeks/Days`
@@ -60,21 +64,38 @@ design conversation first.
      onto the clinician's words.
 4. **Auto fields are system-filled.** `ReportDate` is stamped with the
    current date at export, shown and editable at Review, never asked.
-5. **Gates.** A gated topic enters the walk only when its gate holds.
-   Gated-off topics are not "open": excluded from asks, the open-fields
-   dialog, and written/unknown counts; the rail row shows an honest
-   not-part-of-this-report state. Gates in force:
+5. **Gates.** A gated topic is out of the walk while its gate is
+   closed: excluded from asks, the open-fields dialog, and
+   written/unknown counts; its rail row reads "not part of this report
+   — add from Review if needed". **Gated-off is never
+   confirmed-absent**: Review renders every gated-off section
+   collapsed with an add affordance (the normal reopen path), and a
+   validated extraction proposal for a gated field opens its gate — no
+   silence is converted into a recorded "none". **Timing**: gates are
+   re-evaluated on every `nextStep()` walk; a gate opened late (a
+   product type stated at SP-6 opening availability/purchase) makes
+   the walk reach the newly opened topic on its next pass — that
+   mid-flow insertion is accepted and recorded here, because the
+   alternative (evaluate once at arrival) silently skips exactly the
+   cases the gate exists to include. Gates in force:
    - **Section E (all three device topics)**: a medical device is part
-     of the report — any Section E field has a proposal, or the
-     clinician says so.
+     of the report — any Section E field has a validated proposal, or
+     the clinician says so in the narrative, any answer, or through
+     Review's add affordance. No ask voices devices; the add
+     affordance is the guaranteed path, so nothing is foreclosed.
    - **product-availability** and **suspect-product purchase**: the
-     report involves a product problem / use error / manufacturer switch
-     (`RepError`, `Defects`, `DiffManu`), a device, or a product type in
-     {OTC, compounded, cannabinoid, cosmetic}. Pure adverse-reaction
-     reports skip both.
-   - **Table overflow** (lab rows 2–8; the same principle the repeat
-     count already gives concomitant rows): a row's fields exist only
-     once the previous row has content.
+     report involves a product problem / use error / manufacturer
+     switch (`RepError`, `Defects`, `DiffManu`), a device, or a
+     product type in {OTC, compounded, cannabinoid, cosmetic}. Pure
+     adverse-reaction reports skip both — and can regain both late,
+     per Timing above.
+   - **Lab rows are write-targets, never ask-targets**: LD-1 is the
+     only lab ask; rows fill from its answer (and later volunteered
+     turns) in stated order; no row is ever independently "open" —
+     openness attaches to LD-1's own resolution, so an empty row 4 is
+     never a phantom gap in open-fields or the counts. Row N+1
+     accepts content only while row N holds content other than the
+     literal "None" (rule 7's text-ask negative).
 6. **Display names.** Every field has a short human name (tables below),
    used by acknowledgments, correction offers, collisions, the
    open-fields dialog, and Review rows. Raw manifest labels and PDF ids
@@ -83,7 +104,14 @@ design conversation first.
 7. **Checkbox negatives are real answers.** "None of those" / "no"
    resolves checkbox facts as answered-`"false"` (the existing literal
    representation), grounded on the negative quote — resolved and
-   unchecked, not `unknown`.
+   unchecked, not `unknown`. **Text-ask negatives are real answers
+   too**: a clear "none" / "nothing" to a prose or table ask (MH-1,
+   LD-1, AC-1) writes the literal "None" to the ask's primary field
+   (`OtherHistory`, `TestData1`, `AdditionalComments`) as an answered
+   value — never `mark_unknown`, because the PDF filler prints unknown
+   text fields as "Unknown" (`scripts/fill-3500.py`'s sentinel), which
+   would state the opposite of what the clinician said on the
+   FDA-bound form. Companions and further rows stay untouched.
 8. **Voice.** Second person, contractions, one question mark per ask,
    no exclamation marks, mockup screen-04's register. Patterns:
    - Out-of-ask write: `Also noted — {name}: {value}.`
@@ -93,8 +121,21 @@ design conversation first.
      {old}. Replace it?`
    - Collision: `I heard two values for {name}: {a} and {b} — which
      should I write?`
-   - Open-fields row: `{name} — not asked yet` / `— you didn't have it`
-     / `— declined`.
+   - Open-fields row: `{name} — not asked yet` / `— you didn't have
+     it`. (The dialog lists `unknown` and unasked fields only —
+     design.md surface 5 and `open-fields.ts` exclude `declined`, so
+     no declined row copy exists.)
+9. **Partial answers and clarifications.** An ask whose answer left
+   some of its facts open is re-asked through one authored frame
+   composed from display names — several still open: `Got it. Still
+   need: {names}.` · one still open: `And the {name}?` A frame is
+   never byte-equal to the primary ask, so the
+   no-consecutive-duplicates check holds across the pair. Dismiss
+   chips on a re-ask cover exactly the re-ask's named facts. Where
+   rule 3 deliberately leaves an ambiguity open, the clarification is
+   authored, not improvised: a bare weight gets "Was that pounds or
+   kilograms?" (PB-2). Re-ask frames and clarifications are authored
+   copy under rule 1 and sit outside the primary-ask count.
 
 ## Inventory
 
@@ -112,7 +153,8 @@ normative.
 - **PB-2** — "What's the patient's weight — and date of birth, if you
   record it?"
   → `WeightValue` (derive: `WeightLB`/`WeightKG`, stated-only, no
-  default); `DateBirth`.
+  default — a bare weight gets rule 9's authored clarification "Was
+  that pounds or kilograms?", never a guess); `DateBirth`.
 - **PB-3** — "For FDA's demographics — the patient's race or ethnicity,
   if you record it? More than one is fine."
   → the seven race/ethnicity checkboxes, multi-select from words.
@@ -141,10 +183,12 @@ error / product problem / different-manufacturer problem.
 ### event-outcome (B)
 
 - **OC-1** — "How serious was the outcome — hospitalization,
-  life-threatening, disability or permanent damage, a congenital
-  anomaly, death, another serious medical event — or none of those?"
-  → the eight outcome checkboxes, multi; "none" resolves all as
-  answered-false (rule 7).
+  life-threatening, disability or permanent damage, an intervention to
+  prevent permanent harm, a congenital anomaly, death, another serious
+  medical event — or none of those?"
+  → the seven outcome checkboxes, multi; "none" resolves all seven as
+  answered-false (rule 7) — every one of them is voiced above, so no
+  box is ever written false unheard.
 - **OC-2** *(conditional: `Death` true)* — "What was the date of death?"
   → `DeathDate`.
 
@@ -164,9 +208,10 @@ Display name: relevant history.
 - **LD-1** — "Any relevant tests or labs? For each: the test, the
   result, the reference range if it's useful, and the date."
   → table rows 1–8 in stated order (`TestDataN`, `TLowRangeN`,
-  `THighRangeN`, `TDateN`); overflow rows gated per rule 5. (The
-  manifest's Row8-prefixed ids for rows 3–7 dates are known id defects;
-  the mapping is unaffected.)
+  `THighRangeN`, `TDateN`); rows are write-targets per rule 5 — never
+  independently open. (Known manifest id defects: the rows-3–7 date
+  ids and row 7's high-range id carry a `Row8.` prefix; leaf names are
+  unique, so the mapping is unaffected.)
 
 Display names: test {n} · test {n} result range (low / high) · test {n}
 date.
@@ -174,8 +219,10 @@ date.
 ### event-additional-comments (B)
 
 - **AC-1** *(always the final ask of the walk)* — "Anything else FDA
-  should know?" A negative resolves without a value (encoded
-  `mark_unknown`; footer copy unchanged).
+  should know?" A negative writes the literal "None" per rule 7's
+  text-ask negative — answered, printing "None" on the form — never
+  `mark_unknown`, whose export sentinel would print "Unknown": the
+  opposite of what the clinician said.
 
 Display name: additional comments.
 
@@ -207,13 +254,17 @@ Eight authored asks per active instance (purchase is a ninth, gated).
   If the dose was reduced instead, when?"
   → `ProdNTherapyStartDate`; `ProdNTherapyStopDate`; ongoing →
   `OngoingYes/No` one-hot; `ProdNTherapyReduceDate`. Duration
-  (`ProdNTherapyDuration` + `DurUnit`) derives from start/stop when both
-  exist, else from words ("about a week").
+  (`ProdNTherapyDuration` + `DurUnit`) fills from stated words only
+  ("about a week", "five days as needed") — never computed from the
+  dates: a computed span is wilson's arithmetic grounded on quotes that
+  stated no duration, and under PRN or intermittent dosing it can
+  contradict the clinician's own stated exposure. Absent stated words
+  it stays open, visible at Review.
 - **SP-5** — "What was it prescribed or used for?" → `ProdNDiagnosis`.
 - **SP-6** — "Anything notable about the product type — brand, generic
   or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the
   expiration date, if known."
-  → the seven product-type checkboxes, multi; `ProdNExpDate`.
+  → the eight product-type checkboxes, multi; `ProdNExpDate`.
 - **SP-7** — "After stopping or reducing it, did the event improve —
   yes, no, or doesn't apply?" → Abated trio one-hot.
 - **SP-8** — "Was it given again — and if so, did the event come back?"
@@ -229,7 +280,7 @@ therapy duration · therapy ongoing · diagnosis for use · product type:
 brand / generic or biosimilar / OTC / compounded / cannabinoid /
 cosmetic (retail) / cosmetic (professional) / other · expiration date ·
 improved after stopping · returned after restarting · purchase: place /
-address / city / state · purchase state/province · purchase ZIP ·
+address / city · purchase state/province · purchase ZIP ·
 purchase country · purchase website · purchase date. (Instance 2: same
 names prefixed "product #2".)
 
@@ -259,11 +310,15 @@ device · reprocessor · serviced by third party.
 
 - **CM-1** *(instance 1 only)* — "Is the patient on other medications?
   Name them, with rough start and stop dates if you have them."
-  → rows fill in stated order (`ProdN`, `StartN`, `EndN`); the count
+  → rows fill in stated order (`ProdN`, `StartN`, and end dates `End1`/
+  `End2` for rows 1–2 but the manifest's `Cell4` ids for rows 3–10 — a
+  known id defect; leaf position determines the mapping); the count
   proposes from the answer through the existing repeat-decision
-  machinery; rows beyond the count are skipped as today. Instances 2+
-  never get their own ask; later additions arrive via the repeat
-  decision ("was there another?") as today.
+  machinery, and rows beyond it are skipped as today.
+- **CM-2** *(later instances, on a repeat decision's "yes")* — "What's
+  the next medication — its name, and rough start and stop dates?"
+  Additions after the count is decided remain #77's open design
+  question; nothing here forecloses it.
 
 Display names: other medication {n} · other medication {n} start ·
 other medication {n} stop.
@@ -284,19 +339,38 @@ your email.
   your occupation?" → `ProYes`/`ProNo` one-hot; `Occupation`
   enum-mapped ("internist" → Physician).
 - **RA-2** — "Two housekeeping items — have you also reported this to
-  the manufacturer, a user facility, or a distributor? And should FDA
-  withhold your identity from the manufacturer?"
+  the manufacturer, a user facility, a distributor, or a packer? And
+  should FDA withhold your identity from the manufacturer?"
   → `ManuComp`/`UserFac`/`DistImp`/`Packer` multi; `IdentityNo`.
 
 Display names: health professional · occupation · also reported to:
 manufacturer / user facility / distributor / packer · withhold identity
 from manufacturer.
 
+## Machinery copy
+
+The walk's non-ask strings, authored here so rule 1's coverage is
+total and the copy-equality check carries no exemptions:
+
+- Repeat decisions — suspect products: "Was there another suspect
+  product?" · concomitant medications: "Is there another medication to
+  add?"
+- Count follow-through (groups with more than two slots): "How many in
+  total?" — rendered with the group's count chips as today.
+- Volunteered-repeat hint, prefixed to the group's repeat decision:
+  "You mentioned another one earlier — "
+- Done message: "That's everything I need to ask. Review the report
+  before you sign off."
+- Rule 8's voice patterns and rule 9's re-ask frames and
+  clarifications complete the set.
+
 ## Consequences for the machinery (the build unit's scope)
 
 1. Authored ask groups drive the loop; the template path and its 3-slice
    are deleted. A topic with no authored asks (gated off) is skipped
-   with the rail state above.
+   with the rail state above. Count proposals from a topic-turn answer
+   (CM-1) require loosening `extract.ts`'s repeat-decision-only gate on
+   `repeatDecision` proposals.
 2. One display-name module (field id → short name + fact phrase) feeds
    acknowledgments, correction offers, collisions, open-fields, and
    Review rows. The facsimile's existing hand-authored `shortLabel`s
@@ -311,10 +385,19 @@ from manufacturer.
 6. Checkbox negatives write `"false"` through the existing
    representation; PDF mapping semantics verified against the existing
    export tests.
-7. The UX-floor unit adds CI checks: ask copy equals this inventory
-   (count and text), no clinician-facing string equals a raw manifest
-   label, no "(yes or no)"-class template markers, no consecutive
-   duplicate ask strings, ungated ask count ≤ 24.
+7. The UX-floor unit adds CI checks, over an exhaustive enumeration of
+   the pure copy helpers — every topic, both repeat instances, every
+   gate state, and every voice pattern (Machinery copy and rule-9
+   frames included) with fixture values, never just the reference
+   path: rendered copy equals this inventory with no exemptions; no
+   rendered string contains any manifest label, field-id-shaped
+   substring (`Page\d`, `Prod\d.`, `Sec[A-G]_`), or PDF option-code
+   string; no "(yes or no)"-class template markers; no consecutive
+   duplicate ask strings in a scripted full walk; the ungated ask
+   count equals this document's stated count and is ≤ 24; every field
+   id this inventory names exists in the manifest and every manifest
+   field carries a disposition; and a stated group-negative exports a
+   PDF printing neither "Unknown" nor any other sentinel.
 
 Deliberately NOT decided here (Steve's design conversation, informed by
 his staging test): #79 reopen granularity, #77 repeat-count revision,

@@ -171,8 +171,8 @@ flow is six surfaces:
    record until the clinician confirms here**; edits to the narrative
    re-enter extraction, never patch the record. Confirmation applies the
    accepted proposals through the same Agenda write path as any answer.
-3. **Follow-ups** — the existing topic-at-a-time loop (bundled fields,
-   max three per ask), now with the conversation transcript visible
+3. **Follow-ups** — the topic-at-a-time loop (authored asks per
+   `docs/ask-copy.md`), now with the conversation transcript visible
    (wilson already accumulates it; v1 never rendered it). **Field asks**
    carry the full answer grammar — answer / "I don't have that" /
    "rather not say" — because fields have `unknown` and `declined`
@@ -348,8 +348,10 @@ deterministic unit test in the implementing unit's frozen criteria:
   records (cross-instance attribution is the charter's weighted risk):
   a volunteered later instance surfaces as a repeat-count proposal the
   clinician answers at the group's normal "was there another?"
-  decision, and that instance's fields are filled by its own ask,
-  never attributed by the sweep.
+  decision, and that instance's fields are filled by its own authored
+  ask (suspect products) or the group's authored later-instance ask
+  (concomitant medications — `docs/ask-copy.md` CM-2), never
+  attributed by the sweep.
 - **Writes follow the clinician's own state.** `unasked` fields the
   sweep writes directly, and every out-of-ask write is named in that
   turn's visible reply (field and value) and recorded in the
@@ -399,14 +401,17 @@ deterministic unit test in the implementing unit's frozen criteria:
 authored, never generated: `docs/ask-copy.md` holds the inventory —
 per-topic authored asks (21 in the ungated single-product walk, hard
 ceiling 24), a disposition for all 227 fields (ask / derive / auto /
-gated / review-only), gates that keep device, availability, and
+gated), gates that keep device, availability, and
 purchase topics out of reports they don't belong to, derive rules so
 unit checkboxes and one-hot pairs fill as companions of stated facts
 rather than being asked, and short display names used by every
 acknowledgment, correction offer, open-fields row, and Review label.
 Template generation of clinician-facing text is a defect; the UX
-floor checks in CI that shipped copy equals the inventory and that no
-raw manifest label or template marker ever renders.
+floor checks in CI — over an exhaustive enumeration of the pure copy
+helpers (every topic, instance, gate state, and voice pattern, never
+just the reference path) — that shipped copy equals the inventory and
+that no rendered string contains a raw manifest label, field-id, PDF
+option code, or template marker.
 
 **Design system.** The warbler-safety tokens, transcribed verbatim from
 warblersafety.com — the same system lucy ships as `brand-tokens.css`
