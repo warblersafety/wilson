@@ -36,6 +36,7 @@ import type { TalkSession } from "@/lib/talk";
 import { FORM_3500_SECTIONS } from "@/lib/form-3500-fields";
 import { OpenFieldsDialog } from "./OpenFieldsDialog";
 import { usePdfExport } from "./use-pdf-export";
+import { SessionDownloads } from "./SessionDownloads";
 
 interface ReviewProps {
   session: TalkSession;
@@ -156,6 +157,12 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
             </button>
           </div>
         )}
+
+        {/* AC-2: the same affordance Ready offers, alongside the
+            draft-PDF toggle rather than replacing it. Before sign-off
+            matters as much as after — a session that goes wrong here is
+            one a clinician may never reach Ready with. */}
+        <SessionDownloads session={session} />
 
         {/* One click away, never the layout's lead (design.md) — the
             paper is here for trust, and the legible cards above are what

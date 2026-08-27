@@ -43,6 +43,7 @@ import { READY_COPY, START_OVER_CONFIRM_COPY } from "./ready";
 import { GATED_OFF_RAIL_MARK } from "./report-chrome";
 import { GATED_OFF_REVIEW_COPY, PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import { START_COPY } from "./start-surface";
+import { SESSION_EXPORT_COPY } from "./session-export";
 import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep } from "./talk";
 import { initRepeatCounts, nextStep, setRepeatCount, type RepeatGroup } from "./topics";
 import { widgetTurnText } from "./chip-grammar";
@@ -224,6 +225,8 @@ export function renderedCopyInventory(): RenderedString[] {
     ["pdf", PDF_COPY],
     ["read-back", READ_BACK_COPY],
     ["start", START_COPY],
+    // Issue #92's downloads, on both closing surfaces.
+    ["session-export", SESSION_EXPORT_COPY],
   ];
   for (const [name, copy] of surfaces) {
     for (const [key, text] of Object.entries(copy)) {
@@ -488,23 +491,32 @@ const dismissWhatWasAsked: ExtractFn = async (session) => {
   return { actions: step.fieldIds.map((fieldId) => ({ fieldId, type: "mark_unknown" as const })) };
 };
 
-// The frames a scripted walk puts on the Follow-ups surface, one per
-// turn. `render` is injected rather than hardcoded so the test can drive
-// the SAME walk through the pre-#89 render rule and watch the check go
-// red — the injected-violation fixture for the double-bubble class is the
-// real defect, not an imitation of it.
-export async function scriptedFrames(render: (step: TalkStep) => RenderedFrame): Promise<RenderedFrame[]> {
+// Every step of a scripted walk, start to done, through the real async
+// Talker. Exported because more than one thing needs a real session
+// rather than a hand-built one: the frames below, and #92's export
+// equality tests, which must compare a bundle against a session the
+// actual machinery produced.
+export async function scriptedSteps(): Promise<TalkStep[]> {
   let step: TalkStep = await startTalk(initTalkSession(), { ask: askDeterministic });
-  const frames: RenderedFrame[] = [];
+  const steps: TalkStep[] = [];
   for (let guard = 0; guard < 200; guard += 1) {
-    frames.push(render(step));
-    if (step.nextStep.kind === "done") return frames;
+    steps.push(step);
+    if (step.nextStep.kind === "done") return steps;
     step = await processTurn(step.session, widgetTurnText(step.reply, "I don't have that"), {
       ask: askDeterministic,
       extract: dismissWhatWasAsked,
     });
   }
-  throw new Error("scriptedFrames: the walk never reached done");
+  throw new Error("scriptedSteps: the walk never reached done");
+}
+
+// The frames that walk puts on the Follow-ups surface, one per turn.
+// `render` is injected rather than hardcoded so the test can drive the
+// SAME walk through the pre-#89 render rule and watch the check go red —
+// the injected-violation fixture for the double-bubble class is the real
+// defect, not an imitation of it.
+export async function scriptedFrames(render: (step: TalkStep) => RenderedFrame): Promise<RenderedFrame[]> {
+  return (await scriptedSteps()).map(render);
 }
 
 // AC-4. One violation per (frame, repeated string), attributed to the

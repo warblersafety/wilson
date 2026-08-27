@@ -7,6 +7,7 @@ import { applyAction, initAgenda } from "./agenda";
 import { OPEN_FIELD_REASONS, OPEN_FIELDS_COPY, openFieldsHeading } from "./open-fields";
 import { collisionHint, READ_BACK_COPY, readingFraming } from "./read-back";
 import { START_COPY } from "./start-surface";
+import { SESSION_EXPORT_COPY } from "./session-export";
 import { PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import {
   formatReadyCounts,
@@ -82,6 +83,9 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
     // particular is the copy most able to make a claim it shouldn't.
     ...Object.values(READ_BACK_COPY),
     ...Object.values(START_COPY),
+    // Issue #92 puts two more buttons and a hint on both closing
+    // surfaces; the rule is "anywhere in the UI".
+    ...Object.values(SESSION_EXPORT_COPY),
     openFieldsHeading(1),
     openFieldsHeading(7),
     readingFraming("admitted her overnight"),
