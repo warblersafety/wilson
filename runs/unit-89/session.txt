@@ -311,7 +311,124 @@ transcript above it: 117 turns; ends with this ask: false; identical text earlie
 [surface] review — body text:
 Review before you sign off.Your signature is the safety boundary, not mine. Edit anything and I’ll ask about it again.A · Patient basicsPatient InformationEditPatient IdentifierMRN 44-1902Age61Age: Year(s)—Age: Month(s)—Age: Week(s)—Age: Day(s)—Date of BirthUnknownSex: Male—Sex: Female—WeightUnknownWeight: lb—Weight: kg—Race and/or Ethnicity: American Indian or Alaska Native—Race and/or Ethnicity: Asian—Race and/or Ethnicity: Black or African American—Race and/or Ethnicity: Hispanic or Latino—Race and/or Ethnicity: Middle Eastern or North African—Race and/or Ethnicity: Native Hawaiian or Pacific Islander—Race and/or Ethnicity: White—B · What happenedAdverse Event, Product Problem (or Product Use Error)EditType of Report: Adverse Event—Type of Report: Product Use/Medication Error—Type of Report: Product Problem (e.g., defects/malfunctions)—Type of Report: Problem with Different Manufacturer of Same Medicine—Date of EventUnknownDate of this ReportUnknownDescribe Event, Problem or Product Use/Medication ErrorUnknownAdditional CommentsUnknownB · OutcomeAdverse Event, Product Problem (or Product Use Error)EditOutcome Attributed to Adverse Event: Death—Outcome Attributed to Adverse Event: Date of DeathUnknownOutcome Attributed to Adverse Event: Hospitalization (Initial or prolonged)—Outcome Attributed to Adverse Event: Life-threatening—Outcome Attributed to Adverse Event: Disability or Permanent Damage—Outcome Attributed to Adverse Event: Required Intervention to Prevent Permanent Impairment/Damage—Outcome Attributed to Adverse Event: Congenital Anomaly/Birth Defects—Outcome Attributed to Adverse Event: Other Serious or Important Medical Events—B · Medical historyAdverse Event, Product Problem (or Product Use Error)EditOther Relevant History, Including Preexisting Medical ConditionsUnknownB · Lab dataAdverse Event, Product Problem (or Product Use Error)EditRelevant Test/Laboratory Data: Row 1 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 1 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 1 — High Test RangeUnknownRelevant Test/Laboratory Data: Row 1 — DateUnknownRelevant Test/Laboratory Data: Row 2 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 2 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 2 — High Test RangeUnknownRelevant Test/Laboratory Data: Row 2 — DateUnknownRelevant Test/Laboratory Data: Row 3 — Test/Lab DataUnknownRelevant Test/Laboratory Data: Row 3 — Low Test RangeUnknownRelevant Test/Laboratory Data: Row 3 —
 
-=== COMPLETE TRANSCRIPT (0 turns) ===
+=== COMPLETE TRANSCRIPT (117 turns) ===
+[1] 61-year-old on amoxicillin-clavulanate for a dental abscess developed a diffuse maculopapular rash and low-grade fever on day 4. Drug stopped, rash resolved over a week.
+[2] What's the year(s) (yes or no), the month(s) (yes or no), and the week(s) (yes or no)?
+[3] What's the year(s) (yes or no), the month(s) (yes or no), and the week(s) (yes or no)? — I don't have that
+[4] What's the day(s) (yes or no), the date of birth, and the male (yes or no)?
+[5] What's the day(s) (yes or no), the date of birth, and the male (yes or no)? — I don't have that
+[6] What's the female (yes or no), the weight, and the lb (yes or no)?
+[7] What's the female (yes or no), the weight, and the lb (yes or no)? — I don't have that
+[8] What's the kg (yes or no), the american indian or alaska native (yes or no), and the asian (yes or no)?
+[9] What's the kg (yes or no), the american indian or alaska native (yes or no), and the asian (yes or no)? — I don't have that
+[10] What's the black or african american (yes or no), the hispanic or latino (yes or no), and the middle eastern or north african (yes or no)?
+[11] What's the black or african american (yes or no), the hispanic or latino (yes or no), and the middle eastern or north african (yes or no)? — I don't have that
+[12] What's the native hawaiian or pacific islander (yes or no) and the white (yes or no)?
+[13] What's the native hawaiian or pacific islander (yes or no) and the white (yes or no)? — I don't have that
+[14] What's the adverse event (yes or no), the product use/medication error (yes or no), and a product problem such as a defect or malfunction (yes or no)?
+[15] What's the adverse event (yes or no), the product use/medication error (yes or no), and a product problem such as a defect or malfunction (yes or no)? — I don't have that
+[16] What's the problem with different manufacturer of same medicine (yes or no), the date of event, and the date of this report?
+[17] What's the problem with different manufacturer of same medicine (yes or no), the date of event, and the date of this report? — I don't have that
+[18] What's a description of what happened?
+[19] What's a description of what happened? — I don't have that
+[20] What's the death (yes or no), the date of death, and the hospitalization (initial or prolonged) (yes or no)?
+[21] What's the death (yes or no), the date of death, and the hospitalization (initial or prolonged) (yes or no)? — I don't have that
+[22] What's the life-threatening (yes or no), the disability or permanent damage (yes or no), and the required intervention to prevent permanent impairment/damage (yes or no)?
+[23] What's the life-threatening (yes or no), the disability or permanent damage (yes or no), and the required intervention to prevent permanent impairment/damage (yes or no)? — I don't have that
+[24] What's the congenital anomaly/birth defects (yes or no) and the other serious or important medical events (yes or no)?
+[25] What's the congenital anomaly/birth defects (yes or no) and the other serious or important medical events (yes or no)? — I don't have that
+[26] What's any other relevant medical history?
+[27] What's any other relevant medical history? — I don't have that
+[28] What's row 1's test/lab data, row 1's low test range, and row 1's high test range?
+[29] What's row 1's test/lab data, row 1's low test range, and row 1's high test range? — I don't have that
+[30] What's row 1's date, row 2's test/lab data, and row 2's low test range?
+[31] What's row 1's date, row 2's test/lab data, and row 2's low test range? — I don't have that
+[32] What's row 2's high test range, row 2's date, and row 3's test/lab data?
+[33] What's row 2's high test range, row 2's date, and row 3's test/lab data? — I don't have that
+[34] What's row 3's low test range, row 3's high test range, and row 4's test/lab data?
+[35] What's row 3's low test range, row 3's high test range, and row 4's test/lab data? — I don't have that
+[36] What's row 4's low test range, row 4's high test range, and row 5's test/lab data?
+[37] What's row 4's low test range, row 4's high test range, and row 5's test/lab data? — I don't have that
+[38] What's row 5's low test range, row 5's high test range, and row 6's test/lab data?
+[39] What's row 5's low test range, row 5's high test range, and row 6's test/lab data? — I don't have that
+[40] What's row 6's low test range, row 6's high test range, and row 7's test/lab data?
+[41] What's row 6's low test range, row 6's high test range, and row 7's test/lab data? — I don't have that
+[42] What's row 7's low test range, row 8's test/lab data, and row 8's low test range?
+[43] What's row 7's low test range, row 8's test/lab data, and row 8's low test range? — I don't have that
+[44] What's row 8's high test range, row 8's date, and row 7's high test range?
+[45] What's row 8's high test range, row 8's date, and row 7's high test range? — I don't have that
+[46] What's row 3's date, row 4's date, and row 5's date?
+[47] What's row 3's date, row 4's date, and row 5's date? — I don't have that
+[48] What's row 6's date and row 7's date?
+[49] What's row 6's date and row 7's date? — I don't have that
+[50] What's the additional comments?
+[51] What's the additional comments? — I don't have that
+[52] What's the yes (yes or no), the date it was returned to the manufacturer, and the returned to manufacturer (yes or no)?
+[53] What's the yes (yes or no), the date it was returned to the manufacturer, and the returned to manufacturer (yes or no)? — I don't have that
+[54] What's the no (yes or no) and the yes (yes or no)?
+[55] What's the no (yes or no) and the yes (yes or no)? — I don't have that
+[56] What's the product name, the strength, and the unit?
+[57] What's the product name, the strength, and the unit? — I don't have that
+[58] What's the ndc # or unique id, the manufacturer/compounder name, and the lot #?
+[59] What's the ndc # or unique id, the manufacturer/compounder name, and the lot #? — I don't have that
+[60] What's the dose or amount, the unit, and the frequency (BID / Daily / HS / PRN / QID / TID / Other)?
+[61] What's the dose or amount, the unit, and the frequency (BID / Daily / HS / PRN / QID / TID / Other)? — I don't have that
+[62] What's the other frequency you had in mind, the route, and the other route you had in mind?
+[63] What's the other frequency you had in mind, the route, and the other route you had in mind? — I don't have that
+[64] What's the therapy/usage started on, the therapy/usage stopped on, and the dose reduced on?
+[65] What's the therapy/usage started on, the therapy/usage stopped on, and the dose reduced on? — I don't have that
+[66] What's the duration, the duration unit (Minute(s) / Hour(s) / Day(s) / Week(s) / Month(s) / Year(s)), and the yes (yes or no)?
+[67] What's the duration, the duration unit (Minute(s) / Hour(s) / Day(s) / Week(s) / Month(s) / Year(s)), and the yes (yes or no)? — I don't have that
+[68] What's the no (yes or no) and the diagnosis for use (indication)?
+[69] What's the no (yes or no) and the diagnosis for use (indication)? — I don't have that
+[70] What's the compounded product (by a pharmacy or an outsourcing facility) (yes or no), the cosmetics for professional use only (yes or no), and the expiration date?
+[71] What's the compounded product (by a pharmacy or an outsourcing facility) (yes or no), the cosmetics for professional use only (yes or no), and the expiration date? — I don't have that
+[72] What's the brand (yes or no), the generic or biosimilar (yes or no), and the over-the-counter (otc) (yes or no)?
+[73] What's the brand (yes or no), the generic or biosimilar (yes or no), and the over-the-counter (otc) (yes or no)? — I don't have that
+[74] What's the other (yes or no), the cannabinoid hemp products (such as products containing cbd) (yes or no), and the cosmetics sold on a retail basis (yes or no)?
+[75] What's the other (yes or no), the cannabinoid hemp products (such as products containing cbd) (yes or no), and the cosmetics sold on a retail basis (yes or no)? — I don't have that
+[76] What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)?
+[77] What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)? — I don't have that
+[78] What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)?
+[79] What's the yes (yes or no), the no (yes or no), and the doesn't apply (yes or no)? — I don't have that
+[80] What's the name, the address, and the country?
+[81] What's the name, the address, and the country? — I don't have that
+[82] What's the city, the state/province/region, and the zip/postal code?
+[83] What's the city, the state/province/region, and the zip/postal code? — I don't have that
+[84] What's the website (if purchased online) and the purchase date?
+[85] What's the website (if purchased online) and the purchase date? — I don't have that
+[86] Was there another suspect product?
+[87] Was there another suspect product? — No
+[88] What's the brand name, the common device name, and the procode?
+[89] What's the brand name, the common device name, and the procode? — I don't have that
+[90] What's the manufacturer's name and location, the model #, and the lot #?
+[91] What's the manufacturer's name and location, the model #, and the lot #? — I don't have that
+[92] What's the catalog #, the expiration date, and the serial #?
+[93] What's the catalog #, the expiration date, and the serial #? — I don't have that
+[94] What's the unique device identifier (udi) #?
+[95] What's the unique device identifier (udi) #? — I don't have that
+[96] What's the health professional (yes or no), the patient/consumer (yes or no), and the other (yes or no)?
+[97] What's the health professional (yes or no), the patient/consumer (yes or no), and the other (yes or no)? — I don't have that
+[98] What's the date it was implanted and the date it was explanted?
+[99] What's the date it was implanted and the date it was explanted? — I don't have that
+[100] What's the yes (yes or no), the no (yes or no), and the name and address of whoever reprocessed it?
+[101] What's the yes (yes or no), the no (yes or no), and the name and address of whoever reprocessed it? — I don't have that
+[102] What's the yes (yes or no), the no (yes or no), and the unknown (yes or no)?
+[103] What's the yes (yes or no), the no (yes or no), and the unknown (yes or no)? — I don't have that
+[104] What's row 1's product name, row 1's therapy start date, and row 1's therapy end date?
+[105] What's row 1's product name, row 1's therapy start date, and row 1's therapy end date? — I don't have that
+[106] Was there another concomitant medication?
+[107] Was there another concomitant medication? — No
+[108] What's the last name, the first name, and the address?
+[109] What's the last name, the first name, and the address? — I don't have that
+[110] What's the city, the state/province/region, and the zip/postal code?
+[111] What's the city, the state/province/region, and the zip/postal code? — I don't have that
+[112] What's the country, the phone #, and the email?
+[113] What's the country, the phone #, and the email? — I don't have that
+[114] What's the yes (yes or no), the no (yes or no), and the occupation (Administrator/Supervisor / Biomedical Engineer / Dentist / Non-Health Professional / Nurse / Nurse Practitioner / Other Health Professional / Pharmacist / Physician / Physician Assistant / Risk Manager / Third Party Servicer)?
+[115] What's the yes (yes or no), the no (yes or no), and the occupation (Administrator/Supervisor / Biomedical Engineer / Dentist / Non-Health Professional / Nurse / Nurse Practitioner / Other Health Professional / Pharmacist / Physician / Physician Assistant / Risk Manager / Third Party Servicer)? — I don't have that
+[116] What's the manufacturer/compounder (yes or no), the user facility (yes or no), and the distributor/importer (yes or no)?
+[117] What's the manufacturer/compounder (yes or no), the user facility (yes or no), and the distributor/importer (yes or no)? — I don't have that
 [screenshot] 09-review-paper-facsimile.png
 [surface] review — Form 3500 facsimile shown
 [screenshot] 10-open-fields.png

@@ -7,8 +7,9 @@ session as a user before reading the diff.
 
 ## How this run was produced
 
-Playwright against `npm run dev` on `localhost:3000`, no model calls. The
-run seeds `wilson.talk-session.v1` with the session `IntakeFlow` persists
+`scripts/artifact-session.mjs` (Playwright) against `npm run dev` on
+`localhost:3000`, no model calls — its header carries the exact recipe.
+The run seeds `wilson.talk-session.v1` with the session `IntakeFlow` persists
 after a Read-back confirm — a real `startTalk()`ed session whose record
 already carries `Page1.SecA_Patient.PatientIdentifier` = "MRN 44-1902" and
 `Page1.SecA_Patient.AgeValue` = "61", plus the clinician's opening
@@ -18,7 +19,7 @@ end of the walk. Typed answers are not driven: they call the extractor,
 and no `ANTHROPIC_API_KEY` is present in this environment.
 
 `session.txt` holds the per-turn record (the ask, and whether the
-transcript ends with it), the complete 116-turn transcript, and the
+transcript ends with it), the complete 117-turn transcript, and the
 rendered text of each later surface.
 
 ## What the run traversed
@@ -33,7 +34,7 @@ rendered text of each later surface.
 | `10-open-fields.png` | Open fields (screen 06, drawn over Review) |
 | `11-ready.png` | Ready |
 
-59 turns driven, 116 transcript turns, **0 double-renders**.
+59 turns driven, 117 transcript turns, **0 double-renders**.
 
 `before/` is the same run against the pre-fix render (`Transcript` fed
 `session.transcript` directly): every turn ends with the ask the teal

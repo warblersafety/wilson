@@ -3,6 +3,8 @@
 // synthetic topic map, for the same reason direct-step.test.ts is — the
 // double-render Steve saw was on the real walk, and a synthetic fixture
 // would prove nothing about it.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { askDeterministic } from "@/lib/ask";
 import { applyActionToFields, dismissableFieldIds, widgetTurnText } from "@/lib/chip-grammar";
@@ -164,5 +166,27 @@ describe("visibleTranscriptTurns", () => {
       role: "talker",
       text: next.reply,
     });
+  });
+});
+
+// The call site itself (reviewer pass on PR #97, finding 3): every test
+// above proves the pure helper, and deleting Wizard's one call to it
+// restores the double bubble with the whole suite still green. There is
+// no jsdom or React test renderer in this dependency tree — the same call
+// globals.test.ts records for the design tokens — so the wiring is
+// locked by reading the source, which is enough for a one-line prop that
+// can only be right one way.
+describe("Wizard's wiring to the helper", () => {
+  const WIZARD = readFileSync(join(process.cwd(), "src/app/wizard/Wizard.tsx"), "utf8").replace(
+    /\/\*[\s\S]*?\*\/|\{\/\*[\s\S]*?\*\/\}/g,
+    "",
+  );
+
+  it("feeds Transcript the visible turns, never the raw stored transcript", () => {
+    expect(WIZARD).toContain("visibleTranscriptTurns");
+    const transcriptElement = WIZARD.match(/<Transcript\b[^>]*>/);
+    expect(transcriptElement, "Wizard no longer renders <Transcript>").not.toBeNull();
+    expect(transcriptElement![0]).toContain("turns={visibleTranscriptTurns(current)}");
+    expect(transcriptElement![0]).not.toContain("session.transcript");
   });
 });
