@@ -17,9 +17,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { EXTRACTION_FIXTURES, type ExtractionFixture } from "../fixtures/extraction/cases";
 import { createExtractFn } from "../src/lib/extract";
-import { EXTRACTOR_MODEL, buildExtractionUserContent } from "../src/prompts/extractor";
+import { EXTRACTOR_MODEL, buildFollowUpUserContent } from "../src/prompts/extractor";
 import { FORM_3500_FIELDS } from "../src/lib/form-3500-fields";
-import { nextStep } from "../src/lib/topics";
+import { nextStep, openFollowUpFields } from "../src/lib/topics";
 
 const DRY = process.argv.includes("--dry");
 
@@ -69,12 +69,25 @@ function dryCheckFixture(fixture: ExtractionFixture): string[] {
   }
 
   try {
-    const content = buildExtractionUserContent(step, FORM_3500_FIELDS, transcript);
+    // buildFollowUpUserContent, the builder createExtractFn() actually
+    // calls — not the narrow one this check used to use, which had been
+    // off the production path since Issue #44 widened the sweep and so
+    // validated every fixture against a prompt no live run has sent in
+    // weeks (found while building #90 part 2). Same arguments extract.ts
+    // passes: the ask's own unresolved fields, and the widened open set.
+    const askFieldIds = step.kind === "topic" ? step.fieldIds : [];
+    const openFields = openFollowUpFields(fixture.record);
+    const content = buildFollowUpUserContent(step, askFieldIds, openFields, transcript);
     if (!content.includes(fixture.message)) {
       problems.push("built prompt content doesn't include the fixture's clinician message");
     }
+    for (const action of fixture.expected.actions) {
+      if (!content.includes(action.fieldId) && !openFields.some((f) => f.id === action.fieldId)) {
+        problems.push(`expected action's field (${action.fieldId}) is named nowhere in the built prompt`);
+      }
+    }
   } catch (err) {
-    problems.push(`buildExtractionUserContent() threw: ${(err as Error).message}`);
+    problems.push(`buildFollowUpUserContent() threw: ${(err as Error).message}`);
   }
 
   return problems;

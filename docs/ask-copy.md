@@ -157,6 +157,21 @@ design conversation first.
    text fields as "Unknown" (`scripts/fill-3500.py`'s sentinel), which
    would state the opposite of what the clinician said on the
    FDA-bound form. Companions and further rows stay untouched.
+   **Answering a checkbox group answers the whole group, added
+   2026-08-27 (#90 part 2):** the members the clinician named are
+   `"true"`, the rest `"false"`, all grounded on the same quote. A
+   clinician who answers "she was hospitalised" has answered the outcome
+   question, not one seventh of it, and the alternative — leaving the
+   unnamed six `unasked` — re-asks the same question forever and shows
+   six phantom gaps at Review. The bound is this rule's own reasoning,
+   stated at OC-1: *every one of them is voiced above, so no box is ever
+   written false unheard.* So completion applies only to a group whose
+   own ask was the one on screen; a checkbox volunteered out-of-ask
+   completes nothing, and its group completes later, when its ask voices
+   it. An `unknown` or `declined` completes nothing either — "I don't
+   know if she was hospitalised" is not an answer to the question. This
+   is mechanical and lives in `src/lib/derive.ts`, not in the extractor
+   prompt: a rule this consequential should not vary run to run.
 8. **Voice.** Second person, contractions, no exclamation marks,
    mockup screen-04's register. **One TOPIC per ask, at most two
    question marks** (amended 2026-08-27, #103; amended again the same

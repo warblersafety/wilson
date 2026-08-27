@@ -32,6 +32,17 @@ export const REPEAT_GROUPS = Array.from(
 // conversation), not the specific point-release lucy happened to name.
 export const EXTRACTOR_MODEL = "claude-sonnet-5";
 
+// **Not a live prompt: a frozen measurement baseline.** This is the
+// narrow, ask-scoped per-turn prompt from before Issue #44 widened the
+// sweep. Nothing in src has sent it since; the only caller is
+// scripts/cost-widened-turn.ts, which needs it byte-for-byte unchanged to
+// price the widening against its own pre-widening baseline (design.md's
+// cost posture, and the measurement #71 still owes). ask-copy.md's
+// "Consequences for the machinery" item 3 supersedes its "never propose
+// for an enum or checkbox field" instruction — superseded in the LIVE
+// prompt (FOLLOWUP_EXTRACTOR_INSTRUCTIONS below, which now carries the
+// derive rules), not by editing a string whose whole value is that it has
+// not changed. Do not wire this to anything.
 export const EXTRACTOR_SYSTEM = `You are the extraction component of wilson, a clinician-facing tool for reporting adverse drug events to the FDA (Form 3500). Your only job: read a conversation transcript between a clinician and an intake assistant, and propose structured field values that are directly grounded in what the CLINICIAN said in their latest message.
 
 You never converse. You never decide what to ask next. You only propose candidates with supporting evidence, and a deterministic validator decides what is actually written to the record. Candidates that fail the validator are discarded, so propose only what you can ground.
@@ -114,6 +125,11 @@ function renderOpenFields(fields: FormFieldSpec[]): string {
 // this array is what the model is told to cite, and it's the same array
 // the caller must later pass to validateCandidates()/validateRepeatCandidate()
 // so quote indices line up (see src/lib/extract.ts).
+// The frozen baseline's user-content builder — same standing as
+// EXTRACTOR_SYSTEM above, and the same single caller. The extraction
+// eval's dry check used to build its content here, which meant it
+// validated every fixture against a prompt no live run had sent in weeks;
+// it now builds what production builds (scripts/eval-extraction.ts).
 export function buildExtractionUserContent(
   step: NextStep,
   fields: FormFieldSpec[],
@@ -176,6 +192,14 @@ For each field you address, decide in this order:
 - Did they explicitly decline to answer, or say it doesn't apply? -> kind "declined".
 
 One message can ground several field candidates at once — sweep broadly, not just the first field the message seems to answer.
+
+## Companion fields — one fact, several boxes
+
+Form 3500 keeps some single facts in several fields at once. When the clinician states the fact, propose every field it fills, each grounded on the same quote:
+
+- **Units stated in the words.** "875 mg" fills the strength AND its unit enum; "1 tablet twice daily" fills the dose, its unit, and the frequency; "six months of therapy" fills the duration and its duration-unit enum. Propose a unit ONLY from what the clinician actually said — never from what seems medically likely. A bare number with no unit: propose the number alone and leave the unit open.
+- **"Other" companions.** Frequency and route are enums. If the clinician's stated value matches one of the legal options, use it. If it matches none of them ("every other Tuesday"), propose the enum's "Other" option where one exists AND propose the free-text Other-companion field with the clinician's own words.
+- **One-hot and multi-select groups.** Propose "true" for each box the clinician's answer selects. You do NOT need to propose "false" for the rest of a group whose question was just asked — a deterministic step completes it. Propose "false" only where the clinician said so explicitly ("no, it never came back", "none of those").
 
 ## Repeat-group decisions
 
