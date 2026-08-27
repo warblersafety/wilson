@@ -6,10 +6,11 @@
 // rule has a fast, API-free proof.
 import { describe, expect, it } from "vitest";
 import type { AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { ProposedAction } from "./talk";
 import type { Topic } from "./topics";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
+import { syntheticAsk } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], label = id): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label, type, required: false };
@@ -27,6 +28,7 @@ function topic(
     fieldIds,
     repeatGroup: opts.repeatGroup ?? null,
     repeatInstance: opts.repeatInstance ?? null,
+    asks: [syntheticAsk(id, fieldIds)],
   };
 }
 
@@ -242,11 +244,15 @@ describe("classifyFollowUpActions", () => {
 });
 
 describe("describeFollowUpSweep", () => {
-  const FIELDS = [
-    field("a", "text", "Therapy Stop Date"),
-    field("b", "text", "Lot Number"),
-    field("c", "text", "Description"),
-  ];
+  // Real manifest ids, not the synthetic "a"/"b"/"c" these tests used to
+  // carry: the acknowledgment names a field by its AUTHORED display name
+  // (ask-copy.md rule 6), so only a real field has one at all. The labels
+  // these fixtures used to fake ("Lot Number") were exactly the manifest
+  // text the old fieldPhrase() derived a phrase from.
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate"; // "therapy stop date"
+  const LOT = "Page4.Prod1.Prod1LotNum"; // "lot number"
+  const DESC = "Page2.SecB_Adverse.DescEvent"; // "event description"
+  const FIELDS = [fieldById(STOP_DATE)!, fieldById(LOT)!, fieldById(DESC)!];
 
   it("returns an empty string when there is nothing to announce", () => {
     const result = describeFollowUpSweep(
@@ -259,8 +265,8 @@ describe("describeFollowUpSweep", () => {
   it("names the field and value for an out-of-ask write — no invisible write", () => {
     const result = describeFollowUpSweep(
       {
-        writes: [{ fieldId: "b", type: "answer", value: "8834" }],
-        outOfAskWrites: [{ fieldId: "b", type: "answer", value: "8834" }],
+        writes: [{ fieldId: LOT, type: "answer", value: "8834" }],
+        outOfAskWrites: [{ fieldId: LOT, type: "answer", value: "8834" }],
         correctionOffers: [],
         collisionFieldIds: [],
         volunteeredRepeatGroups: [],
@@ -275,12 +281,12 @@ describe("describeFollowUpSweep", () => {
     const result = describeFollowUpSweep(
       {
         writes: [
-          { fieldId: "b", type: "answer", value: "8834" },
-          { fieldId: "c", type: "answer", value: "rash" },
+          { fieldId: LOT, type: "answer", value: "8834" },
+          { fieldId: DESC, type: "answer", value: "rash" },
         ],
         outOfAskWrites: [
-          { fieldId: "b", type: "answer", value: "8834" },
-          { fieldId: "c", type: "answer", value: "rash" },
+          { fieldId: LOT, type: "answer", value: "8834" },
+          { fieldId: DESC, type: "answer", value: "rash" },
         ],
         correctionOffers: [],
         collisionFieldIds: [],
@@ -290,7 +296,7 @@ describe("describeFollowUpSweep", () => {
     );
     expect(result).toContain("lot number");
     expect(result).toContain("8834");
-    expect(result).toContain("description");
+    expect(result).toContain("event description");
     expect(result).toContain("rash");
   });
 
@@ -301,8 +307,8 @@ describe("describeFollowUpSweep", () => {
         outOfAskWrites: [],
         correctionOffers: [
           {
-            fieldId: "a",
-            action: { fieldId: "a", type: "answer", value: "8/20" },
+            fieldId: STOP_DATE,
+            action: { fieldId: STOP_DATE, type: "answer", value: "8/20" },
             currentState: "answered",
             currentValue: "8/19",
           },
@@ -325,8 +331,8 @@ describe("describeFollowUpSweep", () => {
         outOfAskWrites: [],
         correctionOffers: [
           {
-            fieldId: "a",
-            action: { fieldId: "a", type: "answer", value: "8/20" },
+            fieldId: STOP_DATE,
+            action: { fieldId: STOP_DATE, type: "answer", value: "8/20" },
             currentState: "unknown",
             currentValue: undefined,
           },
@@ -342,7 +348,7 @@ describe("describeFollowUpSweep", () => {
 
   it("phrases a collision as a clarifying question naming the field", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: ["a"], volunteeredRepeatGroups: [] },
+      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [STOP_DATE], volunteeredRepeatGroups: [] },
       FIELDS,
     );
     expect(result).toContain("therapy stop date");
@@ -366,19 +372,19 @@ describe("describeFollowUpSweep", () => {
   it("joins several simultaneous outcomes into one string, all present", () => {
     const result = describeFollowUpSweep(
       {
-        writes: [{ fieldId: "b", type: "answer", value: "8834" }],
-        outOfAskWrites: [{ fieldId: "b", type: "answer", value: "8834" }],
+        writes: [{ fieldId: LOT, type: "answer", value: "8834" }],
+        outOfAskWrites: [{ fieldId: LOT, type: "answer", value: "8834" }],
         correctionOffers: [
-          { fieldId: "a", action: { fieldId: "a", type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
+          { fieldId: STOP_DATE, action: { fieldId: STOP_DATE, type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
         ],
-        collisionFieldIds: ["c"],
+        collisionFieldIds: [DESC],
         volunteeredRepeatGroups: ["concomitant-medication"],
       },
       FIELDS,
     );
     expect(result).toContain("8834");
     expect(result).toContain("8/20");
-    expect(result).toContain("description");
+    expect(result).toContain("event description");
     expect(result.toLowerCase()).toContain("concomitant medication");
   });
 

@@ -20,6 +20,7 @@ import {
 } from "./form-3500-facsimile";
 import { curatedRows, type CuratedRow } from "./report-chrome";
 import { reopenTopic, TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { displayNameFor } from "./display-names";
 
 export interface ReviewFieldDisplay {
   text: string | null;
@@ -221,36 +222,14 @@ export interface ReviewFieldRow extends ReviewFieldDisplay {
   label: string;
 }
 
-// The manifest's labels are hierarchical ("Suspect Product #1: Name,
-// Strength, Manufacturer/Compounder: Lot #"). Inside a card already headed
-// "Suspect product #1", that first segment is pure repetition — so exactly
-// one leading segment is dropped, and only when it repeats the card's own
-// label. Never more than one: dropping every segment but the last would
-// collapse "Is therapy/usage still on-going?: Yes" and "Event Abated after
-// use Stopped or Dose Reduced?: Yes" into two rows both labelled "Yes" in
-// the same card. Every other section's labels are already short and are
-// left exactly as the form words them.
-export function shortFieldLabel(label: string, rowLabel: string): string {
-  const separator = label.indexOf(": ");
-  if (separator === -1) return label;
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (normalize(label.slice(0, separator)) !== normalize(rowLabel)) return label;
-  const rest = label.slice(separator + 2).trim();
-  return rest.length > 0 ? rest : label;
-}
-
-// A composition's label is the form's own GROUP caption, not the anchor
-// field's leaf name: the row shows several fields' values, so labelling it
-// "…: Product Name" would name one of three. Mechanical — drop the last
-// segment of the (already card-scoped) label — never hand-authored, and
-// the same choice form-3500-facsimile.ts's productIdentity() records for
-// the facsimile's own row.
-function composedLabel(label: string): string {
-  const lastSeparator = label.lastIndexOf(": ");
-  if (lastSeparator === -1) return label;
-  const caption = label.slice(0, lastSeparator).trim();
-  return caption.length > 0 ? caption : label;
-}
+// A row's label is its field's authored display name (ask-copy.md rule
+// 6). Two label-shaping helpers used to live here: one dropped a manifest
+// label's leading segment when it repeated the card's own heading, the
+// other dropped a composed row's last segment to leave the form's group
+// caption. Both derived clinician-facing text from manifest labels, which
+// is exactly what rule 6 removes: "Raw manifest labels and PDF ids never
+// render." A composed row (dose + unit + frequency) takes its anchor
+// field's name, since the anchor is the fact the caption speaks for.
 
 export function reviewFieldRows(
   record: AgendaRecord,
@@ -259,7 +238,6 @@ export function reviewFieldRows(
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): ReviewFieldRow[] {
-  const fieldsById = new Map(fields.map((f) => [f.id, f]));
   const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics);
   const present = new Set(fieldIds);
 
@@ -290,7 +268,7 @@ export function reviewFieldRows(
     // would silently drop the reminder this unit adds.
     if (anchor.retained || anchor.muted || anchor.text === null) continue;
     const { text, muted } = composed.render(record);
-    const label = composedLabel(shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label));
+    const label = displayNameFor(fieldId);
     composedRows.set(fieldId, { fieldId, label, text, muted, retained: false });
     for (const absorbedId of composed.absorbs) {
       if (present.has(absorbedId) && record[absorbedId]?.state === "answered") absorbed.add(absorbedId);
@@ -305,7 +283,7 @@ export function reviewFieldRows(
       rows.push(composedRow);
       continue;
     }
-    const label = shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label);
+    const label = displayNameFor(fieldId);
     rows.push({ fieldId, label, ...fieldDisplay(record, fieldId) });
   }
   return rows;

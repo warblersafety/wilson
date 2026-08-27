@@ -21,7 +21,6 @@ import {
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "../prompts/extractor";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
@@ -67,23 +66,20 @@ export function createExtractFn(
     // carved out of the cached system prompt (design.md's cost posture).
     const openFields = openFollowUpFields(session.record, topics, fields);
 
-    // .slice(0, MAX_FIELDS_PER_ASK), not the raw step.fieldIds: nextStep()
-    // itself doesn't cap a "topic" step's fieldIds (most real topics have
-    // more than MAX_FIELDS_PER_ASK unresolved fields — patient-basics has
-    // 19), but askDeterministic() only ever phrases the first
-    // MAX_FIELDS_PER_ASK of them into the visible question. Using the
-    // uncapped list would silently classify a candidate for the 4th+
-    // field as "in-ask" (no announcement needed) even though the
-    // clinician was never actually shown a question about it this turn —
-    // exactly the invisible write design.md's rule forbids. Computed
-    // before the model call (not just before classifyFollowUpActions()
-    // below) because it's now the single source for BOTH: what
-    // classifyFollowUpActions() treats as in-ask, and what the per-turn
-    // prompt itself tells the model this turn's ask named
-    // (buildFollowUpUserContent() below) — passing the same value to both
-    // is what keeps them from drifting apart (reviewer pass on PR #64;
-    // the prompt used to interpolate step.fieldIds directly, uncapped).
-    const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+    // step.fieldIds, uncapped, is now exactly right: with authored asks
+    // it IS the set of facts the visible question named (topics.ts's
+    // NextStep). The old MAX_FIELDS_PER_ASK slice existed because
+    // nextStep() returned every unresolved field of a topic while the
+    // template phrased only the first three, and classifying a candidate
+    // for the 4th+ as "in-ask" would announce nothing for a write the
+    // clinician was never asked about — exactly the invisible write
+    // design.md forbids. That gap is closed at the source, not re-sliced
+    // here. Still computed before the model call, because it is the
+    // single source for BOTH what classifyFollowUpActions() treats as
+    // in-ask and what the per-turn prompt tells the model this turn's ask
+    // named (buildFollowUpUserContent() below) — one value, so the two
+    // cannot drift apart.
+    const askFieldIds = step.kind === "topic" ? step.fieldIds : [];
 
     const response = await client.messages.parse({
       model: EXTRACTOR_MODEL,

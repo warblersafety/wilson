@@ -6,7 +6,6 @@
 // multi-slot repeat groups, and the "question — answer" transcript
 // formatting a chip tap needs.
 import { applyAction, type AgendaRecord } from "./agenda";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import type { FieldAction } from "./field-state";
 import type { CorrectionOffer } from "./followup-sweep";
 import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
@@ -55,20 +54,21 @@ export function widgetTurnText(question: string, answerLabel: string): string {
 }
 
 // Which of a step's fields AskForm's "I don't have that"/"rather not
-// say" chips are allowed to write. A "topic" step's fieldIds is NOT
-// itself capped by nextStep() (most real topics have more than
-// MAX_FIELDS_PER_ASK unresolved fields — patient-basics has 19 at once),
-// but askDeterministic() only ever phrases the first MAX_FIELDS_PER_ASK
-// of them into the visible question (src/lib/ask.ts). Passing the
-// UNCAPPED step.fieldIds to applyActionToFields() below would silently
-// write declined/unknown to every one of a topic's unresolved fields,
-// including the 16 the clinician was never shown a question about and so
-// never had a chance to decline (reviewer pass on PR #64 — this used to
-// be AskForm.tsx's own `current.nextStep.fieldIds`, uncapped). A
-// non-topic step (repeat-decision, done) has no ask-form fields to
-// dismiss at all.
+// say" chips are allowed to write: exactly the facts the visible question
+// named, and nothing else. Under the label-template walk this needed a
+// cap — nextStep() returned every unresolved field of a topic (19 for
+// patient-basics) while the question phrased only the first three, so an
+// uncapped dismiss silently wrote unknown/declined to 16 fields the
+// clinician was never shown (reviewer pass on PR #64). Authored asks
+// close that gap at the source: step.fieldIds IS the ask's own unresolved
+// askFieldIds, so the visible question and the dismiss set are the same
+// list by construction rather than by two modules agreeing to slice
+// alike. ask-copy.md rule 2 keeps the other half of it — an ask's
+// derive/auto companions are never in askFieldIds, so a dismiss can
+// never reach them. A non-topic step (repeat-decision, done) has no
+// ask-form fields to dismiss at all.
 export function dismissableFieldIds(step: NextStep): string[] {
-  return step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+  return step.kind === "topic" ? step.fieldIds : [];
 }
 
 // AskForm's "I don't have that"/"rather not say" chips dismiss a whole

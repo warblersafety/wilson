@@ -13,14 +13,15 @@ import {
   reportRailRows,
 } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { syntheticTopic } from "./synthetic-topic";
 
 // A tiny, self-contained topic list — the real 34-topic/227-field
 // manifest is exercised separately below (the fixed-row/real-manifest
 // tests), but the state-derivation rules themselves are clearer to prove
 // against a handful of topics with a handful of fields each.
 const TEST_TOPICS: Topic[] = [
-  { id: "a1", section: "A", label: "A one", fieldIds: ["fa", "fb"], repeatGroup: null, repeatInstance: null },
-  { id: "b1", section: "B", label: "B one", fieldIds: ["fc"], repeatGroup: null, repeatInstance: null },
+  syntheticTopic({ id: "a1", section: "A", label: "A one", fieldIds: ["fa", "fb"], repeatGroup: null, repeatInstance: null }),
+  syntheticTopic({ id: "b1", section: "B", label: "B one", fieldIds: ["fc"], repeatGroup: null, repeatInstance: null }),
 ];
 
 function recordWith(states: Record<string, AgendaRecord[string]["state"]>): AgendaRecord {

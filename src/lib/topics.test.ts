@@ -14,6 +14,7 @@ import {
   setRepeatCount,
   topicStatuses,
 } from "./topics";
+import { syntheticAsk, syntheticTopic } from "./synthetic-topic";
 
 const SECTION_ORDER = Object.keys(FORM_3500_SECTIONS) as FormSection[];
 
@@ -168,7 +169,7 @@ describe("setRepeatCount", () => {
   it("throws a clear error, not a -Infinity range, when given a topics list with none of the group's topics", () => {
     expect(() =>
       setRepeatCount(initRepeatCounts(), "suspect-product", 1, [
-        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+        syntheticTopic({ id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null }),
       ]),
     ).toThrow(/no topics/);
   });
@@ -212,7 +213,7 @@ describe("isValidRepeatCount", () => {
   it("returns false, not a thrown error, for a topics list with none of the group's topics", () => {
     expect(
       isValidRepeatCount("suspect-product", 1, [
-        { id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null },
+        syntheticTopic({ id: "unrelated", section: "A", label: "x", fieldIds: [], repeatGroup: null, repeatInstance: null }),
       ]),
     ).toBe(false);
   });
@@ -240,6 +241,7 @@ function topic(
     fieldIds,
     repeatGroup: opts.repeatGroup ?? null,
     repeatInstance: opts.repeatInstance ?? null,
+    asks: [syntheticAsk(id, fieldIds)],
   };
 }
 
@@ -260,7 +262,7 @@ describe("nextStep", () => {
     // Issue #44 supersedes the old text/date-only filter (design.md:
     // "checkbox/enum fields are ordinary conversational asks") — a
     // checkbox-only topic is no longer skipped, it's the very next ask.
-    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["cb"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[0], ask: topics[0].asks[0], fieldIds: ["cb"] });
   });
 
   it("no longer skips a topic that's entirely checkbox/enum — it surfaces as an ordinary ask (Issue #44 supersedes the old skip)", () => {
@@ -268,7 +270,7 @@ describe("nextStep", () => {
     const topics = [topic("all-choice", ["cb1", "cb2"]), topic("has-text", ["t"])];
     const record = recordOf({ cb1: { state: "unasked" }, cb2: { state: "unasked" }, t: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["cb1", "cb2"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[0], ask: topics[0].asks[0], fieldIds: ["cb1", "cb2"] });
   });
 
   it("still skips a topic once every field — any type — is already resolved", () => {
@@ -276,7 +278,7 @@ describe("nextStep", () => {
     const topics = [topic("checkbox-only", ["cb"]), topic("has-text", ["t"])];
     const record = recordOf({ cb: { state: "answered" }, t: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["t"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[1], ask: topics[1].asks[0], fieldIds: ["t"] });
   });
 
   it("skips a topic whose text/date fields are already all resolved", () => {
@@ -284,7 +286,7 @@ describe("nextStep", () => {
     const topics = [topic("first", ["x"]), topic("second", ["y"])];
     const record = recordOf({ x: { state: "answered" }, y: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["y"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[1], ask: topics[1].asks[0], fieldIds: ["y"] });
   });
 
   it("returns only the still-unresolved subset of a partially-answered topic", () => {
@@ -292,7 +294,7 @@ describe("nextStep", () => {
     const topics = [topic("mixed", ["x", "y"])];
     const record = recordOf({ x: { state: "answered" }, y: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["y"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[0], ask: topics[0].asks[0], fieldIds: ["y"] });
   });
 
   it("returns done once every topic is resolved with no pending repeat-decision", () => {
@@ -308,7 +310,7 @@ describe("nextStep", () => {
     const topics = [topic("g-1", ["f1"], { repeatGroup: "suspect-product", repeatInstance: 1 })];
     const record = recordOf({ f1: { state: "unasked" } });
     const step = nextStep(record, initRepeatCounts(), topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[0], fieldIds: ["f1"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[0], ask: topics[0].asks[0], fieldIds: ["f1"] });
   });
 
   it("surfaces a repeat-decision before instance 2's topic when the group isn't decided yet", () => {
@@ -364,7 +366,7 @@ describe("nextStep", () => {
     const record = recordOf({ f1: { state: "declined" }, f2: { state: "unasked" } });
     const counts = setRepeatCount(initRepeatCounts(), "suspect-product", 2);
     const step = nextStep(record, counts, topics, fields);
-    expect(step).toEqual({ kind: "topic", topic: topics[1], fieldIds: ["f2"] });
+    expect(step).toEqual({ kind: "topic", topic: topics[1], ask: topics[1].asks[0], fieldIds: ["f2"] });
   });
 
   it("throws, rather than silently treating it as resolved, when a topic references a field id missing from the record", () => {
@@ -395,10 +397,15 @@ describe("nextStep", () => {
     expect(step.kind).toBe("topic");
     if (step.kind === "topic") {
       expect(step.topic.id).toBe("patient-basics");
+      expect(step.ask.id).toBe("PB-1");
       expect(step.fieldIds).toContain("Page1.SecA_Patient.PatientIdentifier");
-      // Issue #44 supersedes the old text/date-only filter — AgeYears is a
-      // checkbox field and is now surfaced right alongside the text ones.
-      expect(step.fieldIds).toContain("Page1.SecA_Patient.AgeYears");
+      // Checkbox fields are ordinary asks (Issue #44 superseded the old
+      // text/date-only filter) — the sex one-hot is here alongside the
+      // text ones. The AGE-UNIT checkboxes deliberately are not: they are
+      // PB-1's derive companions, filled from the age phrasing rather
+      // than asked (ask-copy.md rule 3).
+      expect(step.fieldIds).toContain("Page1.SecA_Patient.SexM");
+      expect(step.fieldIds).not.toContain("Page1.SecA_Patient.AgeYears");
     }
   });
 
@@ -419,10 +426,13 @@ describe("nextStep", () => {
     // instance 1, asked unconditionally — the repeat-decision gate only
     // appears once the walk reaches an instance-2+ topic.
     const step = nextStep(record, initRepeatCounts());
+    // SP-7's three abated checkboxes; SP-8's rechallenge trio is the same
+    // topic's next ask, reached once these resolve.
     expect(step).toEqual({
       kind: "topic",
       topic: responseTopic,
-      fieldIds: responseTopic.fieldIds,
+      ask: responseTopic.asks[0],
+      fieldIds: responseTopic.asks[0].askFieldIds,
     });
   });
 
@@ -443,7 +453,10 @@ describe("nextStep", () => {
     expect(step).toEqual({
       kind: "topic",
       topic: aboutYouTopic,
-      fieldIds: aboutYouTopic.fieldIds,
+      // RA-1's health-professional pair plus the occupation enum; RA-2's
+      // housekeeping checkboxes follow as the topic's second ask.
+      ask: aboutYouTopic.asks[0],
+      fieldIds: aboutYouTopic.asks[0].askFieldIds,
     });
   });
 
@@ -588,7 +601,15 @@ describe("reopenTopic", () => {
 
     const reopened = reopenTopic(record, outcomeTopic);
     const step = nextStep(reopened, counts);
-    expect(step).toEqual({ kind: "topic", topic: outcomeTopic, fieldIds: outcomeTopic.fieldIds });
+    // OC-1's own seven outcome checkboxes — not the topic's eight fields:
+    // the date of death is OC-2's, and OC-2 only applies once a death is
+    // recorded (ask-copy.md's one conditional ask).
+    expect(step).toEqual({
+      kind: "topic",
+      topic: outcomeTopic,
+      ask: outcomeTopic.asks[0],
+      fieldIds: outcomeTopic.asks[0].askFieldIds,
+    });
   });
 
   it("leaves other topics' fields untouched", () => {
@@ -617,6 +638,7 @@ describe("reopenTopic", () => {
     expect(nextStep(reopened, initRepeatCounts(), topics, fields)).toEqual({
       kind: "topic",
       topic: topics[0],
+      ask: topics[0].asks[0],
       fieldIds: ["a"],
     });
   });

@@ -26,6 +26,8 @@ import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { CuratedRow } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { isListableGap } from "./ask-inventory";
+import { displayName } from "./display-names";
 
 export type OpenFieldReasonKind = "unknown" | "not-asked";
 
@@ -37,8 +39,13 @@ export interface OpenFieldEntry {
   reason: string;
 }
 
+// ask-copy.md rule 8's open-fields row copy. "you didn't have it"
+// replaces screen 06's own "you said unknown": where the canvas shows
+// copy, the contract wins (design.md's narrowed canvas authority), and a
+// clinician who tapped "I don't have that" is better told what they said
+// than handed the machine's word for it.
 const REASON_TEXT: Record<OpenFieldReasonKind, string> = {
-  unknown: "you said unknown",
+  unknown: "you didn't have it",
   "not-asked": "not asked yet",
 };
 
@@ -116,9 +123,17 @@ export function openFieldEntries(
       if (!Object.hasOwn(record, fieldId)) {
         throw new Error(`openFieldEntries: record missing field id: ${fieldId}`);
       }
+      // ask-copy.md's dispositions: an auto field (ReportDate, stamped at
+      // export), a lab write-target row, and an ask whose condition does
+      // not hold (the date of death with no death recorded) are never
+      // gaps — rule 5 is explicit that "an empty row 4 is never a phantom
+      // gap in open-fields or the counts". A derive companion IS one:
+      // rule 3 leaves a bare weight's lb/kg open on purpose, "visible at
+      // Review".
+      if (!isListableGap(fieldId, record)) continue;
       const reasonKind = reasonKindFor(record[fieldId].state);
       if (reasonKind === null) continue;
-      entries.push({ fieldId, label: field.label, reasonKind, reason: REASON_TEXT[reasonKind] });
+      entries.push({ fieldId, label: displayName(fieldId), reasonKind, reason: REASON_TEXT[reasonKind] });
     }
   }
   return entries;

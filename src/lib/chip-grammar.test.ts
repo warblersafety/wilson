@@ -3,7 +3,6 @@
 // wrappers, same convention as the rest of src/app/wizard.
 import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import type { CorrectionOffer } from "./followup-sweep";
 import { TOPICS, type NextStep, type Topic } from "./topics";
@@ -15,20 +14,23 @@ import {
   repeatDecisionOptions,
   widgetTurnText,
 } from "./chip-grammar";
+import { syntheticTopic } from "./synthetic-topic";
 
 const SUSPECT_PRODUCT_TOPICS: Topic[] = [
-  { id: "p1", section: "D", label: "Suspect product 1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 },
-  { id: "p2", section: "D", label: "Suspect product 2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 },
+  syntheticTopic({ id: "p1", section: "D", label: "Suspect product 1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 }),
+  syntheticTopic({ id: "p2", section: "D", label: "Suspect product 2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 }),
 ];
 
-const CONCOMITANT_TOPICS: Topic[] = Array.from({ length: 10 }, (_, i) => ({
-  id: `c${i + 1}`,
-  section: "F",
-  label: `Concomitant medication ${i + 1}`,
-  fieldIds: [`c${i + 1}`],
-  repeatGroup: "concomitant-medication" as const,
-  repeatInstance: i + 1,
-}));
+const CONCOMITANT_TOPICS: Topic[] = Array.from({ length: 10 }, (_, i) =>
+  syntheticTopic({
+    id: `c${i + 1}`,
+    section: "F",
+    label: `Concomitant medication ${i + 1}`,
+    fieldIds: [`c${i + 1}`],
+    repeatGroup: "concomitant-medication" as const,
+    repeatInstance: i + 1,
+  }),
+);
 
 describe("repeatDecisionOptions", () => {
   it("needs no count follow-through for a two-slot group — yes has only one possible meaning", () => {
@@ -83,16 +85,18 @@ describe("applyActionToFields", () => {
 // fieldIds, so one "Rather not say" tap on a bundled topic wrote
 // declined/unknown to every unresolved field in it — up to 19 on
 // patient-basics — even though askDeterministic() only ever asked about
-// the first MAX_FIELDS_PER_ASK. dismissableFieldIds() is the fix; these
-// tests cover both the pure cap and the actual dismiss write end to end.
+// the first three. Authored asks close that at the source — a topic step's
+// fieldIds IS the ask's own unresolved askFieldIds — and
+// dismissableFieldIds() is what keeps the two the same list; these tests
+// cover both the pure pass-through and the actual dismiss write end to end.
 describe("dismissableFieldIds", () => {
-  it("caps a topic step's fieldIds to MAX_FIELDS_PER_ASK", () => {
-    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a", "b", "c", "d", "e"] };
-    expect(dismissableFieldIds(step)).toEqual(["a", "b", "c"]);
+  it("passes a topic step's fieldIds through whole — the ask IS the dismiss set now", () => {
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], ask: TOPICS[0].asks[0], fieldIds: ["a", "b", "c", "d", "e"] };
+    expect(dismissableFieldIds(step)).toEqual(["a", "b", "c", "d", "e"]);
   });
 
   it("passes an already-short fieldIds list through unchanged", () => {
-    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], ask: TOPICS[0].asks[0], fieldIds: ["a"] };
     expect(dismissableFieldIds(step)).toEqual(["a"]);
   });
 
@@ -103,31 +107,37 @@ describe("dismissableFieldIds", () => {
     expect(dismissableFieldIds({ kind: "done" })).toEqual([]);
   });
 
-  it("against the real manifest: patient-basics bundles far more fields than the cap", () => {
+  it("against the real manifest: a dismiss can never reach patient-basics' 19 fields", () => {
+    // The real topic the bug was found on. The authored ask PB-1 waits on
+    // four of the topic's nineteen fields — the four the question names —
+    // and its derive companions (the age-unit checkboxes) are not among
+    // them, so no dismiss can write them (ask-copy.md rule 2).
     const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
-    // The real topic the bug was found on — proof this isn't a
-    // synthetic-fixture-only guarantee.
-    expect(patientBasics.fieldIds.length).toBeGreaterThan(MAX_FIELDS_PER_ASK);
-    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
-    const ids = dismissableFieldIds(step);
-    expect(ids).toEqual(patientBasics.fieldIds.slice(0, MAX_FIELDS_PER_ASK));
-    expect(ids.length).toBe(MAX_FIELDS_PER_ASK);
+    expect(patientBasics.fieldIds.length).toBe(19);
+    const pb1 = patientBasics.asks[0];
+    const step: NextStep = { kind: "topic", topic: patientBasics, ask: pb1, fieldIds: pb1.askFieldIds };
+    expect(dismissableFieldIds(step)).toEqual(pb1.askFieldIds);
+    expect(dismissableFieldIds(step)).toHaveLength(4);
+    for (const companion of pb1.companionFieldIds) {
+      expect(dismissableFieldIds(step)).not.toContain(companion);
+    }
   });
 
-  it("against the real manifest: a dismiss on patient-basics writes exactly the phrased fields and no more", () => {
+  it("against the real manifest: a dismiss on patient-basics writes exactly the asked fields and no more", () => {
     const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
-    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
+    const step: NextStep = { kind: "topic", topic: patientBasics, ask: patientBasics.asks[0], fieldIds: patientBasics.asks[0].askFieldIds };
     const record = initAgenda();
     const phrasedIds = dismissableFieldIds(step);
 
     const result = applyActionToFields(record, phrasedIds, { type: "decline" });
 
     for (const id of phrasedIds) expect(result[id].state).toBe("declined");
-    // The other 16 of patient-basics's 19 fields — never shown to the
-    // clinician this turn — must be untouched. This is the exact
-    // regression: one tap used to decline all 19.
+    // The other 15 of patient-basics's 19 fields — PB-1's derive
+    // companions and the facts PB-2 and PB-3 ask for, none of them shown
+    // this turn — must be untouched. This is the exact regression: one
+    // tap used to decline all 19.
     const unphrasedIds = patientBasics.fieldIds.filter((id) => !phrasedIds.includes(id));
-    expect(unphrasedIds).toHaveLength(patientBasics.fieldIds.length - MAX_FIELDS_PER_ASK);
+    expect(unphrasedIds).toHaveLength(15);
     for (const id of unphrasedIds) expect(result[id]).toEqual(record[id]);
   });
 });

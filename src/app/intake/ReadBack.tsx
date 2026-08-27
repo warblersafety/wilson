@@ -24,9 +24,12 @@ import { saveIntakeDraft } from "@/lib/session-storage";
 import { resolveStartSubmit, validateNarrative, type ReadBackHandoff } from "@/lib/start-surface";
 import type { TalkSession } from "@/lib/talk";
 import { currentTopicProgress } from "@/lib/topics";
+import { displayNameFor } from "@/lib/display-names";
 
+// ask-copy.md rule 6: the authored display name, never the manifest
+// label this used to render straight onto the Read-back surface.
 function fieldLabel(fieldId: string): string {
-  return fieldById(fieldId)?.label ?? fieldId;
+  return displayNameFor(fieldId);
 }
 
 // Read-back's record is ALSO still blank (nothing writes until "Looks

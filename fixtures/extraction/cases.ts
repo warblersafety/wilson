@@ -36,18 +36,22 @@ function declineThroughTopic(record: AgendaRecord, topicId: string): AgendaRecor
 
 export const EXTRACTION_FIXTURES: ExtractionFixture[] = [
   {
-    id: "patient-age-and-dob",
-    description: "direct value answers for two text/date fields bundled in one message",
+    id: "patient-identifier-and-age",
+    description: "direct value answers for two of one ask's own facts, bundled in one message",
     record: initAgenda(),
     repeatCounts: initRepeatCounts(),
+    // PB-1's authored copy, verbatim (docs/ask-copy.md). The date of
+    // birth this fixture used to bundle in belongs to PB-2, a separate
+    // ask — under the contract it would be an out-of-ask write, which is
+    // the widened sweep's own case, not this one's.
     transcript: [
-      { role: "talker", text: "Let's start with some patient basics — age, date of birth, weight?" },
+      { role: "talker", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?" },
     ],
-    message: "She's 42 years old, born 3/15/1983.",
+    message: "MRN 44-1902, she's 42 years old.",
     expected: {
       actions: [
+        { fieldId: "Page1.SecA_Patient.PatientIdentifier", type: "answer", value: "MRN 44-1902" },
         { fieldId: "Page1.SecA_Patient.AgeValue", type: "answer", value: "42" },
-        { fieldId: "Page1.SecA_Patient.DateBirth", type: "answer", value: "3/15/1983" },
       ],
     },
   },
@@ -56,7 +60,13 @@ export const EXTRACTION_FIXTURES: ExtractionFixture[] = [
     description: "an explicit decline is recognized as declined, not mistaken for unknown",
     record: declineThroughTopic(initAgenda(), "event-outcome"),
     repeatCounts: initRepeatCounts(),
-    transcript: [{ role: "talker", text: "Any other relevant medical history?" }],
+    // MH-1's authored copy, verbatim.
+    transcript: [
+      {
+        role: "talker",
+        text: "Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?",
+      },
+    ],
     message: "She'd rather not discuss the rest of her medical history.",
     expected: {
       actions: [{ fieldId: "Page3.Sec6Data.OtherHistory", type: "decline" }],
@@ -67,7 +77,8 @@ export const EXTRACTION_FIXTURES: ExtractionFixture[] = [
     description: "clinician confirms a second suspect product exists, resolving the repeat-decision step",
     record: declineThroughTopic(initAgenda(), "suspect-product-1-purchase"),
     repeatCounts: initRepeatCounts(),
-    transcript: [{ role: "talker", text: "Was there another suspect product involved?" }],
+    // The authored repeat-decision copy, verbatim.
+    transcript: [{ role: "talker", text: "Was there another suspect product?" }],
     message: "Yes, actually — she was also on a second medication, lisinopril.",
     expected: {
       actions: [],

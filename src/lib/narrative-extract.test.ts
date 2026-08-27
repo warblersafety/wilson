@@ -7,6 +7,7 @@ import { applyNarrativeProposals, createNarrativeExtractFn } from "./narrative-e
 import { initAgenda, type AgendaRecord } from "./agenda";
 import type { FormFieldSpec } from "./form-3500-fields";
 import { initRepeatCounts, type RepeatCounts, type Topic } from "./topics";
+import { syntheticTopic } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], options?: string[]): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label: id, type, required: false, options };
@@ -18,27 +19,27 @@ const CHECKBOX_FIELD = field("cb", "checkbox");
 const ENUM_FIELD = field("en", "enum", [" ", "Alpha", "Beta"]);
 const FIELDS = [FIELD_A, FIELD_B, CHECKBOX_FIELD, ENUM_FIELD];
 
-const TOPIC: Topic = {
+const TOPIC: Topic = syntheticTopic({
   id: "t1",
   section: "A",
   label: "Topic 1",
   fieldIds: ["a", "b", "cb", "en"],
   repeatGroup: null,
   repeatInstance: null,
-};
+});
 
 // Instance 2's own field ("p2") is never in the fields list any real
 // caller would pass (narrativePassFields() already excludes it) — used
 // below to prove a misbehaving model targeting it anyway is refused the
 // same deterministic way an unknown field id already is.
-const REPEAT_TOPIC_1: Topic = {
+const REPEAT_TOPIC_1: Topic = syntheticTopic({
   id: "g1",
   section: "D",
   label: "Group instance 1",
   fieldIds: ["p1"],
   repeatGroup: "suspect-product",
   repeatInstance: 1,
-};
+});
 const FIELD_P1 = field("p1", "text");
 const FIELD_C1 = field("c1", "text");
 
@@ -46,25 +47,27 @@ const FIELD_C1 = field("c1", "text");
 // extraction target (it's still excluded by repeatInstance > 1 even when
 // present in the topics list), but needed so isValidRepeatCount() sees the
 // group's real max (2) instead of a synthetic single-instance max of 1.
-const REPEAT_TOPIC_2: Topic = {
+const REPEAT_TOPIC_2: Topic = syntheticTopic({
   id: "g2",
   section: "D",
   label: "Group instance 2",
   fieldIds: ["p2"],
   repeatGroup: "suspect-product",
   repeatInstance: 2,
-};
+});
 // concomitant-medication's real max is 10 (topics.test.ts) — three
 // same-group topics here are enough for isValidRepeatCount(..., 3, ...) to
 // see a max ≥ 3 without needing all ten.
-const CONCOMITANT_TOPICS_UP_TO_3: Topic[] = [1, 2, 3].map((n) => ({
-  id: `c${n}`,
-  section: "F",
-  label: `Concomitant instance ${n}`,
-  fieldIds: [`c${n}`],
-  repeatGroup: "concomitant-medication",
-  repeatInstance: n,
-}));
+const CONCOMITANT_TOPICS_UP_TO_3: Topic[] = [1, 2, 3].map((n) =>
+  syntheticTopic({
+    id: `c${n}`,
+    section: "F",
+    label: `Concomitant instance ${n}`,
+    fieldIds: [`c${n}`],
+    repeatGroup: "concomitant-medication",
+    repeatInstance: n,
+  }),
+);
 
 function unaskedRecordFor(fieldIds: string[]): AgendaRecord {
   const record: AgendaRecord = {};

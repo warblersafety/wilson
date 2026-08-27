@@ -39,10 +39,16 @@
 // here: that's real interpretation work for the not-yet-built Extractor,
 // the same boundary Issue #13 already drew for checkbox/enum fields.
 import { applyAction, type AgendaRecord } from "./agenda";
+import { askApplies, asksForTopic, type AuthoredAsk } from "./ask-inventory";
 import { isResolved, type FieldState } from "./field-state";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 
 export type RepeatGroup = "suspect-product" | "concomitant-medication";
+
+// A topic's shape, before its authored asks are attached. Split out only
+// so the 34 literals below don't each have to carry their own — TOPICS
+// itself is always the full Topic.
+export type TopicShape = Omit<Topic, "asks">;
 
 export interface Topic {
   id: string;
@@ -51,9 +57,16 @@ export interface Topic {
   fieldIds: string[];
   repeatGroup: RepeatGroup | null;
   repeatInstance: number | null;
+  // The authored asks this topic voices, in order (docs/ask-copy.md via
+  // ask-inventory.ts). Carried ON the topic rather than looked up by id
+  // inside nextStep(): talk.ts's Deps lets a caller substitute its own
+  // topic list, and a global lookup would either throw on every synthetic
+  // topic or need a fallback ask — and rule 1 admits no fallback. A topic
+  // and the questions it asks travel together, so they cannot disagree.
+  asks: AuthoredAsk[];
 }
 
-export const TOPICS: Topic[] = [
+const TOPIC_SHAPES: TopicShape[] = [
   {
     id: "patient-basics",
     section: "A",
@@ -586,7 +599,13 @@ export const TOPICS: Topic[] = [
     ],
     repeatGroup: null,
     repeatInstance: null,
-  },];
+  },
+];
+
+// Rule 1's build error, at module load: a topic with no authored asks
+// throws here rather than reaching a clinician as a topic that quietly
+// asks nothing.
+export const TOPICS: Topic[] = TOPIC_SHAPES.map((shape) => ({ ...shape, asks: asksForTopic(shape.id) }));
 
 // How many instances of a repeating group the clinician has confirmed
 // exist. Absent from AgendaRecord entirely on purpose: "is there
@@ -667,7 +686,13 @@ function decidedCount(repeatCounts: RepeatCounts, group: RepeatGroup): number | 
 }
 
 export type NextStep =
-  | { kind: "topic"; topic: Topic; fieldIds: string[] }
+  // `ask` is the authored ask this step voices (docs/ask-copy.md via
+  // ask-inventory.ts); `fieldIds` is exactly the subset of its
+  // askFieldIds still unresolved — what the dismiss chips write, what the
+  // extractor is pointed at, and what rule 9's re-ask frame names. A
+  // topic's derive/auto/write-target companions are deliberately absent:
+  // they are filled from a sibling fact, never voiced, and never block.
+  | { kind: "topic"; topic: Topic; ask: AuthoredAsk; fieldIds: string[] }
   | { kind: "repeat-decision"; repeatGroup: RepeatGroup; afterInstance: number }
   | { kind: "done" };
 
@@ -706,27 +731,34 @@ export function nextStep(
       }
     }
 
-    const unresolvedFieldIds = topic.fieldIds.filter((fieldId) => {
-      const field = fieldsById.get(fieldId);
-      if (!field) {
-        throw new Error(`nextStep: no such field in the given fields list: ${fieldId}`);
+    // The topic's AUTHORED asks, in the inventory's order — not its raw
+    // field list. Which fields an ask waits on is the inventory's
+    // decision (ask-copy.md rule 2: "An ask asks for facts; extraction
+    // maps facts to fields"), so a topic is finished when every one of
+    // its asks is, never when every one of its fields is: a bare weight
+    // leaves its unit companion open forever by design, and the walk must
+    // not stall on it.
+    for (const ask of topic.asks) {
+      if (!askApplies(ask, record)) continue;
+      for (const fieldId of ask.askFieldIds) {
+        const field = fieldsById.get(fieldId);
+        if (!field) {
+          throw new Error(`nextStep: no such field in the given fields list: ${fieldId}`);
+        }
+        // Object.hasOwn, not a stale-looks-like-resolved fallback: a
+        // mismatched topics/fields/record combination (talk.ts's Deps lets
+        // a caller override any of the three independently) should fail
+        // loud, the same way agenda.ts's applyAction() always has — not
+        // silently treat a real unresolved field as if it were already
+        // answered.
+        if (!Object.hasOwn(record, fieldId)) {
+          throw new Error(`nextStep: record missing field id: ${fieldId}`);
+        }
       }
-      // Object.hasOwn, not a stale-looks-like-resolved fallback: a
-      // mismatched topics/fields/record combination (talk.ts's Deps lets
-      // a caller override any of the three independently) should fail
-      // loud, the same way agenda.ts's applyAction() and the removed
-      // nextField() always have — not silently treat a real unresolved
-      // field as if it were already answered.
-      if (!Object.hasOwn(record, fieldId)) {
-        throw new Error(`nextStep: record missing field id: ${fieldId}`);
+      const unresolvedFieldIds = ask.askFieldIds.filter((fieldId) => !isResolved(record[fieldId].state));
+      if (unresolvedFieldIds.length > 0) {
+        return { kind: "topic", topic, ask, fieldIds: unresolvedFieldIds };
       }
-      // Every field type is unresolved-checked now (Issue #44) — `field`
-      // itself is still looked up above only to keep the "is this id real"
-      // guard, not to filter by type as this used to.
-      return !isResolved(record[fieldId].state);
-    });
-    if (unresolvedFieldIds.length > 0) {
-      return { kind: "topic", topic, fieldIds: unresolvedFieldIds };
     }
   }
 
