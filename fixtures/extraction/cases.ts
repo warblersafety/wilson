@@ -6,6 +6,7 @@
 // thing, don't hand-enumerate" practice topics.test.ts already uses.
 import { applyAction, initAgenda, type AgendaRecord } from "../../src/lib/agenda";
 import type { ProposedAction, TalkTurn } from "../../src/lib/talk";
+import { AUTHORED_ASKS } from "../../src/lib/ask-inventory";
 import { TOPICS, initRepeatCounts, type RepeatCounts, type RepeatGroup } from "../../src/lib/topics";
 
 export interface ExtractionFixture {
@@ -23,6 +24,16 @@ export interface ExtractionFixture {
 
 function declineAll(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
   return fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "decline" }), record);
+}
+
+// Declines every field a named ask waits on, leaving that topic's NEXT
+// ask as the open step. Ask granularity, not topic granularity: a topic
+// carries several authored asks now (docs/ask-copy.md), so declining a
+// whole topic would walk past the one a fixture wants to sit on.
+function declineThroughAsk(record: AgendaRecord, askId: string): AgendaRecord {
+  const ask = AUTHORED_ASKS.find((a) => a.id === askId);
+  if (!ask) throw new Error(`no such ask: ${askId}`);
+  return declineAll(record, ask.askFieldIds);
 }
 
 // Declines every topic up to and including the named one, in TOPICS' own
@@ -52,6 +63,27 @@ export const EXTRACTION_FIXTURES: ExtractionFixture[] = [
       actions: [
         { fieldId: "Page1.SecA_Patient.PatientIdentifier", type: "answer", value: "MRN 44-1902" },
         { fieldId: "Page1.SecA_Patient.AgeValue", type: "answer", value: "42" },
+      ],
+    },
+  },
+  {
+    id: "patient-weight-and-dob",
+    description: "a text value and a DATE value from one answer — the corpus's date-typed coverage",
+    // PB-1 resolved, so PB-2 is the open ask. Its two facts are the
+    // weight and the date of birth; the weight's lb/kg unit is a derive
+    // companion that a bare number deliberately leaves open (rule 3), so
+    // no unit action is expected here.
+    record: declineThroughAsk(initAgenda(), "PB-1"),
+    repeatCounts: initRepeatCounts(),
+    // PB-2's authored copy, verbatim.
+    transcript: [
+      { role: "talker", text: "What's the patient's weight — and date of birth, if you record it?" },
+    ],
+    message: "About 68 kg, and she was born 3/15/1983.",
+    expected: {
+      actions: [
+        { fieldId: "Page1.SecA_Patient.WeightValue", type: "answer", value: "68" },
+        { fieldId: "Page1.SecA_Patient.DateBirth", type: "answer", value: "3/15/1983" },
       ],
     },
   },

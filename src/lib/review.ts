@@ -184,6 +184,15 @@ interface ComposedRow {
   // their own so the card doesn't show both "Age | 42 yr" and a bare
   // "Age: Year(s) | Yes" beneath it.
   absorbs: string[];
+  // An authored caption for a composition that speaks for more than one
+  // FACT, so the row's label names everything under it (reviewer pass,
+  // PR #98, finding 2). Absent where the anchor's own display name
+  // already covers the row: age and weight absorb only their unit
+  // checkbox, which is part of the same fact. Present where it doesn't —
+  // labelling "amoxicillin-clavulanate 875 MG — Teva" as "product name"
+  // understates the row on the very surface where a clinician verifies
+  // field mapping before signing off.
+  label?: string;
 }
 
 const COMPOSED_ROWS = new Map<string, ComposedRow>([
@@ -206,6 +215,7 @@ const COMPOSED_ROWS = new Map<string, ComposedRow>([
     {
       render: doseWithUnitAndFrequency,
       absorbs: ["Page4.Prod1.Prod1DoseUnit", "Page4.Prod1.Prod1Freq"],
+      label: "dose and frequency",
     },
   ],
   [
@@ -213,6 +223,7 @@ const COMPOSED_ROWS = new Map<string, ComposedRow>([
     {
       render: productIdentity,
       absorbs: ["Page4.Prod1.Prod1Strength", "Page4.Prod1.Prod1StrengthUnit", "Page4.Prod1.Prod1ManuComp"],
+      label: "product name, strength, and manufacturer",
     },
   ],
 ]);
@@ -267,7 +278,7 @@ export function reviewFieldRows(
     // would silently drop the reminder this unit adds.
     if (anchor.retained || anchor.muted || anchor.text === null) continue;
     const { text, muted } = composed.render(record);
-    const label = displayNameFor(fieldId);
+    const label = composed.label ?? displayNameFor(fieldId);
     composedRows.set(fieldId, { fieldId, label, text, muted, retained: false });
     for (const absorbedId of composed.absorbs) {
       if (present.has(absorbedId) && record[absorbedId]?.state === "answered") absorbed.add(absorbedId);

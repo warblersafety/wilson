@@ -94,14 +94,34 @@ describe("authored ask copy", () => {
   });
 
   // Rule 8's voice: "one question mark per ask, no exclamation marks".
-  // Only the exclamation half is asserted, because five of the contract's
-  // OWN authored asks carry two question marks — SP-4, DV-1, DV-2, DV-3,
-  // RA-2, each a two-part question — so rule 8 and the inventory
-  // disagree, and the inventory is what AC-1 requires be rendered
-  // verbatim. Filed rather than papered over; #91's UX floor has to know
-  // which of the two it is checking.
+  // The exclamation half holds everywhere. The question-mark half does
+  // not: six of the contract's OWN authored asks depart from it, and the
+  // inventory is what AC-1 requires be rendered verbatim. Pinned as an
+  // exact set rather than described in a comment (reviewer pass, PR #98,
+  // finding 3 — my first description of it named the wrong asks), so
+  // #91's UX floor can encode the exemption against a list a test keeps
+  // honest, and an amendment to either side fails here first.
   it("never shouts — no exclamation marks anywhere in the authored copy", () => {
     for (const ask of AUTHORED_ASKS) expect(ask.copy, ask.id).not.toContain("!");
+  });
+
+  it("departs from rule 8's one-question-mark rule in exactly six places", () => {
+    const departures = AUTHORED_ASKS
+      // Instance 2 and concomitant instances 2-10 reuse the same copy
+      // pattern; counting them would just multiply the same departures.
+      .filter((a) => !/suspect-product-2|concomitant-medication-([2-9]|10)/.test(a.topicId))
+      .map((a) => ({ id: a.id, marks: (a.copy.match(/\?/g) ?? []).length }))
+      .filter((a) => a.marks !== 1);
+    expect(departures).toEqual([
+      // Imperatives, not questions — no question mark at all.
+      { id: "WH-1", marks: 0 },
+      { id: "SP-2", marks: 0 },
+      // Deliberate two-part questions.
+      { id: "SP-4", marks: 2 },
+      { id: "DV-2", marks: 2 },
+      { id: "DV-3", marks: 2 },
+      { id: "RA-2", marks: 2 },
+    ]);
   });
 });
 

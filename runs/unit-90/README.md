@@ -7,8 +7,9 @@ user before reading the diff.
 
 ## How this run was produced
 
-Playwright against `npm run dev` on `localhost:3000`, no model calls —
-same driver as `runs/unit-89/`. It seeds `wilson.talk-session.v1` with the
+`scripts/artifact-session.mjs` (Playwright) against `npm run dev` on
+`localhost:3000`, no model calls — its header carries the exact recipe.
+It seeds `wilson.talk-session.v1` with the
 session `IntakeFlow` persists after a Read-back confirm (record carrying
 `PatientIdentifier` = "MRN 44-1902" and `AgeValue` = "61", plus the
 clinician's opening narrative), then drives the deterministic chip paths
@@ -43,13 +44,22 @@ repeat decisions.
 | `01-start.png` | Start (screen 01), before seeding |
 | `02`–`07-followups-turn-*.png` | Follow-ups: the rule-9 re-ask, then five authored asks in a row |
 | `08`, `09-followups-repeat-*.png` | Both repeat decisions, in the contract's authored wording |
-| `10-review.png` | Review (screen 05) — every row labelled by its display name |
+| `10-review.png` | Review (screen 05) — every row labelled by its display name, or by a composition's authored caption |
 | `11-review-paper-facsimile.png` | Review with the Form 3500 facsimile shown |
 | `12-open-fields.png` | Open fields (screen 06) — display names, and rule 8's "you didn't have it" |
 | `13-ready.png` | Ready |
 
 `session.txt` holds the per-turn record, the complete 55-turn transcript,
 and the rendered text of each later surface.
+
+## What this session does NOT exercise
+
+The scripted walk dismisses every ask, so no field is ever answered — and
+Review's composed rows (age with its unit, the product identity box, dose
+with frequency) only render over answered values. They are covered by
+`review.test.ts` instead, not by this artifact. The reviewer pass on this
+PR found a real labelling defect there by constructing a record by hand,
+which is exactly the gap this note records.
 
 ## Known, out-of-scope things this session shows
 

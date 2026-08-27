@@ -9,6 +9,8 @@ import {
   GATED_TOPIC_IDS,
   asksForTopic,
   askApplies,
+  dispositionOf,
+  isListableGap,
   unresolvedAskFieldIds,
   unresolvedFactNames,
 } from "./ask-inventory";
@@ -154,6 +156,108 @@ describe("the authored ask inventory", () => {
           }
         }
       }
+    });
+  });
+
+  // The open-fields dialog is where a clinician goes looking for what is
+  // still missing, and isListableGap() is the only thing that can take a
+  // field OFF that list. The end-condition flow test derives its expected
+  // ids THROUGH this function, so it cannot catch it excluding the wrong
+  // one (reviewer pass, PR #98, finding 1) — these pin the excluded set
+  // by hand instead. Part 2 edits this exact function to add gates.
+  describe("isListableGap", () => {
+    const record = initAgenda();
+    const REPORT_DATE = "Page1.SecA_Patient.ReportDate";
+    const DEATH_DATE = "Page1.SecA_Patient.DeathDate";
+    const LAB_ANCHOR = "Page3.TestDataTable.Row1.TestData1";
+
+    it("excludes exactly these fields and no others, on a fresh record", () => {
+      const excluded = FORM_3500_FIELDS.map((f) => f.id).filter((id) => !isListableGap(id, record));
+      // Hand-written, not derived: rule 4's one auto field, rule 5's 31
+      // lab write-target rows, and the date of death, whose ask does not
+      // apply with no death recorded.
+      expect(excluded.sort()).toEqual(
+        [
+          REPORT_DATE,
+          DEATH_DATE,
+          "Page3.TestDataTable.Row1.TLowRange1",
+          "Page3.TestDataTable.Row1.THighRange1",
+          "Page3.TestDataTable.Row1.TDate1",
+          "Page3.TestDataTable.Row2.TestData2",
+          "Page3.TestDataTable.Row2.TLowRange2",
+          "Page3.TestDataTable.Row2.THighRange2",
+          "Page3.TestDataTable.Row2.TDate2",
+          "Page3.TestDataTable.Row3.TestData3",
+          "Page3.TestDataTable.Row3.TLowRange3",
+          "Page3.TestDataTable.Row3.THighRange3",
+          "Page3.TestDataTable.Row4.TestData4",
+          "Page3.TestDataTable.Row4.TLowRange4",
+          "Page3.TestDataTable.Row4.THighRange4",
+          "Page3.TestDataTable.Row5.TestData5",
+          "Page3.TestDataTable.Row5.TLowRange5",
+          "Page3.TestDataTable.Row5.THighRange5",
+          "Page3.TestDataTable.Row6.TestData6",
+          "Page3.TestDataTable.Row6.TLowRange6",
+          "Page3.TestDataTable.Row6.THighRange6",
+          "Page3.TestDataTable.Row7.TestData7",
+          "Page3.TestDataTable.Row7.TLowRange7",
+          "Page3.TestDataTable.Row8.TestData8",
+          "Page3.TestDataTable.Row8.TLowRange8",
+          "Page3.TestDataTable.Row8.THighRange8",
+          "Page3.TestDataTable.Row8.TDate8",
+          "Page3.TestDataTable.Row8.THighRange7",
+          "Page3.TestDataTable.Row8.TDate3",
+          "Page3.TestDataTable.Row8.TDate4",
+          "Page3.TestDataTable.Row8.TDate5",
+          "Page3.TestDataTable.Row8.TDate6",
+          "Page3.TestDataTable.Row8.TDate7",
+        ].sort(),
+      );
+      expect(excluded).toHaveLength(33);
+    });
+
+    it("keeps LD-1's own anchor listable — openness attaches to it", () => {
+      expect(isListableGap(LAB_ANCHOR, record)).toBe(true);
+    });
+
+    it("keeps every derive companion listable — rule 3 leaves them open on purpose", () => {
+      for (const fieldId of [
+        "Page1.SecA_Patient.AgeYears",
+        "Page1.SecA_Patient.WeightLB",
+        "Page1.SecA_Patient.WeightKG",
+        "Page4.Prod1.Prod1StrengthUnit",
+        "Page4.Prod1.Prod1TherapyDuration",
+        "Page7.SecG_Reporter.Country",
+      ]) {
+        expect(isListableGap(fieldId, record), fieldId).toBe(true);
+      }
+    });
+
+    it("keeps every ask field of an applicable ask listable", () => {
+      for (const ask of AUTHORED_ASKS) {
+        if (!askApplies(ask, record)) continue;
+        for (const fieldId of ask.askFieldIds) {
+          expect(isListableGap(fieldId, record), `${ask.id}: ${fieldId}`).toBe(true);
+        }
+      }
+    });
+
+    // The conditional case in both directions: silence about a death must
+    // not manufacture a "date of death" gap, and a recorded death must not
+    // hide one.
+    it("lists the date of death once a death is recorded, and not before", () => {
+      expect(isListableGap(DEATH_DATE, record)).toBe(false);
+      const withDeath = { ...record, "Page1.SecA_Patient.Death": { state: "answered" as const, value: "true" } };
+      expect(isListableGap(DEATH_DATE, withDeath)).toBe(true);
+      const withoutDeath = { ...record, "Page1.SecA_Patient.Death": { state: "answered" as const, value: "false" } };
+      expect(isListableGap(DEATH_DATE, withoutDeath)).toBe(false);
+    });
+
+    it("never excludes an auto or write-target field's disposition by accident", () => {
+      expect(dispositionOf(REPORT_DATE)).toBe("auto");
+      expect(dispositionOf("Page3.TestDataTable.Row8.TDate7")).toBe("write-target");
+      expect(dispositionOf(LAB_ANCHOR)).toBe("ask");
+      expect(dispositionOf("Page1.SecA_Patient.AgeYears")).toBe("derive");
     });
   });
 
