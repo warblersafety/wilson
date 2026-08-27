@@ -24,7 +24,11 @@ refreshes it.
   every PR at the first push, draft while review and fixes are in
   progress; ready means merging is the only step left.
 - `staging` — human-facing preview. Steve promotes `dev → staging` via a
-  promotion PR that Claude prepares — the same rules apply to every
+  promotion PR that Claude prepares — and for a round containing UI or
+  conversation units, the promotion PR is **not prepared at all until
+  the round gate's READY verdict is posted**
+  ([docs/round-gate.md](docs/round-gate.md)); the verdict is copied
+  onto the promotion PR once it exists. The same rules apply to every
   promotion PR, `staging → main` included (see `main` below): a plain
   summary, a title describing the whole rollup rather than inherited
   from whichever unit happened to merge last, and **opened as draft**
