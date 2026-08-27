@@ -1,311 +1,235 @@
+// The Talker's rendered copy, against docs/ask-copy.md. This replaces the
+// v1.1 suite wholesale: every test in it proved a property of the
+// label-template path (the last-colon-segment rule, the override table,
+// the comma guard, the "(yes or no)" suffix, the MAX_FIELDS_PER_ASK cap),
+// and rule 1 deletes that path rather than demoting it. What replaces
+// those tests is the contract's own claim — a rendered ask EQUALS the
+// authored copy, for every topic and both repeat instances.
 import { describe, expect, it } from "vitest";
-import { initAgenda } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
-import { TOPICS, initRepeatCounts, type NextStep, type Topic } from "./topics";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
-  ASK_OPTIONS_INLINE_MAX,
-  REPEAT_GROUP_LABELS,
+  askCopy,
   askDeterministic,
-  fieldPhrase,
-  MAX_FIELDS_PER_ASK,
-  PHRASING_OVERRIDES,
+  DONE_MESSAGE,
+  REPEAT_DECISION_COPY,
+  reAskFrame,
+  VOLUNTEERED_REPEAT_HINT,
 } from "./ask";
-import type { TalkSession } from "./talk";
+import { AUTHORED_ASKS, askApplies, unresolvedFactNames } from "./ask-inventory";
+import { displayName } from "./display-names";
+import { FORM_3500_FIELDS } from "./form-3500-fields";
+import { initTalkSession, type TalkSession } from "./talk";
+import { initRepeatCounts, nextStep, setRepeatCount, TOPICS } from "./topics";
 
-const STUB_SESSION: TalkSession = {
-  transcript: [],
-  record: initAgenda(),
-  repeatCounts: initRepeatCounts(),
-};
-
-const PATIENT_BASICS = TOPICS.find((t) => t.id === "patient-basics")!;
-
-function topicStep(topic: Topic, fieldIds: string[]): NextStep {
-  return { kind: "topic", topic, fieldIds };
+function sessionWith(record: AgendaRecord): TalkSession {
+  return { ...initTalkSession(), record };
 }
 
-describe("askDeterministic", () => {
-  it("returns a fixed, non-empty closing message for done", async () => {
-    const reply = await askDeterministic({ kind: "done" }, STUB_SESSION);
-    expect(reply.length).toBeGreaterThan(0);
+// Marks every field the given ask waits on as unknown — the "I don't have
+// that" chip's own write path, and the only way to walk past an ask
+// without inventing manifest-valid values.
+function dismiss(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
+  return fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "mark_unknown" }), record);
+}
+
+// Every ask the walk actually voices, in order, from a fresh session
+// dismissed straight through to done.
+function scriptedWalk(): string[] {
+  let record = initAgenda();
+  let counts = initRepeatCounts();
+  const asked: string[] = [];
+  for (let guard = 0; guard < 200; guard += 1) {
+    const step = nextStep(record, counts);
+    if (step.kind === "done") return asked;
+    if (step.kind === "repeat-decision") {
+      asked.push(REPEAT_DECISION_COPY[step.repeatGroup]);
+      counts = setRepeatCount(counts, step.repeatGroup, step.afterInstance);
+      continue;
+    }
+    asked.push(askCopy(step.ask, record));
+    record = dismiss(record, step.fieldIds);
+  }
+  throw new Error("scriptedWalk: the walk never reached done");
+}
+
+describe("authored ask copy", () => {
+  // AC-1's structural test. Every ask, every topic, both repeat
+  // instances — driven through askDeterministic, not read off the
+  // inventory, so it proves what a clinician is actually shown.
+  it("renders every authored ask, for every topic and both repeat instances, exactly as authored", async () => {
+    const record = initAgenda();
+    for (const ask of AUTHORED_ASKS) {
+      if (!askApplies(ask, record)) continue;
+      const topic = TOPICS.find((t) => t.id === ask.topicId)!;
+      const step = { kind: "topic" as const, topic, ask, fieldIds: ask.askFieldIds };
+      expect(await askDeterministic(step, sessionWith(record)), ask.id).toBe(ask.copy);
+    }
   });
 
-  it("phrases a repeat-decision for suspect-product", async () => {
-    const reply = await askDeterministic(
-      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
-      STUB_SESSION,
-    );
-    expect(reply).toBe("Was there another suspect product?");
+  it("covers both suspect-product instances with instance-specific copy", async () => {
+    const sp1 = AUTHORED_ASKS.find((a) => a.id === "SP-1")!;
+    const sp1of2 = AUTHORED_ASKS.find((a) => a.id === "SP-1-2")!;
+    expect(sp1.copy).toContain("the suspect product");
+    expect(sp1of2.copy).toContain("the second suspect product");
+    expect(sp1.copy).not.toBe(sp1of2.copy);
   });
 
-  it("phrases a repeat-decision for concomitant-medication", async () => {
-    const reply = await askDeterministic(
-      { kind: "repeat-decision", repeatGroup: "concomitant-medication", afterInstance: 1 },
-      STUB_SESSION,
-    );
-    expect(reply).toBe("Was there another concomitant medication?");
-  });
-
-  it("phrases a single-field topic as one clause", async () => {
-    const reply = await askDeterministic(
-      topicStep(PATIENT_BASICS, ["Page1.SecA_Patient.PatientIdentifier"]),
-      STUB_SESSION,
-    );
-    expect(reply).toBe("What's the patient identifier?");
-  });
-
-  it("joins a two-field topic with 'and', no Oxford comma needed", async () => {
-    const reply = await askDeterministic(
-      topicStep(PATIENT_BASICS, [
-        "Page1.SecA_Patient.PatientIdentifier",
-        "Page1.SecA_Patient.AgeValue",
-      ]),
-      STUB_SESSION,
-    );
-    expect(reply).toBe("What's the patient identifier and the age?");
-  });
-
-  it("joins a three-field topic with an Oxford comma", async () => {
-    const reply = await askDeterministic(
-      topicStep(PATIENT_BASICS, [
-        "Page1.SecA_Patient.PatientIdentifier",
-        "Page1.SecA_Patient.AgeValue",
-        "Page1.SecA_Patient.DateBirth",
-      ]),
-      STUB_SESSION,
-    );
-    expect(reply).toBe("What's the patient identifier, the age, and the date of birth?");
-  });
-
-  it("caps a topic with more fields than the cap to the first MAX_FIELDS_PER_ASK", async () => {
-    const allFour = [
-      "Page1.SecA_Patient.PatientIdentifier",
-      "Page1.SecA_Patient.AgeValue",
-      "Page1.SecA_Patient.DateBirth",
-      "Page1.SecA_Patient.WeightValue",
+  // The exact defect Steve rejected on 2026-08-26.
+  it("never renders a template marker, a manifest label, or a field id", () => {
+    const labels = new Set(FORM_3500_FIELDS.map((f) => f.label));
+    const rendered = [
+      ...AUTHORED_ASKS.map((a) => a.copy),
+      ...Object.values(REPEAT_DECISION_COPY),
+      DONE_MESSAGE,
+      VOLUNTEERED_REPEAT_HINT,
+      ...FORM_3500_FIELDS.map((f) => displayName(f.id)),
     ];
-    expect(MAX_FIELDS_PER_ASK).toBe(3);
-    const reply = await askDeterministic(topicStep(PATIENT_BASICS, allFour), STUB_SESSION);
-    // Identical to the three-field case above — the 4th field never enters
-    // the phrase, and stays unresolved for a later turn (nextStep() will
-    // surface it again on its own; no new machinery needed here).
-    expect(reply).toBe("What's the patient identifier, the age, and the date of birth?");
-  });
-
-  it("phrases a 'Row N — X' field as row N's X, not the raw compound label", async () => {
-    const labData = TOPICS.find((t) => t.id === "event-lab-data")!;
-    const reply = await askDeterministic(
-      topicStep(labData, ["Page3.TestDataTable.Row1.TestData1"]),
-      STUB_SESSION,
-    );
-    expect(reply).toBe("What's row 1's test/lab data?");
-  });
-
-  it("uses the override table for a field whose generic phrase would be broken, instead of the generic rule", async () => {
-    const deviceHistory = TOPICS.find((t) => t.id === "device-history")!;
-    const reply = await askDeterministic(
-      topicStep(deviceHistory, ["Page6.SecE_Device.ReprocInfo"]),
-      STUB_SESSION,
-    );
-    expect(reply).not.toMatch(/item 7a/i);
-    expect(reply).toBe(`What's ${PHRASING_OVERRIDES["Page6.SecE_Device.ReprocInfo"]}?`);
-  });
-
-  it("every override key is a real field id in FORM_3500_FIELDS", () => {
-    const realIds = new Set(FORM_3500_FIELDS.map((f) => f.id));
-    for (const id of Object.keys(PHRASING_OVERRIDES)) {
-      expect(realIds.has(id)).toBe(true);
-    }
-  });
-
-  it("no override phrase contains a comma — a comma inside one item is indistinguishable from the multi-field join's own separators", () => {
-    for (const [id, phrase] of Object.entries(PHRASING_OVERRIDES)) {
-      expect(phrase, `override for ${id}`).not.toContain(",");
-    }
-  });
-
-  it("bundling an override next to a generic phrase stays a clean, unambiguous list — regression for the original Other Frequency/Route overrides, which each carried a comma and produced a run-on", async () => {
-    const dosing = TOPICS.find((t) => t.id === "suspect-product-1-dosing")!;
-    const reply = await askDeterministic(
-      topicStep(dosing, [
-        "Page4.Prod1.Prod1Dose",
-        "Page4.Prod1.Prod1FreqOther",
-        "Page4.Prod1.Prod1RouteOther",
-      ]),
-      STUB_SESSION,
-    );
-    expect(reply).toBe(
-      "What's the dose or amount, the other frequency you had in mind, and the other route you had in mind?",
-    );
-  });
-
-  it("covers exactly the thirteen fields identified as needing an override (six at filing, five more found by actually running the output before and after review, two more — Defects and IdentityNo — once Issue #44 started phrasing checkbox fields)", () => {
-    expect(Object.keys(PHRASING_OVERRIDES).sort()).toEqual(
-      [
-        "Page1.SecA_Patient.Defects",
-        "Page2.SecB_Adverse.DescEvent",
-        "Page3.Sec6Data.OtherHistory",
-        "Page3.TestDataTable.ReturnDate",
-        "Page4.Prod1.Prod1FreqOther",
-        "Page4.Prod1.Prod1RouteOther",
-        "Page5.Prod2.Prod2FreqOther",
-        "Page5.Prod2.Prod2RouteOther",
-        "Page6.SecE_Device.ExplantDate",
-        "Page6.SecE_Device.ImplantDate",
-        "Page6.SecE_Device.ManuName",
-        "Page6.SecE_Device.ReprocInfo",
-        "Page7.SecG_Reporter.IdentityNo",
-      ].sort(),
-    );
-  });
-
-  it("smoke test: every real text/date field across all 34 topics phrases without throwing, without empty text, and without an embedded comma", async () => {
-    // Asked alone (a single-field topic), a comma in the reply can only
-    // have come from the field's own phrase — never from joinPhrases()'s
-    // list-separator logic, which never runs for a single item. This is
-    // what actually caught the generic-fallback comma bug a fresh-context
-    // review found: the override-only check above didn't cover a field
-    // with no override and a comma in its raw label (no ":" to split on).
-    const fieldsById = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
-    for (const topic of TOPICS) {
-      const textOrDateIds = topic.fieldIds.filter((id) => {
-        const type = fieldsById.get(id)?.type;
-        return type === "text" || type === "date";
-      });
-      for (const fieldId of textOrDateIds) {
-        const reply = await askDeterministic(topicStep(topic, [fieldId]), STUB_SESSION);
-        expect(reply.length, fieldId).toBeGreaterThan(0);
-        expect(reply, fieldId).not.toContain(",");
+    for (const text of rendered) {
+      expect(text, text).not.toContain("(yes or no)");
+      expect(text, text).not.toMatch(/Page\d|Prod\d\.|Sec[A-G]_/);
+      for (const label of labels) {
+        expect(text.includes(label), `${text} contains the manifest label ${label}`).toBe(false);
       }
     }
   });
 
-  it("throws rather than producing a broken 'What's , and undefined?' message for a topic step with no fieldIds", async () => {
-    await expect(
-      askDeterministic(topicStep(PATIENT_BASICS, []), STUB_SESSION),
-    ).rejects.toThrow();
+  // Rule 8's voice: "one question mark per ask, no exclamation marks".
+  // The exclamation half holds everywhere. The question-mark half does
+  // not: six of the contract's OWN authored asks depart from it, and the
+  // inventory is what AC-1 requires be rendered verbatim. Pinned as an
+  // exact set rather than described in a comment (reviewer pass, PR #98,
+  // finding 3 — my first description of it named the wrong asks), so
+  // #91's UX floor can encode the exemption against a list a test keeps
+  // honest, and an amendment to either side fails here first.
+  it("never shouts — no exclamation marks anywhere in the authored copy", () => {
+    for (const ask of AUTHORED_ASKS) expect(ask.copy, ask.id).not.toContain("!");
+  });
+
+  it("departs from rule 8's one-question-mark rule in exactly six places", () => {
+    const departures = AUTHORED_ASKS
+      // Instance 2 and concomitant instances 2-10 reuse the same copy
+      // pattern; counting them would just multiply the same departures.
+      .filter((a) => !/suspect-product-2|concomitant-medication-([2-9]|10)/.test(a.topicId))
+      .map((a) => ({ id: a.id, marks: (a.copy.match(/\?/g) ?? []).length }))
+      .filter((a) => a.marks !== 1);
+    expect(departures).toEqual([
+      // Imperatives, not questions — no question mark at all.
+      { id: "WH-1", marks: 0 },
+      { id: "SP-2", marks: 0 },
+      // Deliberate two-part questions.
+      { id: "SP-4", marks: 2 },
+      { id: "DV-2", marks: 2 },
+      { id: "DV-3", marks: 2 },
+      { id: "RA-2", marks: 2 },
+    ]);
   });
 });
 
-// Issue #44 AC: fixed-choice (checkbox/enum) fields are ordinary
-// conversational asks now, answered by typed/dictated text rather than a
-// widget — so the ask itself must carry their legal options, or a
-// clinician has no way to know the vocabulary that will actually
-// validate.
-describe("fieldPhrase — checkbox/enum option-aware phrasing (Issue #44)", () => {
-  it("appends a yes/no suffix to a checkbox field's phrase", () => {
-    const field: FormFieldSpec = {
-      id: "cb",
-      section: "B",
-      pdfFieldName: "f.cb[0]",
-      label: "Outcome: Hospitalization",
-      type: "checkbox",
-      required: false,
-    };
-    expect(fieldPhrase(field)).toBe("the hospitalization (yes or no)");
+describe("rule 9's re-ask frames", () => {
+  it("names one still-open fact with the short frame", () => {
+    expect(reAskFrame(["age"])).toBe("And the age?");
   });
 
-  it("appends a slash-joined option list to a small enum field's phrase", () => {
-    const field: FormFieldSpec = {
-      id: "en",
-      section: "D",
-      pdfFieldName: "f.en[0]",
-      label: "Frequency",
-      type: "enum",
-      required: false,
-      options: [" ", "BID", "Daily", "Other"],
-    };
-    expect(fieldPhrase(field)).toBe("the frequency (BID / Daily / Other)");
+  it("lists several with the long frame", () => {
+    expect(reAskFrame(["age", "sex: male"])).toBe("Got it. Still need: age and sex: male.");
+    expect(reAskFrame(["age", "weight", "date of birth"])).toBe(
+      "Got it. Still need: age, weight, and date of birth.",
+    );
   });
 
-  it("never lets an enum's blank placeholder or a disallowed value leak into the phrased options", () => {
-    const field = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1StrengthUnit")!;
-    const phrase = fieldPhrase(field);
-    expect(phrase).not.toMatch(/\(\s*\/|\/\s*\)/); // no leading/trailing empty slot from the blank option
-    expect(phrase).not.toContain("AS NECESSARY - AN");
+  it("refuses to compose a frame naming nothing", () => {
+    expect(() => reAskFrame([])).toThrow(/at least one/);
   });
 
-  it("omits the option suffix entirely for an enum field past ASK_OPTIONS_INLINE_MAX options", () => {
-    // Country (~275 legal options): spelling out every one would replace
-    // the question with a wall of text nobody could answer from. The
-    // clinician answers in plain text either way — the Extractor performs
-    // the same referential mapping it already does for ordinary text
-    // fields ("the water pill" -> furosemide), checked mechanically
-    // against the full legal list regardless of what's shown here.
-    const field = FORM_3500_FIELDS.find((f) => f.id === "Page4.Prod1.Prod1Country")!;
-    expect((field.options?.length ?? 0)).toBeGreaterThan(ASK_OPTIONS_INLINE_MAX);
-    expect(fieldPhrase(field)).not.toContain("(");
+  // The contract's own reason for the frames: "A frame is never
+  // byte-equal to the primary ask, so the no-consecutive-duplicates check
+  // holds across the pair."
+  it("re-asks a partly answered ask by naming only what is still open", async () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const topic = TOPICS.find((t) => t.id === pb1.topicId)!;
+    const record = applyAction(initAgenda(), pb1.askFieldIds[0], { type: "answer" }, "MRN 44-1902");
+    const step = { kind: "topic" as const, topic, ask: pb1, fieldIds: pb1.askFieldIds.slice(1) };
+    const rendered = await askDeterministic(step, sessionWith(record));
+    // Facts, not fields: the sex one-hot is one fact, named once.
+    expect(rendered).toBe("Got it. Still need: age and sex.");
+    expect(rendered).toBe(reAskFrame(unresolvedFactNames(pb1, record)));
+    expect(rendered).not.toBe(pb1.copy);
+    expect(rendered).not.toContain(displayName(pb1.askFieldIds[0]));
   });
 
-  it("no field's phrase — including the new option suffix — contains a comma, checkbox/enum included", () => {
-    for (const f of FORM_3500_FIELDS) {
-      if (f.type !== "checkbox" && f.type !== "enum") continue;
-      expect(fieldPhrase(f), f.id).not.toContain(",");
-    }
+  it("returns to the primary copy while nothing in the ask is resolved", () => {
+    const pb2 = AUTHORED_ASKS.find((a) => a.id === "PB-2")!;
+    expect(askCopy(pb2, initAgenda())).toBe(pb2.copy);
   });
 
-  it("smoke test: every real checkbox/enum field across all 34 topics phrases without throwing, non-empty, no embedded comma, no raw manifest identifier", async () => {
-    const RAW_FIELD_PATH = /^Page\d+\./;
-    const RAW_OPT_CODE = /\/Opt\d/i;
-    const fieldsById = new Map<string, FormFieldSpec>(FORM_3500_FIELDS.map((f) => [f.id, f]));
-    for (const topic of TOPICS) {
-      const fixedChoiceIds = topic.fieldIds.filter((id) => {
-        const type = fieldsById.get(id)?.type;
-        return type === "checkbox" || type === "enum";
-      });
-      for (const fieldId of fixedChoiceIds) {
-        const reply = await askDeterministic(topicStep(topic, [fieldId]), STUB_SESSION);
-        expect(reply.length, fieldId).toBeGreaterThan(0);
-        expect(reply, fieldId).not.toContain(",");
-        expect(reply, fieldId).not.toMatch(RAW_FIELD_PATH);
-        expect(reply, fieldId).not.toMatch(RAW_OPT_CODE);
-      }
-    }
-  });
-
-  it("against the real manifest: the dechallenge/rechallenge topic (all checkbox, unreachable before Issue #44) phrases cleanly", async () => {
-    const responseTopic = TOPICS.find((t) => t.id === "suspect-product-1-response")!;
-    const reply = await askDeterministic(topicStep(responseTopic, responseTopic.fieldIds), STUB_SESSION);
-    expect(reply).toContain("yes or no");
+  it("refuses to compose copy for an ask with nothing left to ask", () => {
+    const pb2 = AUTHORED_ASKS.find((a) => a.id === "PB-2")!;
+    const record = dismiss(initAgenda(), pb2.askFieldIds);
+    expect(() => askCopy(pb2, record)).toThrow(/nothing left to ask/);
   });
 });
 
-describe("REPEAT_GROUP_LABELS", () => {
-  it("is exported for reuse (Issue #44's sweep-acknowledgment phrasing)", () => {
-    expect(REPEAT_GROUP_LABELS["suspect-product"]).toBe("suspect product");
-    expect(REPEAT_GROUP_LABELS["concomitant-medication"]).toBe("concomitant medication");
+describe("machinery copy", () => {
+  it("phrases each repeat decision as the contract authors it", async () => {
+    const session = initTalkSession();
+    expect(
+      await askDeterministic({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 }, session),
+    ).toBe("Was there another suspect product?");
+    expect(
+      await askDeterministic(
+        { kind: "repeat-decision", repeatGroup: "concomitant-medication", afterInstance: 1 },
+        session,
+      ),
+    ).toBe("Is there another medication to add?");
   });
-});
 
-// Issue #44: a repeat-decision ask surfaces a hint when the clinician
-// already volunteered a later instance earlier in the conversation
-// (recorded on session.volunteeredRepeats by processTurn() — see
-// talk.test.ts and followup-sweep.test.ts for how it gets there).
-describe("askDeterministic — volunteered-later-instance hint on a repeat-decision ask (Issue #44)", () => {
-  it("adds a hint when the session recorded a volunteered later instance for this group", async () => {
-    const session: TalkSession = { ...STUB_SESSION, volunteeredRepeats: { "suspect-product": true } };
-    const reply = await askDeterministic(
+  it("prefixes the volunteered-repeat hint without changing the decision's own copy", async () => {
+    const session: TalkSession = { ...initTalkSession(), volunteeredRepeats: { "suspect-product": true } };
+    const rendered = await askDeterministic(
       { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
       session,
     );
-    expect(reply).toContain("Was there another suspect product?");
-    expect(reply.length).toBeGreaterThan("Was there another suspect product?".length);
+    expect(rendered).toBe(`${VOLUNTEERED_REPEAT_HINT}Was there another suspect product?`);
+    expect(rendered).toContain(REPEAT_DECISION_COPY["suspect-product"]);
   });
 
-  it("adds no hint when nothing was volunteered for this group", async () => {
-    const reply = await askDeterministic(
-      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
-      STUB_SESSION,
+  it("ends the walk with the contract's done message", async () => {
+    expect(await askDeterministic({ kind: "done" }, initTalkSession())).toBe(
+      "That's everything I need to ask. Review the report before you sign off.",
     );
-    expect(reply).toBe("Was there another suspect product?");
+  });
+});
+
+describe("a scripted full walk", () => {
+  const walk = scriptedWalk();
+
+  // The count the contract states, reached by actually walking rather
+  // than by summing the inventory — 58-82 template asks is what Steve
+  // was shown.
+  it("asks 26 questions plus the two repeat decisions, not 58-82", () => {
+    // 21 ungated (ask-inventory.test.ts pins the list) + the 5 gated asks
+    // this walk still reaches, since gate evaluation is the sibling PR's
+    // scope: PA-1, SP-9, and the three device asks.
+    expect(walk.filter((q) => !Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(26);
+    expect(walk.filter((q) => Object.values(REPEAT_DECISION_COPY).includes(q))).toHaveLength(2);
+    expect(walk).toHaveLength(28);
   });
 
-  it("adds no hint for a DIFFERENT group's volunteered mention", async () => {
-    const session: TalkSession = { ...STUB_SESSION, volunteeredRepeats: { "concomitant-medication": true } };
-    const reply = await askDeterministic(
-      { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 },
-      session,
-    );
-    expect(reply).toBe("Was there another suspect product?");
+  it("never asks the same thing twice in a row", () => {
+    for (let i = 1; i < walk.length; i += 1) {
+      expect(walk[i], `turn ${i} repeats turn ${i - 1}`).not.toBe(walk[i - 1]);
+    }
+  });
+
+  it("asks only authored strings", () => {
+    const authored = new Set([...AUTHORED_ASKS.map((a) => a.copy), ...Object.values(REPEAT_DECISION_COPY)]);
+    for (const question of walk) expect(authored.has(question), question).toBe(true);
+  });
+
+  it("skips no gated topic yet — gates are the sibling unit's scope", () => {
+    // Recorded so this file says plainly what it does NOT yet prove: the
+    // gate evaluation (ask-copy.md rule 5) lands with the derive rules,
+    // so today's walk still voices the device and purchase asks.
+    expect(walk).toContain("Where and when was it purchased — the store or website, and the date?");
   });
 });

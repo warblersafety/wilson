@@ -18,7 +18,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { applyAction, initAgenda, type AgendaRecord } from "../src/lib/agenda";
-import { MAX_FIELDS_PER_ASK } from "../src/lib/ask";
 import { FORM_3500_FIELDS } from "../src/lib/form-3500-fields";
 import { TOPICS, initRepeatCounts, nextStep, openFollowUpFields } from "../src/lib/topics";
 import type { TalkTurn } from "../src/lib/talk";
@@ -107,13 +106,15 @@ function midSessionFixture(): { record: AgendaRecord; transcript: TalkTurn[]; me
     );
   }
 
-  // suspect-product-1-identity's real ask, per askDeterministic() and its
-  // own MAX_FIELDS_PER_ASK cap: only the first 3 of its 6 fields (name,
-  // strength, unit) are actually phrased — manufacturer (field 5) is
-  // deliberately left for the clinician to volunteer, exercising the
-  // widened sweep's own out-of-ask pickup, same as in a real session.
-  const transcript: TalkTurn[] = [{ role: "talker", text: "What's the product name, the strength, and the unit?" }];
-  const message = "Amoxicillin 875 mg, made by a generic manufacturer we don't have on file.";
+  // SP-1, the authored ask for suspect-product-1-identity: it waits on
+  // the name, strength, and manufacturer, and leaves the strength unit as
+  // a derive companion. The clinician's message below volunteers the lot
+  // number too — a field this ask never named — exercising the widened
+  // sweep's out-of-ask pickup, same as in a real session.
+  const transcript: TalkTurn[] = [
+    { role: "talker", text: "What's the suspect product — name, strength, and manufacturer or compounder, if known?" },
+  ];
+  const message = "Amoxicillin 875 mg from a generic manufacturer we don't have on file. Lot 8834.";
   return { record, transcript, message };
 }
 
@@ -205,9 +206,10 @@ async function main(): Promise<void> {
   const openFields = openFollowUpFields(record, TOPICS, FORM_3500_FIELDS);
   // Same cap src/lib/extract.ts's real call site applies — this script's
   // whole point is to measure the ACTUAL production prompt shape, so it
-  // must build the user content the same way extract.ts does, capped
-  // askFieldIds included (src/prompts/extractor.ts's buildFollowUpUserContent).
-  const askFieldIds = step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+  // must build the user content the same way extract.ts does — which now
+  // passes a topic step's fieldIds through whole, since with authored asks
+  // they ARE the facts the visible question named.
+  const askFieldIds = step.kind === "topic" ? step.fieldIds : [];
   const wideUser = buildFollowUpUserContent(step, askFieldIds, openFields, fullTranscript);
 
   console.log(`model: ${EXTRACTOR_MODEL}`);

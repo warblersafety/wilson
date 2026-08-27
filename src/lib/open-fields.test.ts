@@ -49,14 +49,16 @@ function ids(record: AgendaRecord, counts: RepeatCounts): string[] {
 }
 
 describe("openFieldEntries", () => {
-  it("lists an `unknown` field with the 'you said unknown' reason", () => {
+  it("lists an `unknown` field with rule 8's 'you didn\'t have it' reason", () => {
     const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
     const record = applyAction(allResolved(counts), SUSPECT_1_LOT, { type: "mark_unknown" });
     const entries = openFieldEntries(record, counts);
     expect(entries.map((e) => e.fieldId)).toEqual([SUSPECT_1_LOT]);
     expect(entries[0].reasonKind).toBe("unknown");
-    expect(entries[0].reason).toBe("you said unknown");
-    expect(entries[0].label).toBe("Suspect Product #1: Name, Strength, Manufacturer/Compounder: Lot #");
+    expect(entries[0].reason).toBe("you didn't have it");
+    // The authored display name, not the manifest label this used to
+    // render straight into the dialog (ask-copy.md rule 6).
+    expect(entries[0].label).toBe("lot number");
   });
 
   it("excludes answered and declined fields — clinician-established states are never nudged", () => {

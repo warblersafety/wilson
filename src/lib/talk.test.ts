@@ -10,6 +10,7 @@ import {
   type ExtractFn,
   type TalkSession,
 } from "./talk";
+import { syntheticAsk } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"]): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label: id, type, required: false };
@@ -27,6 +28,7 @@ function topic(
     fieldIds,
     repeatGroup: opts.repeatGroup ?? null,
     repeatInstance: opts.repeatInstance ?? null,
+    asks: [syntheticAsk(id, fieldIds)],
   };
 }
 
@@ -78,7 +80,7 @@ describe("startTalk", () => {
 
     expect(ask).toHaveBeenCalledTimes(1);
     const [step, seenSession] = ask.mock.calls[0];
-    expect(step).toEqual({ kind: "topic", topic: TOPIC_1, fieldIds: ["a", "b"] });
+    expect(step).toEqual({ kind: "topic", topic: TOPIC_1, ask: TOPIC_1.asks[0], fieldIds: ["a", "b"] });
     expect(seenSession.record).toEqual(session.record);
     expect(result.reply).toBe(TOPIC_1.label);
     expect(result.nextStep).toEqual(step);
@@ -123,7 +125,7 @@ describe("processTurn", () => {
     const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
 
     expect(result.session.record.a).toEqual({ state: "answered", value: "42" });
-    expect(result.nextStep).toEqual({ kind: "topic", topic: TOPIC_1, fieldIds: ["b"] });
+    expect(result.nextStep).toEqual({ kind: "topic", topic: TOPIC_1, ask: TOPIC_1.asks[0], fieldIds: ["b"] });
   });
 
   it("moves to the next topic once every field in the current one is resolved", async () => {
@@ -140,7 +142,7 @@ describe("processTurn", () => {
       topics: TOPICS,
       fields: FIELDS,
     });
-    expect(result.nextStep).toEqual({ kind: "topic", topic: TOPIC_2, fieldIds: ["c"] });
+    expect(result.nextStep).toEqual({ kind: "topic", topic: TOPIC_2, ask: TOPIC_2.asks[0], fieldIds: ["c"] });
   });
 
   it("appends both the clinician's message and the reply to the transcript", async () => {

@@ -11,7 +11,8 @@
 import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { FieldState } from "./field-state";
-import { fieldPhrase, REPEAT_GROUP_LABELS } from "./ask";
+import { REPEAT_GROUP_LABELS } from "./ask";
+import { displayNameFor } from "./display-names";
 import type { ProposedAction } from "./talk";
 import { repeatGroupOfLaterInstanceField, TOPICS, type RepeatGroup, type Topic } from "./topics";
 
@@ -123,9 +124,11 @@ export function classifyFollowUpActions(
   return { writes, outOfAskWrites, correctionOffers, collisionFieldIds, volunteeredRepeatGroups };
 }
 
+// The clinician-facing name for a field in an acknowledgment or a
+// correction offer (ask-copy.md rule 6): the authored display name, never
+// the manifest label the old fieldPhrase() derived one from.
 function fieldOrId(fieldId: string, fields: FormFieldSpec[]): string {
-  const field = fields.find((f) => f.id === fieldId);
-  return field ? fieldPhrase(field) : fieldId;
+  return fields.some((f) => f.id === fieldId) ? displayNameFor(fieldId) : fieldId;
 }
 
 function describeActionValue(action: ProposedAction): string {

@@ -16,7 +16,7 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { submitTurn } from "@/app/actions";
 import { Chip } from "@/components/Chip";
-import { fieldPhrase } from "@/lib/ask";
+import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
   dismissableFieldIds,
@@ -25,7 +25,6 @@ import {
   widgetTurnText,
 } from "@/lib/chip-grammar";
 import type { CorrectionOffer } from "@/lib/followup-sweep";
-import { fieldById } from "@/lib/form-3500-fields";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -124,8 +123,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const field = fieldById(offer.fieldId);
-      const label = field ? fieldPhrase(field) : offer.fieldId;
+      const label = displayNameFor(offer.fieldId);
       const nextSession: TalkSession = {
         ...current.session,
         record: applyProposedActions(current.session.record, [offer.action]),
@@ -153,8 +151,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       {current.correctionOffers && current.correctionOffers.length > 0 && (
         <div className="ask-form__corrections" role="group" aria-label="Correction offers">
           {current.correctionOffers.map((offer) => {
-            const field = fieldById(offer.fieldId);
-            const label = field ? fieldPhrase(field) : offer.fieldId;
+            const label = displayNameFor(offer.fieldId);
             return (
               <Chip
                 key={offer.fieldId}

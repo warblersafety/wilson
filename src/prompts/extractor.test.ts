@@ -8,6 +8,7 @@ import {
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "./extractor";
+import { syntheticTopic } from "../lib/synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], label: string): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label, type, required: false };
@@ -18,14 +19,14 @@ const FIELD_B = field("b", "date", "Field B");
 const FIELD_C = field("c", "enum", "Field C");
 const FIELDS = [FIELD_A, FIELD_B, FIELD_C];
 
-const TOPIC: Topic = {
+const TOPIC: Topic = syntheticTopic({
   id: "t1",
   section: "A",
   label: "Topic 1",
   fieldIds: ["a", "b"],
   repeatGroup: null,
   repeatInstance: null,
-};
+});
 
 const TRANSCRIPT: TalkTurn[] = [
   { role: "talker", text: "Tell me about the patient." },
@@ -34,7 +35,7 @@ const TRANSCRIPT: TalkTurn[] = [
 
 describe("buildExtractionUserContent", () => {
   it("for a topic step, lists only the step's open fields and excludes fields outside it", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a", "b"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a", "b"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toContain("a (text): Field A");
     expect(content).toContain("b (date): Field B");
@@ -42,14 +43,14 @@ describe("buildExtractionUserContent", () => {
   });
 
   it("for a topic step, includes the numbered transcript with clinician/talker roles labeled", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toContain("[0] TALKER: Tell me about the patient.");
     expect(content).toContain("[1] CLINICIAN: 42 years old, born on 3/15.");
   });
 
   it("for a topic step, tells the model this is not a repeat-group question", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toMatch(/not a repeat-group question/i);
   });
@@ -146,8 +147,8 @@ describe("buildFollowUpExtractorSystem", () => {
 
   it("marks a repeat-instance-2+ field distinctly from instance 1", () => {
     const topics: Topic[] = [
-      { id: "g1", section: "D", label: "g1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 },
-      { id: "g2", section: "D", label: "g2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 },
+      syntheticTopic({ id: "g1", section: "D", label: "g1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 }),
+      syntheticTopic({ id: "g2", section: "D", label: "g2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 }),
     ];
     const system = buildFollowUpExtractorSystem(
       [
@@ -182,27 +183,27 @@ describe("buildFollowUpUserContent", () => {
     { id: "a", section: "A", pdfFieldName: "f.a[0]", label: "Field A", type: "text", required: false },
     { id: "b", section: "A", pdfFieldName: "f.b[0]", label: "Field B", type: "date", required: false },
   ];
-  const TOPIC: Topic = { id: "t1", section: "A", label: "Topic 1", fieldIds: ["a", "b"], repeatGroup: null, repeatInstance: null };
+  const TOPIC: Topic = syntheticTopic({ id: "t1", section: "A", label: "Topic 1", fieldIds: ["a", "b"], repeatGroup: null, repeatInstance: null });
   const TRANSCRIPT: TalkTurn[] = [
     { role: "talker", text: "Tell me about the patient." },
     { role: "clinician", text: "42 years old, born on 3/15." },
   ];
 
   it("for a topic step, includes the numbered transcript", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("[0] TALKER: Tell me about the patient.");
     expect(content).toContain("[1] CLINICIAN: 42 years old, born on 3/15.");
   });
 
   it("for a topic step, instructs the model to cite only the current (last) turn", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content.toLowerCase()).toMatch(/current turn|last turn|latest message/);
   });
 
   it("for a topic step, lists the given open fields by id", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("a");
     expect(content).toContain("b");
@@ -216,7 +217,7 @@ describe("buildFollowUpUserContent", () => {
   // counts as in-ask. Proven here against a step whose fieldIds is wider
   // than what was actually asked.
   it("for a topic step, names only the caller's capped askFieldIds — never the topic step's own (possibly wider) fieldIds", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a", "b"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a", "b"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     // The sentence names exactly "a", full stop — not "a, b" (step's own
     // fieldIds) and not a bare "a" that merely happens to be a substring
@@ -226,7 +227,7 @@ describe("buildFollowUpUserContent", () => {
   });
 
   it("for a topic step, tells the model this is not a repeat-group question", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toMatch(/not a repeat-group question/i);
   });

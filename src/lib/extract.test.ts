@@ -4,12 +4,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractionResponse } from "../prompts/extractor";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import { createExtractFn } from "./extract";
 import type { FormFieldSpec } from "./form-3500-fields";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { initRepeatCounts, setRepeatCount, type Topic } from "./topics";
 import type { TalkSession } from "./talk";
+import { syntheticTopic } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"]): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label: id, type, required: false };
@@ -19,31 +19,31 @@ const FIELD_A = field("a", "text");
 const FIELD_B = field("b", "text");
 const FIELDS = [FIELD_A, FIELD_B];
 
-const TOPIC: Topic = {
+const TOPIC: Topic = syntheticTopic({
   id: "t1",
   section: "A",
   label: "Topic 1",
   fieldIds: ["a", "b"],
   repeatGroup: null,
   repeatInstance: null,
-};
+});
 
-const REPEAT_TOPIC_1: Topic = {
+const REPEAT_TOPIC_1: Topic = syntheticTopic({
   id: "g1",
   section: "D",
   label: "Group instance 1",
   fieldIds: ["a"],
   repeatGroup: "suspect-product",
   repeatInstance: 1,
-};
-const REPEAT_TOPIC_2: Topic = {
+});
+const REPEAT_TOPIC_2: Topic = syntheticTopic({
   id: "g2",
   section: "D",
   label: "Group instance 2",
   fieldIds: ["b"],
   repeatGroup: "suspect-product",
   repeatInstance: 2,
-};
+});
 
 function unaskedRecordFor(fieldIds: string[]): AgendaRecord {
   const record: AgendaRecord = {};
@@ -351,23 +351,29 @@ describe("createExtractFn", () => {
       expect(result.replyPrefix?.toLowerCase()).toContain("which");
     });
 
-    it("flags a field as out-of-ask when it's unresolved in the topic but beyond MAX_FIELDS_PER_ASK — askDeterministic never actually phrased it", async () => {
-      // A 4-field, all-unasked topic: nextStep() itself returns all four
-      // fieldIds (it doesn't cap), but askDeterministic() only ever
-      // phrases the first MAX_FIELDS_PER_ASK (3) of them into the visible
-      // question — so a candidate for the 4th must still count as
-      // out-of-ask and be named in the reply, or "no invisible write"
-      // would be broken for any topic wider than the phrasing cap (most
-      // of the real manifest: patient-basics has 19 fields, event-outcome
-      // has 8, lab data has 31...).
-      expect(MAX_FIELDS_PER_ASK).toBe(3);
-      const fourFieldTopic: Topic = {
+    it("flags a field as out-of-ask when the ask never named it — no invisible write", async () => {
+      // A topic whose authored ask waits on three of its four fields; the
+      // fourth is a derive companion (ask-copy.md rule 2 — an age unit,
+      // a weight unit, a stated-only country). A candidate for that
+      // fourth field must still count as out-of-ask and be named in the
+      // reply, or "no invisible write" breaks for exactly the fields the
+      // clinician was never asked about.
+      const wideTopic: Topic = {
         id: "wide",
         section: "A",
         label: "Wide topic",
         fieldIds: ["a", "b", "c", "d"],
         repeatGroup: null,
         repeatInstance: null,
+        asks: [
+          {
+            id: "wide-ask",
+            topicId: "wide",
+            copy: "synthetic ask for wide",
+            askFieldIds: ["a", "b", "c"],
+            companionFieldIds: ["d"],
+          },
+        ],
       };
       const fields = [field("a", "text"), field("b", "text"), field("c", "text"), field("d", "text")];
       vi.spyOn(client.messages, "parse").mockResolvedValue(
@@ -376,7 +382,7 @@ describe("createExtractFn", () => {
           repeatDecision: null,
         }),
       );
-      const extract = createExtractFn(client, [fourFieldTopic], fields);
+      const extract = createExtractFn(client, [wideTopic], fields);
       const session = sessionWith({
         record: { a: { state: "unasked" }, b: { state: "unasked" }, c: { state: "unasked" }, d: { state: "unasked" } },
       });
