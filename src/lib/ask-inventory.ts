@@ -571,10 +571,35 @@ function device(): AuthoredAsk[] {
   ];
 }
 
-// One ask per instance. CM-1 opens the group; CM-2 is what a repeat
+// The ordinal each later concomitant instance names itself by
+// (ask-copy.md CM-2-{n}, amended 2026-08-27 for #111). Counts
+// MEDICATIONS, not turns — instance 2 is "the second medication" because
+// CM-1 asked for the first — so the table is indexed by instance and
+// starts at 2. Spelled out rather than derived: these are nine authored
+// strings under rule 1, not arithmetic, and a tenth would be a contract
+// amendment rather than a loop bound.
+const CONCOMITANT_ORDINALS: Record<number, string> = {
+  2: "second",
+  3: "third",
+  4: "fourth",
+  5: "fifth",
+  6: "sixth",
+  7: "seventh",
+  8: "eighth",
+  9: "ninth",
+  10: "tenth",
+};
+
+// One ask per instance. CM-1 opens the group; CM-2-{n} is what a repeat
 // decision's "yes" leads into. The dates are companions, not blocking:
 // the ask itself says "if you have them".
 function concomitantMedication(instance: number): AuthoredAsk[] {
+  const ordinal = CONCOMITANT_ORDINALS[instance];
+  if (instance > 1 && ordinal === undefined) {
+    // A repeat group grown past 10 without the contract growing with it
+    // would otherwise silently render "What's the undefined medication".
+    throw new Error(`ask-inventory: no authored CM-2 ordinal for concomitant instance ${instance}`);
+  }
   const row = `Page6.SecF_Other.Table1.Row${instance}`;
   const end = instance <= 2 ? `${row}.End${instance}` : `${row}.Cell4`;
   return [
@@ -584,14 +609,18 @@ function concomitantMedication(instance: number): AuthoredAsk[] {
       copy:
         instance === 1
           ? "Is the patient on other medications? Name them, with rough start and stop dates if you have them."
-          : "What's the next medication — its name, and rough start and stop dates?",
+          : `What's the ${ordinal} medication — its name, and rough start and stop dates?`,
       askFieldIds: [`${row}.Prod${instance}`],
       // CM-1's ask is plural — "is the patient on other medications?" — so
       // its dismissal says so. "Marked other medication 1 as not on hand."
-      // names a table row the ask never mentioned. Instance 1 only: the
-      // later instances' naming belongs to #111, which is amending their
-      // copy. One ask field, so rule 9's frame is unreachable and `name`
-      // never renders (reviewer pass, #109/#110).
+      // names a table row the ask never mentioned. Instance 1 only, and
+      // settled rather than deferred: #111's amendment gives instances
+      // 2-10 their own ordinal copy and keeps "other medication {n}" as
+      // their display name, so they need no fact of their own. Either
+      // way `name` never renders here — one ask field means
+      // unresolvedAskFieldIds() always returns the whole set, so
+      // askCopy() takes the primary-copy branch and rule 9's frame is
+      // unreachable (reviewer pass, #109/#110 and #111).
       facts:
         instance === 1
           ? [{ name: "other medication 1", standaloneName: "other medications", fieldIds: [`${row}.Prod${instance}`] }]
@@ -869,7 +898,7 @@ const COMPANION_ANCHORS: Record<string, string> = {
   "Page3.TestDataTable.ReturnDate": "Page3.TestDataTable.EvalRetd",
   "Page6.SecE_Device.ReprocInfo": "Page6.SecE_Device.ReuseYes",
   ...productAnchors(),
-  // CM-1/CM-2 voice "with rough start and stop dates": once a medication
+  // CM-1/CM-2-{n} voice "with rough start and stop dates": once a medication
   // is named, its dates are answerable.
   ...concomitantAnchors(),
   // Deliberately absent, and therefore never gaps: the stated-only

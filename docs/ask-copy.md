@@ -436,8 +436,50 @@ device · reprocessor · serviced by third party.
   known id defect; leaf position determines the mapping); the count
   proposes from the answer through the existing repeat-decision
   machinery, and rows beyond it are skipped as today.
-- **CM-2** *(later instances, on a repeat decision's "yes")* — "What's
-  the next medication — its name, and rough start and stop dates?"
+- **CM-2-{n}** *(later instances, on a repeat decision's "yes")* —
+  "What's the second medication — its name, and rough start and stop
+  dates?", with the ordinal naming the instance: **second, third,
+  fourth, fifth, sixth, seventh, eighth, ninth, tenth** for instances
+  2 through 10. Amended 2026-08-27 (#111) — this group previously
+  authored ONE string for all of instances 2–10 ("What's the next
+  medication — …"). Once a repeat count is decided no repeat-decision
+  turn separates the instances, so a clinician who answered "three
+  medications" was asked the byte-identical question on two consecutive
+  turns, and at capacity eight times in a row. That is the defect rule
+  9 names as the property its own frames protect — "a frame is never
+  byte-equal to the primary ask, so the no-consecutive-duplicates check
+  holds across the pair" — holding across the re-ask pair and failing
+  across the repeat-instance pair. It is also the shape of the v1.1
+  build rejected on 2026-08-26: the same sentence twice, with nothing to
+  tell the clinician the second one is a new question.
+  The fix follows the suspect-product group's per-instance pattern one
+  section earlier — SP-1 reads "the second suspect product" for
+  instance 2 — which is why that group's repeat never lands on
+  CONSECUTIVE turns. It is not why that group is clean: SP-2 through
+  SP-9 are byte-identical across instances, so a two-product walk
+  repeats seven asks nine turns apart, and only the distance hides it
+  (doc-review on #111; filed as #117). Do not read this amendment as
+  a statement that the suspect-product group is done.
+  **The ordinal counts MEDICATIONS, not turns**: instance 2 is "the
+  second medication" because row 1 holds the first. Bare "medication"
+  rather than "other medication", because the turn immediately before
+  instance 2 has always established the topic.
+  **That last clause is a premise, not an observation, and the walk does
+  not currently enforce it.** CM-1 is skipped whenever `Row1.Prod1` is
+  already resolved — which the opening narrative's read-back does — so
+  the turn actually carrying the topic is the group's repeat decision
+  ("Is there another medication to add?"), and #43 wiring narrative
+  repeat-count proposals through read-back would remove that turn too.
+  With both gone, "What's the second medication?" can land directly
+  after "Was there another suspect product?", where a clinician
+  reasonably reads it as the second suspect drug and the answer writes
+  to a concomitant row. So: **every CM-2-{n} must be reached either
+  immediately after this group's repeat-decision turn or after
+  CM-2-{n-1}, and instance n only when rows 1..n-1 are accounted for.**
+  A unit that breaks that adjacency (#43, #77's count revision) must
+  re-author this copy, not just preserve the ordinal.
+  Display names keep "other medication {n}" (below): a Review row has no
+  preceding turn to lean on.
   Additions after the count is decided remain #77's open design
   question; nothing here forecloses it.
 

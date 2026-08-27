@@ -65,28 +65,35 @@ export const OPTION_CODE_INVENTORY: RenderedString[] = [
 // no-consecutive-duplicates check holds them to: "A frame is never
 // byte-equal to the primary ask, so the no-consecutive-duplicates check
 // holds across the pair."
+// These walks exercise the count and duplicate checks, which say nothing
+// about repeat groups — so the two repeat fields are filled with the
+// "not a repeat instance" value rather than restated at every entry.
+// Kept required on WalkTurn itself: scriptedWalk() must set them, and an
+// optional field is one scriptedWalk could silently stop populating.
+function nonRepeating<T extends { kind: WalkTurn["kind"]; id: string; text: string }>(turn: T): WalkTurn {
+  return { ...turn, repeatGroup: null, repeatInstance: null };
+}
+
 export const TWICE_IN_A_ROW_WALK: WalkTurn[] = [
-  { kind: "ask", id: "PB-1", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?" },
-  { kind: "ask", id: "PB-1", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?" },
-  { kind: "ask", id: "PB-2", text: "What's the patient's weight — and date of birth, if you record it?" },
+  nonRepeating({ kind: "ask", id: "PB-1", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?" }),
+  nonRepeating({ kind: "ask", id: "PB-1", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?" }),
+  nonRepeating({ kind: "ask", id: "PB-2", text: "What's the patient's weight — and date of birth, if you record it?" }),
 ];
 
 // A walk that drifts off the stated count without breaking the ceiling —
 // the quiet failure, and the one a ceiling alone would miss. Twenty asks
 // where the contract states 21: an ask silently dropped out of the walk.
 export const SHORT_WALK: WalkTurn[] = [
-  ...Array.from({ length: 20 }, (_, i) => ({ kind: "ask" as const, id: `A-${i + 1}`, text: `ask ${i + 1}` })),
-  { kind: "repeat-decision", id: "suspect-product", text: "Was there another suspect product?" },
-  { kind: "repeat-decision", id: "concomitant-medication", text: "Is there another medication to add?" },
+  ...Array.from({ length: 20 }, (_, i) => nonRepeating({ kind: "ask" as const, id: `A-${i + 1}`, text: `ask ${i + 1}` })),
+  nonRepeating({ kind: "repeat-decision", id: "suspect-product", text: "Was there another suspect product?" }),
+  nonRepeating({ kind: "repeat-decision", id: "concomitant-medication", text: "Is there another medication to add?" }),
 ];
 
 // The walk Steve was actually shown: 58 asks where the contract states 21
 // and caps at 24. Both halves of AC-3 fire on it.
-export const OVER_CEILING_WALK: WalkTurn[] = Array.from({ length: 58 }, (_, i) => ({
-  kind: "ask" as const,
-  id: `A-${i + 1}`,
-  text: `ask ${i + 1}`,
-}));
+export const OVER_CEILING_WALK: WalkTurn[] = Array.from({ length: 58 }, (_, i) =>
+  nonRepeating({ kind: "ask" as const, id: `A-${i + 1}`, text: `ask ${i + 1}` }),
+);
 
 // The double bubble as data: the current ask, and the transcript turn
 // that carries the same string, on screen at once. Steve's staging
@@ -100,4 +107,40 @@ export const DOUBLE_BUBBLE_FRAMES: RenderedFrame[] = [
     { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK },
     { source: "current-ask", text: DOUBLE_BUBBLE_ASK },
   ],
+];
+
+// The adjacency the CM-2-{n} amendment depends on, broken exactly the way
+// #43 would break it: the concomitant group's repeat decision is gone
+// (its count arrived from the opening narrative instead), so instance 2's
+// ask lands directly after the last suspect-product ask. "What's the
+// second medication?" then follows "Was it given again — and if so, did
+// the event come back?", where a clinician reasonably answers about the
+// second SUSPECT drug and the write lands on a concomitant row.
+//
+// Not a hypothetical shape: every turn here is the real authored copy,
+// and the only thing removed is the repeat-decision turn between them.
+export const REPEAT_INSTANCE_ORPHAN_WALK: WalkTurn[] = [
+  // A legitimately-reached later instance, so the fixture isolates the
+  // ONE orphan rather than also tripping on its own first turn.
+  {
+    kind: "repeat-decision",
+    id: "suspect-product",
+    text: "Was there another suspect product?",
+    repeatGroup: "suspect-product",
+    repeatInstance: null,
+  },
+  {
+    kind: "ask",
+    id: "SP-8-2",
+    text: "Was it given again — and if so, did the event come back?",
+    repeatGroup: "suspect-product",
+    repeatInstance: 2,
+  },
+  {
+    kind: "ask",
+    id: "CM-2-2",
+    text: "What's the second medication — its name, and rough start and stop dates?",
+    repeatGroup: "concomitant-medication",
+    repeatInstance: 2,
+  },
 ];
