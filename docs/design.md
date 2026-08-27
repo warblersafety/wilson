@@ -118,13 +118,33 @@ consequences, learned from Issue #44: a UI unit's spec names the
 screen(s) it implements and enumerates its intended deviations with
 reasons before its criteria freeze; its PR's manual-check note
 includes a side-by-side of the built surface against the named screen;
-its reviewer pass states fidelity or lists deviations. The rule binds
+its reviewer pass states fidelity or lists deviations. Extended
+2026-08-26, after per-surface side-by-sides passed a build whose
+assembled product Steve rejected: a UI or conversation unit's PR
+additionally carries a **full-session artifact** — the complete
+transcript and a screenshot of every surface state a scripted
+end-to-end run traverses — and its reviewer pass reads that session
+as a user, against the charter's own bar (would a clinician prefer
+this to the paper form?), before reading the diff. The rule binds
 units filed or amended after this amendment; #42 (Start) and #43
 (Read-back) merged before it — their composition gap against screens
 01/03 is the chrome unit's scope (#67), and each takes its fidelity
 side-by-side the next time its surface changes. Recorded, reasoned
 deviations are first-class — this section is full of them — silent
 divergence, in either direction, is the defect.
+
+**Scope of that authority, narrowed 2026-08-26 (the second rejected UI
+build).** The canvas is the authority for composition and look only.
+It is a happy-path pitch render: a handful of hand-written example
+questions for a product whose manifest forces dozens, no
+checkbox-heavy topics, no error/empty/repeat states — so "fidelity to
+the canvas" is unfalsifiable exactly where a build lives or dies, and
+its look lives in hand-tuned inline styles its own token file does not
+carry. Question text, ask coverage, field disposition, and every other
+clinician-facing string are governed by `docs/ask-copy.md` (the ask
+copy contract below); where the canvas shows or implies copy or
+coverage, the contract wins, the same way the recorded copy rules
+already do.
 
 **The shape: dictation-first, then targeted follow-ups.** lucy walks a
 patient through their story turn by turn because a patient needs
@@ -199,7 +219,10 @@ flow is six surfaces:
    editable in place" no longer exists, so the conversational re-ask
    is their only edit path, and without it an answered-but-wrong
    checkbox would be permanently uncorrectable. Raw
-   manifest strings and PDF `/Opt` codes never reach the clinician.
+   manifest strings and PDF `/Opt` codes never reach the clinician —
+   a rule the v1.1 build violated on three surfaces because it had no
+   mechanism; it is now carried by `docs/ask-copy.md`'s display-name
+   layer and enforced by the UX floor's CI checks.
 4. **Review** — field-led sectioned cards (form sections A–G), every
    topic editable; an edit reopens the topic as a normal question
    (the existing reopen path). The rendered Form 3500 PDF stays one
@@ -371,6 +394,19 @@ deterministic unit test in the implementing unit's frozen criteria:
   re-decision before the unit merges — and the measurement is re-run
   by any unit that restructures the per-turn prompt. Repeat decisions
   are unaffected: chip taps, no model call.
+
+**Ask copy contract (added 2026-08-26).** Everything wilson says is
+authored, never generated: `docs/ask-copy.md` holds the inventory —
+per-topic authored asks (21 in the ungated single-product walk, hard
+ceiling 24), a disposition for all 227 fields (ask / derive / auto /
+gated / review-only), gates that keep device, availability, and
+purchase topics out of reports they don't belong to, derive rules so
+unit checkboxes and one-hot pairs fill as companions of stated facts
+rather than being asked, and short display names used by every
+acknowledgment, correction offer, open-fields row, and Review label.
+Template generation of clinician-facing text is a defect; the UX
+floor checks in CI that shipped copy equals the inventory and that no
+raw manifest label or template marker ever renders.
 
 **Design system.** The warbler-safety tokens, transcribed verbatim from
 warblersafety.com — the same system lucy ships as `brand-tokens.css`

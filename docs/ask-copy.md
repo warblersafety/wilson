@@ -1,0 +1,323 @@
+# Ask copy and field disposition — the conversational contract
+
+This document is the authored inventory of everything wilson says to a
+clinician and every decision about which of the manifest's 227 fields are
+asked at all. It exists because the v1.1 rebuild generated question text
+mechanically from manifest labels (`ask.ts`'s last-colon-segment rule plus
+"(yes or no)") and shipped questions like *"What's the yes (yes or no),
+the no (yes or no), and the doesn't apply (yes or no)?"* — rejected by
+Steve on first contact with the deployed build (2026-08-26). The Talker's
+charter-stated job is plain language; plain language is authored, not
+derived.
+
+Authority: this inventory is the source of truth for clinician-facing
+copy and for ask coverage. The mockup canvas remains the authority for
+what screens *look* like (design.md's layout-authority rule); where the
+canvas shows question text or implies coverage, THIS document wins.
+design.md's "Ask copy contract" section binds units to it.
+
+Counts, stated for the CI check the UX-floor unit adds: **34 topics, 227
+fields, all dispositioned below. The ungated single-product no-device
+walk contains exactly 21 authored asks** (3 patient + 2 what-happened +
+1 outcome + 1 history + 1 labs + 1 comments + 8 suspect-product + 1
+concomitant + 3 reporter). Conditional asks (death date)
+and gated asks (availability, purchase, device) are excluded from that
+count. Hard ceiling: 24 — an amendment that pushes past it returns to a
+design conversation first.
+
+## Rules
+
+1. **Authored copy only.** Every question, acknowledgment, correction
+   offer, collision prompt, open-fields row, and field label a clinician
+   sees comes from this inventory (or from design.md's recorded copy
+   rules). Generating question text from manifest labels is a defect.
+   The template path in `ask.ts` is removed, not kept as a fallback — a
+   topic without authored copy is a build error caught by test.
+2. **An ask asks for facts; extraction maps facts to fields.** An
+   authored ask owns an explicit field set, which may exceed the old
+   3-field slice because facts ≠ fields (one weight fact = 3 manifest
+   fields; the whole lab table = one ask). The `MAX_FIELDS_PER_ASK`
+   slicing is retired for authored asks. Dismiss chips ("I don't have
+   that" / "rather not say") apply to exactly the ask's *askable* fields
+   — never to derive/auto companions.
+3. **Derive fields are never asked.** A derive field is filled as a
+   companion of a sibling fact, grounded on the same quote:
+   - Unit checkboxes from a stated unit: `AgeYears/Months/Weeks/Days`
+     from the age phrasing; `WeightLB/KG` from the weight phrasing;
+     `StrengthUnit`/`DoseUnit` enums from "500 mg".
+   - One-hot pairs from one answer: `SexM/SexF`; `OngoingYes/No`;
+     `ProYes/ProNo`; the Abated and Reappear trios.
+   - "Other" companions: `FreqOther`/`RouteOther` only when the stated
+     value matches no enum option.
+   - **Stated-only rule for units, with one recorded exception**: a unit
+     is derived only from the clinician's words. Exception: a bare age
+     defaults to years (unqualified clinical ages are years; infant ages
+     are always qualified). A bare weight gets NO default — lb/kg is
+     genuinely ambiguous — the value writes and the unit stays open,
+     visible at Review.
+   - A sex stated outside the form's M/F boxes checks neither box and
+     leaves both unwritten; wilson does not force the form's vocabulary
+     onto the clinician's words.
+4. **Auto fields are system-filled.** `ReportDate` is stamped with the
+   current date at export, shown and editable at Review, never asked.
+5. **Gates.** A gated topic enters the walk only when its gate holds.
+   Gated-off topics are not "open": excluded from asks, the open-fields
+   dialog, and written/unknown counts; the rail row shows an honest
+   not-part-of-this-report state. Gates in force:
+   - **Section E (all three device topics)**: a medical device is part
+     of the report — any Section E field has a proposal, or the
+     clinician says so.
+   - **product-availability** and **suspect-product purchase**: the
+     report involves a product problem / use error / manufacturer switch
+     (`RepError`, `Defects`, `DiffManu`), a device, or a product type in
+     {OTC, compounded, cannabinoid, cosmetic}. Pure adverse-reaction
+     reports skip both.
+   - **Table overflow** (lab rows 2–8; the same principle the repeat
+     count already gives concomitant rows): a row's fields exist only
+     once the previous row has content.
+6. **Display names.** Every field has a short human name (tables below),
+   used by acknowledgments, correction offers, collisions, the
+   open-fields dialog, and Review rows. Raw manifest labels and PDF ids
+   never render. Checkbox facts render as fact phrases ("outcome:
+   hospitalization"), never as "true/false".
+7. **Checkbox negatives are real answers.** "None of those" / "no"
+   resolves checkbox facts as answered-`"false"` (the existing literal
+   representation), grounded on the negative quote — resolved and
+   unchecked, not `unknown`.
+8. **Voice.** Second person, contractions, one question mark per ask,
+   no exclamation marks, mockup screen-04's register. Patterns:
+   - Out-of-ask write: `Also noted — {name}: {value}.`
+   - Unknown/declined tap: `Marked {name} as not on hand.` /
+     `Marked {name} as declined.`
+   - Correction offer: `You said {new} for {name} — it's recorded as
+     {old}. Replace it?`
+   - Collision: `I heard two values for {name}: {a} and {b} — which
+     should I write?`
+   - Open-fields row: `{name} — not asked yet` / `— you didn't have it`
+     / `— declined`.
+
+## Inventory
+
+Format per topic: gate (if any), asks in order (`id — "copy"` with the
+facts→fields mapping), then derive/auto/conditional notes and display
+names. Mirror topics reference their pattern once; the expansion is
+normative.
+
+### patient-basics (A)
+
+- **PB-1** — "Who is the patient — an identifier like an MRN or
+  initials, their age, and sex?"
+  → `PatientIdentifier`; `AgeValue` (derive: age-unit checkboxes, bare
+  number = years); sex → `SexM`/`SexF` one-hot.
+- **PB-2** — "What's the patient's weight — and date of birth, if you
+  record it?"
+  → `WeightValue` (derive: `WeightLB`/`WeightKG`, stated-only, no
+  default); `DateBirth`.
+- **PB-3** — "For FDA's demographics — the patient's race or ethnicity,
+  if you record it? More than one is fine."
+  → the seven race/ethnicity checkboxes, multi-select from words.
+
+Display names: patient identifier · age · age unit (years / months /
+weeks / days) · date of birth · sex · weight · weight unit (lb / kg) ·
+race/ethnicity: American Indian or Alaska Native / Asian / Black or
+African American / Hispanic or Latino / Middle Eastern or North African /
+Native Hawaiian or Pacific Islander / White.
+
+### event-what-happened (B)
+
+- **WH-1** — "Describe what happened — the event, product problem, or
+  medication error, in your own words." → `DescEvent`. (In practice the
+  opening narrative fills this; the ask exists for the reopen path.)
+- **WH-2** — "When did it happen — and is this an adverse reaction, a
+  product problem like a defect, a medication error, or a problem after
+  switching manufacturers?"
+  → `EventDate`; type checkboxes `RepAdverse`/`RepError`/`Defects`/
+  `DiffManu`, multi.
+
+Auto: `ReportDate` (rule 4). Display names: event description · date of
+event · date of this report · report type: adverse event / medication
+error / product problem / different-manufacturer problem.
+
+### event-outcome (B)
+
+- **OC-1** — "How serious was the outcome — hospitalization,
+  life-threatening, disability or permanent damage, a congenital
+  anomaly, death, another serious medical event — or none of those?"
+  → the eight outcome checkboxes, multi; "none" resolves all as
+  answered-false (rule 7).
+- **OC-2** *(conditional: `Death` true)* — "What was the date of death?"
+  → `DeathDate`.
+
+Display names: outcome: death / hospitalization / life-threatening /
+disability or permanent damage / required intervention / congenital
+anomaly / other serious event · date of death.
+
+### event-medical-history (B)
+
+- **MH-1** — "Any relevant history — preexisting conditions, allergies,
+  pregnancy, tobacco or alcohol use?" → `OtherHistory`.
+
+Display name: relevant history.
+
+### event-lab-data (B)
+
+- **LD-1** — "Any relevant tests or labs? For each: the test, the
+  result, the reference range if it's useful, and the date."
+  → table rows 1–8 in stated order (`TestDataN`, `TLowRangeN`,
+  `THighRangeN`, `TDateN`); overflow rows gated per rule 5. (The
+  manifest's Row8-prefixed ids for rows 3–7 dates are known id defects;
+  the mapping is unaffected.)
+
+Display names: test {n} · test {n} result range (low / high) · test {n}
+date.
+
+### event-additional-comments (B)
+
+- **AC-1** *(always the final ask of the walk)* — "Anything else FDA
+  should know?" A negative resolves without a value (encoded
+  `mark_unknown`; footer copy unchanged).
+
+Display name: additional comments.
+
+### product-availability (C) — GATED (rule 5)
+
+- **PA-1** — "Is the product itself still available — do you have it or
+  a picture of it, or was it returned to the manufacturer, and when?"
+  → `EvalYes`/`EvalNo`/`EvalRetd` one-hot; `PicYes`; `ReturnDate`
+  conditional on returned.
+
+Display names: product available · returned to manufacturer (date) ·
+picture of the product.
+
+### suspect-product-N (D) — pattern for instances 1 and 2
+
+Eight authored asks per active instance (purchase is a ninth, gated).
+"The suspect product" reads "the second suspect product" for instance 2.
+
+- **SP-1** — "What's the suspect product — name, strength, and
+  manufacturer or compounder, if known?"
+  → `ProdNName`; `ProdNStrength` (derive `ProdNStrengthUnit`);
+  `ProdNManuComp`.
+- **SP-2** — "Lot number, and the NDC or other unique ID — if they're
+  on hand." → `ProdNLotNum`; `ProdNNDC_ID`.
+- **SP-3** — "How was it taken — dose, how often, and by what route?"
+  → `ProdNDose` (derive `ProdNDoseUnit`); `ProdNFreq` (derive
+  `ProdNFreqOther`); `ProdNRoute` (derive `ProdNRouteOther`).
+- **SP-4** — "When did therapy start and stop — or is it still ongoing?
+  If the dose was reduced instead, when?"
+  → `ProdNTherapyStartDate`; `ProdNTherapyStopDate`; ongoing →
+  `OngoingYes/No` one-hot; `ProdNTherapyReduceDate`. Duration
+  (`ProdNTherapyDuration` + `DurUnit`) derives from start/stop when both
+  exist, else from words ("about a week").
+- **SP-5** — "What was it prescribed or used for?" → `ProdNDiagnosis`.
+- **SP-6** — "Anything notable about the product type — brand, generic
+  or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the
+  expiration date, if known."
+  → the seven product-type checkboxes, multi; `ProdNExpDate`.
+- **SP-7** — "After stopping or reducing it, did the event improve —
+  yes, no, or doesn't apply?" → Abated trio one-hot.
+- **SP-8** — "Was it given again — and if so, did the event come back?"
+  → Reappear trio one-hot; "wasn't restarted" → `ReappearNA`.
+- **SP-9** *(GATED, rule 5)* — "Where and when was it purchased — the
+  store or website, and the date?"
+  → the eight purchase fields, extraction-mapped from one answer.
+
+Display names: product name · strength · strength unit · NDC or unique
+ID · manufacturer/compounder · lot number · dose · dose unit · frequency
+· route · therapy start date · therapy stop date · dose reduced on ·
+therapy duration · therapy ongoing · diagnosis for use · product type:
+brand / generic or biosimilar / OTC / compounded / cannabinoid /
+cosmetic (retail) / cosmetic (professional) / other · expiration date ·
+improved after stopping · returned after restarting · purchase: place /
+address / city / state · purchase state/province · purchase ZIP ·
+purchase country · purchase website · purchase date. (Instance 2: same
+names prefixed "product #2".)
+
+### device-identity / device-usage / device-history (E) — GATED (rule 5)
+
+- **DV-1** — "What's the device — brand or common name, manufacturer,
+  and model, serial, lot, catalog, or UDI numbers as available? And its
+  expiration date, if it has one." → all ten identity fields,
+  extraction-mapped.
+- **DV-2** — "Who was operating the device — a health professional, the
+  patient, or someone else? If it was implanted or explanted, when?"
+  → operator checkboxes one-hot-ish (multi allowed); `ImplantDate`;
+  `ExplantDate`.
+- **DV-3** — "Two device-history checks — was it a reprocessed
+  single-use device, and if so who reprocessed it? And was it ever
+  serviced by a third-party servicer?"
+  → Reuse pair one-hot + `ReprocInfo` conditional on yes; Serviced trio
+  one-hot.
+
+Display names: device brand name · common device name · procode ·
+device manufacturer · model # · device lot # · catalog # · device
+expiration date · serial # · UDI # · operator (health professional /
+patient / other) · implant date · explant date · reprocessed single-use
+device · reprocessor · serviced by third party.
+
+### concomitant-medication-1..10 (F) — repeat group, one ask
+
+- **CM-1** *(instance 1 only)* — "Is the patient on other medications?
+  Name them, with rough start and stop dates if you have them."
+  → rows fill in stated order (`ProdN`, `StartN`, `EndN`); the count
+  proposes from the answer through the existing repeat-decision
+  machinery; rows beyond the count are skipped as today. Instances 2+
+  never get their own ask; later additions arrive via the repeat
+  decision ("was there another?") as today.
+
+Display names: other medication {n} · other medication {n} start ·
+other medication {n} stop.
+
+### reporter-contact-info (G)
+
+- **RC-1** — "Your contact details for the report — name, address,
+  phone, and email?" → all nine fields extraction-mapped from one
+  answer; `Country` stated-only.
+
+Display names: your last name · your first name · your address · your
+city · your state/province · your ZIP · your country · your phone ·
+your email.
+
+### reporter-about-you (G)
+
+- **RA-1** — "Are you reporting as a health professional, and what's
+  your occupation?" → `ProYes`/`ProNo` one-hot; `Occupation`
+  enum-mapped ("internist" → Physician).
+- **RA-2** — "Two housekeeping items — have you also reported this to
+  the manufacturer, a user facility, or a distributor? And should FDA
+  withhold your identity from the manufacturer?"
+  → `ManuComp`/`UserFac`/`DistImp`/`Packer` multi; `IdentityNo`.
+
+Display names: health professional · occupation · also reported to:
+manufacturer / user facility / distributor / packer · withhold identity
+from manufacturer.
+
+## Consequences for the machinery (the build unit's scope)
+
+1. Authored ask groups drive the loop; the template path and its 3-slice
+   are deleted. A topic with no authored asks (gated off) is skipped
+   with the rail state above.
+2. One display-name module (field id → short name + fact phrase) feeds
+   acknowledgments, correction offers, collisions, open-fields, and
+   Review rows. The facsimile's existing hand-authored `shortLabel`s
+   stay.
+3. The extractor prompt gains the derive rules; the validator accepts a
+   companion proposal grounded on its sibling's quote. The narrow
+   "never propose enum/checkbox" instruction in the per-turn prompt is
+   superseded (the narrative pass already proposes them).
+4. `ReportDate` auto-stamps at export.
+5. Gate evaluation per rule 5, including the open-fields/count/rail
+   exclusions and lab-row overflow.
+6. Checkbox negatives write `"false"` through the existing
+   representation; PDF mapping semantics verified against the existing
+   export tests.
+7. The UX-floor unit adds CI checks: ask copy equals this inventory
+   (count and text), no clinician-facing string equals a raw manifest
+   label, no "(yes or no)"-class template markers, no consecutive
+   duplicate ask strings, ungated ask count ≤ 24.
+
+Deliberately NOT decided here (Steve's design conversation, informed by
+his staging test): #79 reopen granularity, #77 repeat-count revision,
+#47 repeat-decision uncertainty. The phase-2 unit that makes the 9-row
+rollup drive progress display is compatible with this inventory (asks
+keep their topic ids).
