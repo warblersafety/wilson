@@ -229,14 +229,27 @@ flow is six surfaces:
    click away rather than leading the layout — legible values and
    obvious gaps beat pen-sized paper for editing; the paper is there
    for trust. (Chosen over paper-led review.)
-5. **Open fields** — what's still `unknown` or unasked, listed with its
-   reason, each answerable from here; "file as it stands" always
+5. **Open fields** — what's still `unknown` or unasked **and actually
+   answerable**, listed with its reason, each answerable from here;
+   "file as it stands" always
    available ("finish as it stands" in the built copy — the mockup's
    "File as it stands" takes the no-submission-claims vocabulary
    below). A partial report is a valid report; this surface nudges,
    it never gates. Presented as a dialog over the Review surface
    (screen 06), not a separate page — it is enumerated as a surface
    because it carries its own rules and state, not its own screen.
+   *Amended 2026-08-27 (#101).* "Unasked" alone listed fields no
+   clinician could act on: `ask-copy.md`'s dispositions decide what is
+   answerable, and the surface honours them. An auto field is
+   determined, not open; a lab write-target row past LD-1's anchor is
+   never independently open (rule 5); a conditional ask whose condition
+   does not hold was never in play; and a derive companion is open only
+   once the fact it hangs off is answered (rule 3) — a stated bare
+   weight makes lb/kg a live question, an age nobody gave makes its four
+   unit checkboxes noise. Without this the dialog headed a 28-question
+   session with "122 fields are still open", first four rows those very
+   checkboxes, immediately before sign-off. A companion is visible on
+   its anchor's Review row whether or not it is currently listed here.
 6. **Ready** — honest completion: the filled PDF to download,
    answered/unknown/declined counts, and the reminder that wilson
    stores nothing on its own servers, so the download is the

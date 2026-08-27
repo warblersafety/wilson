@@ -58,16 +58,28 @@ design conversation first.
      defaults to years (unqualified clinical ages are years; infant ages
      are always qualified). A bare weight gets NO default — lb/kg is
      genuinely ambiguous — the value writes and the unit stays open,
-     visible at Review. **"Visible at Review" is exact, amended
-     2026-08-27 (#101):** a derive companion left open renders on its
-     anchor's Review row and is excluded from the open-fields dialog and
-     the written/unknown counts — the same exclusion rule 5 gives
-     write-target rows, for the same reason. Listing them headed a
-     28-question session with "122 fields are still open", whose first
-     four rows were the four age-unit checkboxes nobody was ever
-     offered: a number that reads as failure on the surface immediately
-     before sign-off, burying the fields the clinician actually skipped.
-     Design.md surface 5's "unasked" means an unasked ASK field.
+     visible at Review. **When a companion counts as OPEN, amended
+     2026-08-27 (#101):** a derive companion is an open gap — listed in
+     the open-fields dialog, counted with the rest — **once the fact it
+     hangs off has been answered, and not before**. Each companion names
+     its anchor; a companion with no anchor (the stated-only reporter
+     country, a therapy duration nobody stated) fills from the
+     clinician's words or not at all and is never a gap. A checkbox
+     anchor must be answered *true*: a product not returned to the
+     manufacturer has no return date to give.
+     Anchor state, not disposition, is the discriminator, and the
+     difference is the whole point. A stated bare weight makes lb/kg a
+     live, answerable question — this rule's own worked example. An age
+     nobody gave makes its four unit checkboxes noise, and listing them
+     headed a 28-question session with "122 fields are still open",
+     first four rows those very checkboxes, on the surface immediately
+     before sign-off. Rule 5 already excludes write-target rows for a
+     related reason; this is the companion case, and it needs the
+     anchor test rather than a blanket exclusion because the asks voice
+     some companions out loud (PA-1's "and when?", DV-3's "who
+     reprocessed it?", CM-1's "with rough start and stop dates").
+     A companion left open is always visible on its anchor's Review row,
+     whether or not it is currently a listed gap.
    - A sex stated outside the form's M/F boxes checks neither box and
      leaves both unwritten; wilson does not force the form's vocabulary
      onto the clinician's words.
@@ -122,13 +134,20 @@ design conversation first.
    would state the opposite of what the clinician said on the
    FDA-bound form. Companions and further rows stay untouched.
 8. **Voice.** Second person, contractions, no exclamation marks,
-   mockup screen-04's register. **One question per ask — not one
-   question mark** (amended 2026-08-27, #103: the original wording said
-   "one question mark per ask", which six of this document's own
-   authored asks violate). An imperative ask carries none (WH-1, SP-2);
-   an explicitly two-part ask carries two (SP-4, DV-2, DV-3, RA-2). What
-   the rule forbids is stacking unrelated questions into one ask, which
-   none of those six does. Patterns:
+   mockup screen-04's register. **One TOPIC per ask, at most two
+   question marks** (amended 2026-08-27, #103; amended again the same
+   day after review). The original wording, "one question mark per ask",
+   was violated by six of this document's own authored asks: WH-1 and
+   SP-2 are imperatives and carry none, SP-4/DV-2/DV-3/RA-2 are
+   two-part and carry two. The first amendment said "one question per
+   ask", which is no better — DV-3 and RA-2 plainly ask two. What the
+   rule actually protects is that an ask covers one topic a clinician
+   holds in mind at once, so its parts can be answered together; that is
+   an editorial judgment, not a mechanical one. The mechanical half,
+   which CI can hold: **no exclamation marks, and no more than two
+   question marks**, with the six asks above the recorded set that
+   depart from one. A seventh is a copy change someone has to justify.
+   Patterns:
    - Out-of-ask write: `Also noted — {name}: {value}.`
    - Unknown/declined tap: `Marked {name} as not on hand.` /
      `Marked {name} as declined.`

@@ -29,11 +29,13 @@ transcript above it: 7 turns; ends with this ask: false; identical text earlier 
 progress: What happened · topic 2 of 34
 ask bubble: When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
 transcript above it: 9 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 06-followups-turn-5.png
 
 === turn 6 (topic) ===
 progress: Outcome · topic 3 of 34
 ask bubble: How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
 transcript above it: 11 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 07-followups-turn-6.png
 
 === turn 7 (topic) ===
 progress: Medical history · topic 4 of 34
@@ -104,7 +106,7 @@ transcript above it: 37 turns; ends with this ask: false; identical text earlier
 progress: Suspect product #2: identity · topic 14 of 34
 ask bubble: Was there another suspect product?
 transcript above it: 39 turns; ends with this ask: false; identical text earlier in history: 0
-[screenshot] 06-followups-repeat-20.png
+[screenshot] 08-followups-repeat-20.png
 
 === turn 21 (topic) ===
 progress: Device identity · topic 20 of 34
@@ -130,7 +132,7 @@ transcript above it: 47 turns; ends with this ask: false; identical text earlier
 progress: Concomitant medication #2 · topic 24 of 34
 ask bubble: Is there another medication to add?
 transcript above it: 49 turns; ends with this ask: false; identical text earlier in history: 0
-[screenshot] 07-followups-repeat-25.png
+[screenshot] 09-followups-repeat-25.png
 
 === turn 26 (topic) ===
 progress: Reporter contact info · topic 33 of 34
@@ -149,7 +151,7 @@ transcript above it: 55 turns; ends with this ask: false; identical text earlier
 [console error] Failed to load resource: the server responded with a status of 404 (Not Found)
 
 [follow-ups complete]
-[screenshot] 08-review.png
+[screenshot] 10-review.png
 
 [surface] review — body text:
 Review before you sign off.Your signature is the safety boundary, not mine. Edit anything and I’ll ask about it again.A · Patient basicsPatient InformationEditpatient identifierMRN 44-1902age61age unit: years—age unit: months—age unit: weeks—age unit: days—date of birthUnknownsex: male—sex: female—weightUnknownweight unit: lb—weight unit: kg—race/ethnicity: American Indian or Alaska Native—race/ethnicity: Asian—race/ethnicity: Black or African American—race/ethnicity: Hispanic or Latino—race/ethnicity: Middle Eastern or North African—race/ethnicity: Native Hawaiian or Pacific Islander—race/ethnicity: White—B · What happenedAdverse Event, Product Problem (or Product Use Error)Editreport type: adverse event—report type: medication error—report type: product problem—report type: different-manufacturer problem—date of eventUnknowndate of this report—event descriptionUnknownadditional commentsUnknownB · OutcomeAdverse Event, Product Problem (or Product Use Error)Editoutcome: death—date of death—outcome: hospitalization—outcome: life-threatening—outcome: disability or permanent damage—outcome: required intervention—outcome: congenital anomaly—outcome: other serious event—B · Medical historyAdverse Event, Product Problem (or Product Use Error)Editrelevant historyUnknownB · Lab dataAdverse Event, Product Problem (or Product Use Error)Edittest 1Unknowntest 1 result range (low)—test 1 result range (high)—test 1 date—test 2—test 2 result range (low)—test 2 result range (high)—test 2 date—test 3—test 3 result range (low)—test 3 result range (high)—test 4—test 4 result range (low)—test 4 result range (high)—test 5—test 5 result range (low)—test 5 result range (high)—test 6—test 6 result range (low)—test 6 result range (high)—test 7—test 7 result range (low)—test 8—test 8 result range (low)—test 8 result range (high)—test 8 date—test 7 result range (high)—test 3 date—test 4 date—test 5 date—test 6 date—test 7 date—C · Product availabilityProduct AvailabilityEditpicture of the product—returned to manufacturer (date)—returned to manufacturer—product available: no—product available: yes—D · Suspect product #1Suspect ProductsEditproduct nameUnknownstrengthUnknownstrength unit—NDC or unique IDUnknownmanufacturer/compounderUnknownlot numberUnknowndoseUnknowndose unit—frequencyUnknownfrequency (other)—routeUnknownroute (other)—therapy start dateUnknowntherapy stop dateUnknowndose reduced onUnknowntherapy duration—therapy duration unit—therapy ongoing: yes—therapy ongoing: no—d
@@ -210,19 +212,19 @@ Review before you sign off.Your signature is the safety boundary, not mine. Edit
 [53] Your contact details for the report — name, address, phone, and email? — I don't have that
 [54] Are you reporting as a health professional, and what's your occupation?
 [55] Are you reporting as a health professional, and what's your occupation? — I don't have that
-[screenshot] 09-review-paper-facsimile.png
+[screenshot] 11-review-paper-facsimile.png
 [surface] review — Form 3500 facsimile shown
-[screenshot] 10-open-fields.png
+[screenshot] 12-open-fields.png
 [surface] open-fields dialog:
-105 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.date of birthyou didn't have itAnswersex: maleyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Native Hawaiian or Pacific Islanderyou didn't have itAnswerrace/ethnicity: Whiteyou didn't have itAnswerreport type: adverse eventyou didn't have itAnswerreport type: medication erroryou didn't have itAnswerreport type: product problemyou didn't have itAnswerreport type: different-manufacturer problemyou didn't have itAnswerdate of eventyou didn't have itAnswerevent descriptionyou didn't have itAnsweroutcome: deathyou didn't have itAnsweroutcome: hospitalizationyou didn't have itAnsweroutcome: life-threateningyou didn't have itAnsweroutcome: disability or permanent da
+109 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.age unit: yearsnot asked yetAnswerage unit: monthsnot asked yetAnswerage unit: weeksnot asked yetAnswerage unit: daysnot asked yetAnswerdate of birthyou didn't have itAnswersex: maleyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Native Hawaiian or Pacific Islanderyou didn't have itAnswerrace/ethnicity: Whiteyou didn't have itAnswerreport type: adverse eventyou didn't have itAnswerreport type: medication erroryou didn't have itAnswerreport type: product problemyou didn't have itAnswerreport type: different-manufacturer problemyou didn't have itAnswerdate of eventyou didn't have itAnswerevent descriptionyou didn't have itAnsweroutcome: deathyou didn't have itAn
 [console error] Failed to load resource: the server responded with a status of 404 (Not Found)
-[screenshot] 11-ready.png
+[screenshot] 13-ready.png
 
 [surface] ready — body text:
 ✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields2 written · 105 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againwilson stores nothing on its own servers — this download is your copy.
 
 === SUMMARY ===
 turns driven: 28
-screenshots: 11
+screenshots: 13
 double-render occurrences (this unit's bug): 0
 turns whose ask text is echoed earlier in the history (#90's template copy): 0
