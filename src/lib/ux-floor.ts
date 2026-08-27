@@ -70,6 +70,12 @@ export type RenderedFrame = RenderedString[];
 
 export interface WalkTurn {
   kind: "ask" | "repeat-decision";
+  // The repeat group this turn belongs to, and which instance — null for
+  // a non-repeating topic. Carried so the adjacency check below can ask
+  // "is this a later instance, and what came before it?" without parsing
+  // an ask id.
+  repeatGroup: RepeatGroup | null;
+  repeatInstance: number | null;
   // The contract's own ask id ("SP-4"), or the repeat group's name — what
   // the turn IS, as distinct from what it currently says. A seeded gate
   // can leave part of an ask already answered, so the same ask renders as
@@ -393,11 +399,19 @@ export function scriptedWalk(
         kind: "repeat-decision",
         id: step.repeatGroup,
         text: REPEAT_DECISION_COPY[step.repeatGroup],
+        repeatGroup: step.repeatGroup,
+        repeatInstance: null,
       });
       counts = setRepeatCount(counts, step.repeatGroup, choose(step.repeatGroup, step.afterInstance));
       continue;
     }
-    turns.push({ kind: "ask", id: step.ask.id, text: askCopy(step.ask, record) });
+    turns.push({
+      kind: "ask",
+      id: step.ask.id,
+      text: askCopy(step.ask, record),
+      repeatGroup: step.topic.repeatGroup,
+      repeatInstance: step.topic.repeatInstance,
+    });
     record = dismiss(record, step.fieldIds);
   }
   throw new Error("scriptedWalk: the walk never reached done");
@@ -435,13 +449,20 @@ export const GATE_STATE_SEEDS: Array<[string, () => AgendaRecord]> = [
 // The second dimension of "never just the reference path", and the one
 // the first cut of this file missed: how many instances a repeat group
 // has. Gate state changes WHICH asks the walk reaches; repeat count
-// changes how many times it reaches the same one — and a group's later
-// instances share one authored string, so that is where a walk can
+// changes how many times it reaches the same one — and where a group's
+// later instances share an authored string, that is where a walk can
 // repeat itself without any ask being wrong.
 //
-// Suspect products stop at 2 and their copy distinguishes the second
-// ("the second suspect product"). Concomitant medications go to 10 and
-// theirs does not — see the departure ux-floor.test.ts pins, and #111.
+// Suspect products stop at 2, concomitant medications go to 10. Both
+// groups now author their later instances apart, so neither repeats a
+// turn CONSECUTIVELY and this file pins no departure — #111 amended the
+// concomitant copy and deleted the pin that recorded its eight.
+//
+// Not the same as clean: SP-2 through SP-9 are still byte-identical
+// across instances, so a two-product walk repeats seven asks NINE turns
+// apart, which consecutiveDuplicateViolations() cannot see by
+// construction. That is #117, and it is why the check below is named for
+// the property it actually tests.
 export const REPEAT_COUNT_CHOICES: Array<[string, RepeatChoice]> = [
   ["declined", DECLINE_REPEATS],
   ["two-suspect-products", (group, after) => (group === "suspect-product" ? 2 : after)],
@@ -455,6 +476,52 @@ export const REPEAT_COUNT_CHOICES: Array<[string, RepeatChoice]> = [
     },
   ],
 ];
+
+// ask-copy.md CM-2-{n}'s stated premise, made mechanical: "every CM-2-{n}
+// must be reached either immediately after this group's repeat-decision
+// turn or after CM-2-{n-1}".
+//
+// The amendment bolds that sentence because the copy depends on it — "the
+// second medication" only reads as a concomitant if the turn before it
+// established the topic. It is NOT self-enforcing: CM-1 is skipped
+// whenever row 1 is already resolved (the opening narrative's read-back
+// does exactly that), leaving the repeat decision as the only turn
+// carrying the topic — and #43 would remove that one too. With both gone,
+// "What's the second medication?" lands straight after "Was it given
+// again…?", where a clinician reasonably answers about the second SUSPECT
+// drug and the write goes to a concomitant row on a Form 3500.
+//
+// So it is checked rather than described. This file's own deleted pin
+// argued the point: "pinned as an exact set rather than described in a
+// comment" — a bolded paragraph in a document is what the pin was
+// deliberately not (doc-review and reviewer pass on #111).
+//
+// Stated over repeat groups generally, not concomitant specifically: the
+// suspect-product group depends on the same adjacency for the same
+// reason, and a rule that names one group is a rule the next group gets
+// to break.
+export function repeatInstanceAdjacencyViolations(turns: WalkTurn[]): UxFloorViolation[] {
+  const out: UxFloorViolation[] = [];
+  for (const [index, turn] of turns.entries()) {
+    if (turn.kind !== "ask" || turn.repeatGroup === null) continue;
+    if (turn.repeatInstance === null || turn.repeatInstance < 2) continue;
+    const previous = turns[index - 1];
+    // Same group either way: its own repeat decision, or another ask of
+    // the group (instance n-1's last ask, or an earlier ask of this same
+    // instance).
+    if (previous !== undefined && previous.repeatGroup === turn.repeatGroup) continue;
+    out.push({
+      check: "repeat-instance-adjacency",
+      source: `turn:${index} (${turn.id})`,
+      text: turn.text,
+      detail:
+        previous === undefined
+          ? `${turn.id} opens the walk with no repeat decision before it`
+          : `${turn.id} follows ${previous.id}, which is outside its repeat group`,
+    });
+  }
+  return out;
+}
 
 export function consecutiveDuplicateViolations(turns: WalkTurn[]): UxFloorViolation[] {
   const out: UxFloorViolation[] = [];

@@ -17,6 +17,7 @@ import {
   manifestLabelViolations,
   optionCodeViolations,
   renderedCopyInventory,
+  repeatInstanceAdjacencyViolations,
   scriptedWalk,
   GATE_STATE_SEEDS,
   REPEAT_COUNT_CHOICES,
@@ -24,13 +25,14 @@ import {
   templateMarkerViolations,
 } from "./ux-floor";
 import { AUTHORED_ASKS, unresolvedFactNames } from "./ask-inventory";
-import { initAgenda } from "./agenda";
+import { applyAction, initAgenda } from "./agenda";
 import {
   FIELD_ID_INVENTORY,
   MANIFEST_LABEL_INVENTORY,
   OPTION_CODE_INVENTORY,
   OVER_CEILING_WALK,
   SHORT_WALK,
+  REPEAT_INSTANCE_ORPHAN_WALK,
   TEMPLATE_MARKER_INVENTORY,
   TWICE_IN_A_ROW_WALK,
 } from "../../fixtures/ux-floor/violations";
@@ -247,6 +249,42 @@ describe("every gate state, not just the reference path", () => {
       }
     }
     expect(repeating).toEqual([]);
+  });
+
+  // ask-copy.md CM-2-{n}'s stated premise, checked rather than described
+  // (doc-review and reviewer pass on #111). The amendment bolds the
+  // adjacency because "the second medication" only reads as a
+  // concomitant if the turn before it established the topic — and CM-1
+  // is skipped whenever row 1 is already resolved, leaving the repeat
+  // decision as the only turn doing that work.
+  it("never reaches a later repeat instance without its group's own turn before it", () => {
+    const orphans: string[] = [];
+    for (const [gate, seed] of GATE_STATE_SEEDS) {
+      for (const [choice, choose] of REPEAT_COUNT_CHOICES) {
+        for (const violation of repeatInstanceAdjacencyViolations(scriptedWalk(seed(), choose))) {
+          orphans.push(`${violation.source} (${gate}/${choice}): ${violation.detail}`);
+        }
+      }
+    }
+    expect(orphans).toEqual([]);
+  });
+
+  // The walk the read-back path already produces: row 1 answered from the
+  // opening narrative, so CM-1 never renders and the repeat decision is
+  // the only turn left carrying the topic. Holds today — one turn wide.
+  it("holds on the read-back walk, where CM-1 is skipped entirely", () => {
+    const seeded = applyAction(initAgenda(), "Page6.SecF_Other.Table1.Row1.Prod1", { type: "answer" }, "lisinopril");
+    const walk = scriptedWalk(seeded, (group, after) => (group === "concomitant-medication" ? 3 : after));
+    expect(walk.some((turn) => turn.id === "CM-1")).toBe(false);
+    expect(walk.some((turn) => turn.id === "CM-2-2")).toBe(true);
+    expect(repeatInstanceAdjacencyViolations(walk)).toEqual([]);
+  });
+
+  it("goes red when the group's own turn is gone — the shape #43 would produce", () => {
+    const found = repeatInstanceAdjacencyViolations(REPEAT_INSTANCE_ORPHAN_WALK);
+    expect(found).toHaveLength(1);
+    expect(found[0].source).toContain("CM-2-2");
+    expect(found[0].detail).toContain("SP-8-2");
   });
 
   // The amendment's own proof, and the reason the check above can be

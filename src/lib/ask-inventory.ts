@@ -613,10 +613,14 @@ function concomitantMedication(instance: number): AuthoredAsk[] {
       askFieldIds: [`${row}.Prod${instance}`],
       // CM-1's ask is plural — "is the patient on other medications?" — so
       // its dismissal says so. "Marked other medication 1 as not on hand."
-      // names a table row the ask never mentioned. Instance 1 only: the
-      // later instances' naming belongs to #111, which is amending their
-      // copy. One ask field, so rule 9's frame is unreachable and `name`
-      // never renders (reviewer pass, #109/#110).
+      // names a table row the ask never mentioned. Instance 1 only, and
+      // settled rather than deferred: #111's amendment gives instances
+      // 2-10 their own ordinal copy and keeps "other medication {n}" as
+      // their display name, so they need no fact of their own. Either
+      // way `name` never renders here — one ask field means
+      // unresolvedAskFieldIds() always returns the whole set, so
+      // askCopy() takes the primary-copy branch and rule 9's frame is
+      // unreachable (reviewer pass, #109/#110 and #111).
       facts:
         instance === 1
           ? [{ name: "other medication 1", standaloneName: "other medications", fieldIds: [`${row}.Prod${instance}`] }]
@@ -894,7 +898,7 @@ const COMPANION_ANCHORS: Record<string, string> = {
   "Page3.TestDataTable.ReturnDate": "Page3.TestDataTable.EvalRetd",
   "Page6.SecE_Device.ReprocInfo": "Page6.SecE_Device.ReuseYes",
   ...productAnchors(),
-  // CM-1/CM-2 voice "with rough start and stop dates": once a medication
+  // CM-1/CM-2-{n} voice "with rough start and stop dates": once a medication
   // is named, its dates are answerable.
   ...concomitantAnchors(),
   // Deliberately absent, and therefore never gaps: the stated-only
