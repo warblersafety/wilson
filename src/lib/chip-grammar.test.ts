@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import type { CorrectionOffer } from "./followup-sweep";
-import { TOPICS, type NextStep, type Topic } from "./topics";
+import { initRepeatCounts, nextStep, TOPICS, type NextStep, type Topic } from "./topics";
 import {
   applyActionToFields,
+  dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
   remainingCorrectionOffers,
@@ -217,5 +218,57 @@ describe("checkbox/enum manifest coverage — no raw identifiers surfaced", () =
         expect(option).not.toMatch(RAW_OPT_CODE);
       }
     }
+  });
+});
+
+// Issue #110: rule 8 authors an acknowledgment for a dismiss tap, and
+// before this unit the build rendered nothing — the clinician saw their
+// own "…question… — I don't have that" line and then the next question,
+// with no statement that anything had been recorded. Design.md's "no
+// widened write is ever invisible" holds for the sweep's writes; a tap
+// writes MORE fields at once than the sweep usually does.
+describe("dismissAcknowledgment", () => {
+  it("names the facts the visible question asked for, not its fields", () => {
+    // RA-2 is the ask #110 names: five fields, two facts.
+    const reporterAboutYou = TOPICS.find((t) => t.id === "reporter-about-you")!;
+    const ra2 = reporterAboutYou.asks.find((a) => a.id === "RA-2")!;
+    const step: NextStep = { kind: "topic", topic: reporterAboutYou, ask: ra2, fieldIds: ra2.askFieldIds };
+    expect(dismissableFieldIds(step)).toHaveLength(5);
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBe(
+      "Marked other reports and identity-withholding choice as not on hand.",
+    );
+  });
+
+  it("names only what is still open, so a tap on a re-ask acknowledges the re-ask", () => {
+    // The real step, from nextStep(), not a hand-built one: the narrowing
+    // this asserts IS nextStep()'s own unresolvedAskFieldIds() slice, and
+    // a fixture that re-listed every field would assert nothing.
+    const record = { ...initAgenda(), "Page1.SecA_Patient.PatientIdentifier": { state: "answered" as const, value: "MRN 41" } };
+    const step = nextStep(record, initRepeatCounts());
+    expect(step.kind).toBe("topic");
+    expect(dismissAcknowledgment(step, "decline")).toBe("Marked age and sex as declined.");
+  });
+
+  // Reviewer pass: the guard used to count field ids while the throw it
+  // guards counts composed names. A step whose fieldIds belong to no fact
+  // of its own ask passes the first and trips the second — which reaches
+  // the clinician as AskForm's generic failure message, after the tap's
+  // record write has already been made.
+  it("returns undefined, never throws, when a step's fields name nothing in its ask", () => {
+    const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
+    const step: NextStep = {
+      kind: "topic",
+      topic: patientBasics,
+      ask: patientBasics.asks[0],
+      fieldIds: ["Page6.SecE_Device.BrandName"],
+    };
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBeUndefined();
+  });
+
+  it("has nothing to acknowledge on a step with no dismissable fields", () => {
+    expect(dismissAcknowledgment({ kind: "done" }, "mark_unknown")).toBeUndefined();
+    expect(
+      dismissAcknowledgment({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 }, "mark_unknown"),
+    ).toBeUndefined();
   });
 });

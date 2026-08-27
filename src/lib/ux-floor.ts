@@ -45,8 +45,8 @@ import { GATED_OFF_REVIEW_COPY, PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./re
 import { START_COPY } from "./start-surface";
 import { SESSION_EXPORT_COPY } from "./session-export";
 import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep } from "./talk";
-import { initRepeatCounts, nextStep, setRepeatCount, type RepeatGroup } from "./topics";
-import { widgetTurnText } from "./chip-grammar";
+import { initRepeatCounts, nextStep, setRepeatCount, TOPICS, type NextStep, type RepeatGroup } from "./topics";
+import { dismissAcknowledgment, widgetTurnText } from "./chip-grammar";
 
 // A string a clinician can read, and where it came from. The source is
 // what makes a violation actionable: "a manifest label reached a
@@ -87,6 +87,10 @@ export interface WalkTurn {
 export const STATED_UNGATED_ASK_COUNT = 21;
 export const ASK_COUNT_CEILING = 24;
 
+// dismissAcknowledgment() takes a whole NextStep, so the enumeration
+// needs each ask's own topic — the ask inventory carries only its id.
+const TOPICS_BY_ID = Object.fromEntries(TOPICS.map((topic) => [topic.id, topic]));
+
 // --- the enumeration ------------------------------------------------------
 
 // Rule 8's "Patterns" list, rendered with fixture values. Four sentence
@@ -103,7 +107,7 @@ const SWEEP_FIXTURES: Array<[string, FollowUpSweepResult]> = [
       writes: [{ fieldId: AGE_VALUE, type: "answer", value: "58" }],
       outOfAskWrites: [{ fieldId: AGE_VALUE, type: "answer", value: "58" }],
       correctionOffers: [],
-      collisionFieldIds: [],
+      collisions: [],
       volunteeredRepeatGroups: [],
     },
   ],
@@ -120,7 +124,7 @@ const SWEEP_FIXTURES: Array<[string, FollowUpSweepResult]> = [
           currentValue: "1968-04-12",
         },
       ],
-      collisionFieldIds: [],
+      collisions: [],
       volunteeredRepeatGroups: [],
     },
   ],
@@ -130,7 +134,7 @@ const SWEEP_FIXTURES: Array<[string, FollowUpSweepResult]> = [
       writes: [],
       outOfAskWrites: [],
       correctionOffers: [],
-      collisionFieldIds: [AGE_VALUE],
+      collisions: [{ fieldId: AGE_VALUE, values: ["58", "62"] }],
       volunteeredRepeatGroups: [],
     },
   ],
@@ -140,7 +144,7 @@ const SWEEP_FIXTURES: Array<[string, FollowUpSweepResult]> = [
       writes: [],
       outOfAskWrites: [],
       correctionOffers: [],
-      collisionFieldIds: [],
+      collisions: [],
       volunteeredRepeatGroups: ["suspect-product", "concomitant-medication"],
     },
   ],
@@ -201,6 +205,23 @@ export function renderedCopyInventory(): RenderedString[] {
 
   for (const [kind, result] of SWEEP_FIXTURES) {
     out.push({ source: `sweep:${kind}`, text: describeFollowUpSweep(result) });
+  }
+
+  // Rule 8's dismiss acknowledgment (#110), for EVERY ask and both
+  // chips — not a fixture pair. The acknowledgment names an ask's facts,
+  // so the asks most able to leak a field list are the ones with the most
+  // fields per fact (DV-1's ten, RC-1's eight), and a hand-picked fixture
+  // is exactly what would have left those out. Passes ask.askFieldIds
+  // directly rather than a record's unresolved slice: an untouched ask
+  // waits on all of them, so this is the longest sentence each one can
+  // produce, and it is the state to check for a leaked field list.
+  for (const ask of AUTHORED_ASKS) {
+    const step: NextStep = { kind: "topic", topic: TOPICS_BY_ID[ask.topicId], ask, fieldIds: ask.askFieldIds };
+    for (const action of ["mark_unknown", "decline"] as const) {
+      const text = dismissAcknowledgment(step, action);
+      if (text === undefined) continue;
+      out.push({ source: `sweep:dismiss/${ask.id}/${action}`, text });
+    }
   }
 
   for (const [key, copy] of Object.entries(OPEN_FIELDS_COPY)) {
@@ -502,7 +523,10 @@ export async function scriptedSteps(): Promise<TalkStep[]> {
   for (let guard = 0; guard < 200; guard += 1) {
     steps.push(step);
     if (step.nextStep.kind === "done") return steps;
-    step = await processTurn(step.session, widgetTurnText(step.reply, "I don't have that"), {
+    // step.question, not step.reply — the same thing AskForm quotes into
+    // a tap's clinician turn. Driving the composed reply here would make
+    // the floor's walk diverge from the surface it is meant to model.
+    step = await processTurn(step.session, widgetTurnText(step.question, "I don't have that"), {
       ask: askDeterministic,
       extract: dismissWhatWasAsked,
     });

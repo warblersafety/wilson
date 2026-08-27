@@ -129,6 +129,7 @@ export function Wizard({ onDone }: WizardProps) {
             repeatGroup={step.repeatGroup}
             afterInstance={step.afterInstance}
             reply={current.reply}
+            question={current.question}
             onChange={handleStep}
             disabled={isSubmitting}
           />

@@ -19,6 +19,7 @@ import { Chip } from "@/components/Chip";
 import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
+  dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
   remainingCorrectionOffers,
@@ -91,10 +92,23 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         record: applyActionToFields(current.session.record, fieldIds, { type: action }),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(current.reply, answerLabel), source: "widget" },
+          // current.question, never current.reply: a tap's own transcript
+          // turn is clinician-role, and current.reply may carry the
+          // PREVIOUS tap's "Marked … as not on hand." acknowledgment —
+          // which would then read as something the clinician said
+          // (reviewer pass, #109/#110).
+          { role: "clinician", text: widgetTurnText(current.question, answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(await stepForSession(nextSession, { appendReply: true }));
+      onSubmitted(
+        await stepForSession(nextSession, {
+          appendReply: true,
+          // ask-copy.md rule 8 (#110). Named from the same step the
+          // `fieldIds` above came from, so the sentence names exactly the
+          // facts this tap resolved.
+          replyPrefix: dismissAcknowledgment(current.nextStep, action),
+        }),
+      );
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
