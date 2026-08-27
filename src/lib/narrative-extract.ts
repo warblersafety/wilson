@@ -144,8 +144,41 @@ export function resolveNarrativeExtraction(
   return { proposals, repeatDecisions, rejected };
 }
 
+// The model call, split out so a scripted stand-in can replace exactly it
+// and nothing else — see extract.ts's ProposeFn for the full reasoning.
+// Everything downstream (grounding, instance-2 rejection, the repeat-count
+// range check, resolveNarrativeExtraction) stays the real code, so the
+// round-gate driver's read-back surface is this build's, not a mock of it.
+export type NarrativeProposeFn = (
+  narrative: string,
+  openFields: FormFieldSpec[],
+) => Promise<NarrativeExtractionResponse | null>;
+
+function narrativeModelProposer(client: Anthropic): NarrativeProposeFn {
+  return async (narrative, openFields) => {
+    const response = await client.messages.parse({
+      model: EXTRACTOR_MODEL,
+      // Larger than extract.ts's per-turn 4096: this call can legitimately
+      // ground candidates across dozens of fields in one response, not ≤3.
+      max_tokens: 8192,
+      system: [{ type: "text", text: NARRATIVE_EXTRACTOR_SYSTEM, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: buildNarrativeExtractionUserContent(narrative, openFields) }],
+      output_config: { format: zodOutputFormat(NARRATIVE_EXTRACTION_RESPONSE_SCHEMA) },
+    });
+    return response.parsed_output;
+  };
+}
+
 export function createNarrativeExtractFn(
   client: Anthropic = sharedAnthropicClient(),
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): NarrativeExtractFn {
+  return createNarrativeExtractFnFrom(narrativeModelProposer(client), topics, fields);
+}
+
+export function createNarrativeExtractFnFrom(
+  propose: NarrativeProposeFn,
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): NarrativeExtractFn {
@@ -160,17 +193,7 @@ export function createNarrativeExtractFn(
     // transcript this call grounds against, not one turn in a longer one.
     const transcript: TalkTurn[] = [{ role: "clinician", text: narrative }];
 
-    const response = await client.messages.parse({
-      model: EXTRACTOR_MODEL,
-      // Larger than extract.ts's per-turn 4096: this call can legitimately
-      // ground candidates across dozens of fields in one response, not ≤3.
-      max_tokens: 8192,
-      system: [{ type: "text", text: NARRATIVE_EXTRACTOR_SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildNarrativeExtractionUserContent(narrative, openFields) }],
-      output_config: { format: zodOutputFormat(NARRATIVE_EXTRACTION_RESPONSE_SCHEMA) },
-    });
-
-    const parsed = response.parsed_output;
+    const parsed = await propose(narrative, openFields);
     if (!parsed) {
       // `parsed_output` is genuinely null only for a response with no text
       // block at all (empty content, or a thinking/tool_use-only response)

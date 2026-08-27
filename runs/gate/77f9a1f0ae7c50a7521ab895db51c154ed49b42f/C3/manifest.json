@@ -1,0 +1,48 @@
+{
+  "case": "C3",
+  "title": "messy multi-drug",
+  "spec": "two suspect products, three concomitants, labs, information volunteered out of ask order, one cross-turn correction (\"actually the 19th, not the 20th\") **and one same-turn contradictory pair (\"500 mg — no, 875 mg\") to force a collision** (entry 7).",
+  "evidences": [
+    1,
+    2,
+    6,
+    7
+  ],
+  "devSha": "77f9a1f0ae7c50a7521ab895db51c154ed49b42f",
+  "treeClean": true,
+  "surfacesDeclared": [
+    "start",
+    "read-back",
+    "follow-ups",
+    "review",
+    "review-paper-facsimile",
+    "open-fields",
+    "ready",
+    "report-chrome"
+  ],
+  "surfacesReached": [
+    "follow-ups",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "surfacesByWalk": {
+    "C3": [
+      "follow-ups",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ]
+  },
+  "screenshots": 16,
+  "failures": [],
+  "modelFidelity": "Fake model. Copy, layout and screen fidelity are model-independent and are certified by this run; flow and length are NOT — they hold only as exercised by the scripted extractions."
+}

@@ -62,3 +62,9 @@ anything and `session.txt` is the honest instrument across it.
   Python function.
 - The open-fields count is per field, not per fact (design.md's round-2
   curated Review rendering).
+
+> **Note (unit #96).** `scripts/artifact-session.mjs` and
+> `scripts/artifact-seed.ts` no longer exist — they were replaced by
+> `scripts/gate-case-driver.mjs`, which walks Start through Ready with
+> typed turns as well as chips (`CASE=C1`). This file records what was
+> run at the time; the reproduce instructions above are historical.

@@ -22,3 +22,7 @@ htmlcov/
 .env.*
 !.env.example
 .DS_Store
+
+# The gate driver's captured dev-server output: useful while debugging a
+# run, never evidence — every other artifact it writes is committed.
+runs/gate/*/*/dev-server.log

@@ -19,6 +19,7 @@ import { Chip } from "@/components/Chip";
 import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
+  DISMISS_CHIPS,
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
@@ -39,6 +40,11 @@ interface AskFormProps {
   // stale) response lands.
   onPendingChange?: (pending: boolean) => void;
 }
+
+// Rendered from chip-grammar.ts's map rather than typed here: the gate
+// driver clicks these by visible text, and a rename that only touched
+// this file used to leave every check green (doc-review on #96).
+const [UNKNOWN_LABEL, DECLINE_LABEL] = Object.keys(DISMISS_CHIPS) as ["I don't have that", "Rather not say"];
 
 export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps) {
   const [message, setMessage] = useState("");
@@ -194,14 +200,14 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           {isPending ? "Sending…" : "Send"}
         </button>
         <Chip
-          label="I don't have that"
+          label={UNKNOWN_LABEL}
           disabled={busy}
-          onClick={() => void handleDismiss("mark_unknown", "I don't have that")}
+          onClick={() => void handleDismiss("mark_unknown", UNKNOWN_LABEL)}
         />
         <Chip
-          label="Rather not say"
+          label={DECLINE_LABEL}
           disabled={busy}
-          onClick={() => void handleDismiss("decline", "Rather not say")}
+          onClick={() => void handleDismiss("decline", DECLINE_LABEL)}
         />
       </div>
       {error && (

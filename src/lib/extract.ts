@@ -23,7 +23,13 @@ import {
 } from "../prompts/extractor";
 import { deriveCompanionWrites } from "./derive";
 import { filterLabRowOverflow } from "./gates";
-import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
+import {
+  ALL_FIELD_TYPES,
+  validateCandidates,
+  validateRepeatCandidate,
+  type ExtractionCandidate,
+  type RepeatCandidate,
+} from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
 import type { ExtractFn, ExtractResult, TalkSession, TalkTurn } from "./talk";
@@ -39,11 +45,73 @@ import { TOPICS, nextStep, openFollowUpFields, type Topic } from "./topics";
 // processTurn's own `Deps.topics`/`Deps.fields` — nextStep() is only
 // guaranteed to recompute the step processTurn's respond() already saw
 // when both calls agree on what the topic map and field manifest are.
-// There is currently exactly one production call site and it takes both
-// defaults, so this can't diverge today; a future caller overriding one
-// set without the other would silently extract against the wrong step.
+// A caller overriding one set without the other would silently extract
+// against the wrong step. Since #96 that reaches createExtractFnFrom()
+// too: a proposer built with default topics/fields and a wrapper given
+// custom ones is the same divergence, one seam further out.
+
+// What a model — or a scripted stand-in — proposes for one turn, before
+// any of extraction's own checks have run. Named as a seam so the
+// fake-model path the round-gate driver uses (#96) replaces EXACTLY the
+// model call: validation, the lab-row gate, classification, rule 3's
+// derives and the sweep's reply are all still the real code below, so a
+// gate case exercises this build rather than a parallel implementation
+// of it. `null` is the degenerate no-text-block response.
+export interface TurnProposal {
+  candidates: ExtractionCandidate[];
+  // Carries its quote like any other candidate: validateRepeatCandidate()
+  // grounds it against the clinician's turn exactly as it does the model's,
+  // so a scripted proposal cannot skip the check the real one faces.
+  repeatDecision?: RepeatCandidate | null;
+}
+
+// Everything a proposer needs, computed once by createExtractFnFrom() and
+// handed over — never recomputed by a proposer. `askFieldIds` above all:
+// its own comment explains why the prompt and the classifier must read
+// one value, and a proposer deriving its own would be exactly that drift.
+export interface TurnContext {
+  session: TalkSession;
+  message: string;
+  step: Exclude<ReturnType<typeof nextStep>, { kind: "done" }>;
+  transcript: TalkTurn[];
+  askFieldIds: string[];
+  openFields: FormFieldSpec[];
+}
+
+export type ProposeFn = (context: TurnContext) => Promise<TurnProposal | null>;
+
+// Extraction is keyed to the step that was actually asked, not
+// re-derived from message phrasing — computed from `session`'s PRE-turn
+// state, which is exactly the state nextStep() saw when it produced the
+// step the clinician's message is now answering (processTurn calls
+// extract() before applying this turn's writes, so nothing has changed
+// in between). `topics`/`fields` must be the SAME arrays a caller passes
+// as processTurn's own Deps — see the note above the seam.
+
+// The real proposer: one structured-output call to the Extractor model.
+function modelProposer(client: Anthropic, topics: Topic[], fields: FormFieldSpec[]): ProposeFn {
+  return async ({ step, askFieldIds, openFields, transcript }) => {
+    const response = await client.messages.parse({
+      model: EXTRACTOR_MODEL,
+      max_tokens: 4096,
+      system: [{ type: "text", text: buildFollowUpExtractorSystem(fields, topics), cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: buildFollowUpUserContent(step, askFieldIds, openFields, transcript) }],
+      output_config: { format: zodOutputFormat(EXTRACTION_RESPONSE_SCHEMA) },
+    });
+    return response.parsed_output;
+  };
+}
+
 export function createExtractFn(
   client: Anthropic = sharedAnthropicClient(),
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): ExtractFn {
+  return createExtractFnFrom(modelProposer(client, topics, fields), topics, fields);
+}
+
+export function createExtractFnFrom(
+  propose: ProposeFn,
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): ExtractFn {
@@ -83,15 +151,7 @@ export function createExtractFn(
     // cannot drift apart.
     const askFieldIds = step.kind === "topic" ? step.fieldIds : [];
 
-    const response = await client.messages.parse({
-      model: EXTRACTOR_MODEL,
-      max_tokens: 4096,
-      system: [{ type: "text", text: buildFollowUpExtractorSystem(fields, topics), cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildFollowUpUserContent(step, askFieldIds, openFields, transcript) }],
-      output_config: { format: zodOutputFormat(EXTRACTION_RESPONSE_SCHEMA) },
-    });
-
-    const parsed = response.parsed_output;
+    const parsed = await propose({ session, message, step, transcript, askFieldIds, openFields });
     if (!parsed) {
       // `parsed_output` is genuinely null only for a response with no text
       // block at all (empty content, or a thinking/tool_use-only response)

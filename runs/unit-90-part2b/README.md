@@ -71,3 +71,9 @@ suppression, same `SHOT_TURNS`. They are NOT comparable to
 - The count is per field, not per fact (round 2's curated Review).
 - Ready still shows a PDF failure: `next dev` does not serve the Vercel
   Python function.
+
+> **Note (unit #96).** `scripts/artifact-session.mjs` and
+> `scripts/artifact-seed.ts` no longer exist — they were replaced by
+> `scripts/gate-case-driver.mjs`, which walks Start through Ready with
+> typed turns as well as chips (`CASE=C1`). This file records what was
+> run at the time; the reproduce instructions above are historical.

@@ -12,16 +12,29 @@ Approved by Steve 2026-08-27. Unit #94. **Amendments to this file take
 a doc-review pass (CLAUDE.md's review rule), and any edit that removes
 or weakens a checklist entry, a case, or the strike rule must quote
 Steve's authorizing words and their date in the diff — absent that
-quote, reviewers treat the edit as a defect, not an improvement.**
+quote, reviewers treat the edit as a defect, not an improvement. **A
+case now lives in `fixtures/gate/cases.ts`, and that rule reaches it
+there**: since unit #96 the operative definition of a case — its inputs,
+its steps, its assertions — is code, and an edit that weakens one is the
+same edit whether it lands in this file or that one.**
 
 ## Definitions
 
 - **A round** is the set of units merged to `dev` since the previous
   gate verdict (or, for the first run, since this file merged).
 - **Gate-relevant paths**: `src/app/**`, `src/components/**`,
-  `src/prompts/**`, `docs/ask-copy.md`. A file that starts carrying
-  clinician-facing strings gets added here in the same PR that makes
-  it do so.
+  `src/prompts/**`, `docs/ask-copy.md`, `fixtures/gate/cases.ts`. A file
+  that starts carrying clinician-facing strings gets added here in the
+  same PR that makes it do so — which is why the last entry arrived with
+  unit #96: a case's `expectAsk` fragments are ask copy, and the driver
+  is only as good as they are.
+  **This list is known to be incomplete, and the gap is filed, not
+  hidden**: almost every question a clinician reads lives in
+  `src/lib/ask-inventory.ts`, which is NOT here, so a PR that rewrites
+  every ask can pass the skip test with the whole suite green
+  (warblersafety/wilson#120, doc-review on #96). Until that is settled,
+  the skip test's output is a floor and a session that has changed
+  clinician-facing copy under `src/lib/**` runs the gate anyway.
 
 ## When it runs
 
@@ -83,9 +96,36 @@ gate's falsifiability, not an exit from it.
 
 ## The case set (v1 — entries are added freely, removed only by Steve)
 
-The verbatim inputs for all cases are pinned by the case-driver unit;
-where no build unit carries the driver, it is filed as its own intake
-(done at this unit's merge: see the driver unit).
+The verbatim inputs for all cases are pinned in
+[`fixtures/gate/cases.ts`](../fixtures/gate/cases.ts) (unit #96), and
+driven by [`scripts/gate-case-driver.mjs`](../scripts/gate-case-driver.mjs)
+— `REPO=<repo> CASE=all node gate-case-driver.mjs`, which writes
+`runs/gate/<dev-SHA>/<case>/`. It refuses to run on a dirty tree, so the
+SHA it stamps is the build it drove. The driver's own header carries the
+setup.
+
+A case pins its steps AND the extractions the fake model answers with in
+one object, so a message and its extraction cannot be edited apart, and
+`src/lib/gate-cases.test.ts` runs in the ordinary test job and fails
+when a case stops describing the walk.
+
+**What that does and does not buy the reviewer.** It buys: the cases
+still match the ask inventory, they still reach the end of the walk, and
+their scripted candidates are really grounded. It does NOT buy a
+driveable case — the simulator behind that test deliberately models no
+DOM, so a renamed CSS class can still break the driver with CI green.
+**So a driver failure is ambiguous between a product defect and fixture
+rot, and the reviewer must say which they concluded and why.** Patching
+a selector to get through is legitimate; doing it silently is not.
+
+The driver's exit code is likewise narrow. It detects three things: a
+step whose expected question is not on screen, a declared surface never
+reached, and a talker turn the session holds that no surface showed.
+Exit 0 means **the six cases are still driveable and complete** — it is
+not a passing gate, and it says nothing about entries 1, 3, 4, 6, 7, 9
+or 10, which are the reviewer's to answer with evidence. The reviewer is
+expected to deviate from the scripted cases wherever suspicion leads;
+they are the floor, not the ceiling.
 
 - **C1 — reference case**: the amoxicillin narrative from the design
   mockups, dictated once, follow-ups answered plainly.
