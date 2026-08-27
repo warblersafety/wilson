@@ -4,6 +4,7 @@ import type { TalkTurn } from "../lib/talk";
 import type { NextStep, Topic } from "../lib/topics";
 import {
   EXTRACTION_RESPONSE_SCHEMA,
+  EXTRACTOR_SYSTEM,
   buildExtractionUserContent,
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
@@ -33,7 +34,11 @@ const TRANSCRIPT: TalkTurn[] = [
   { role: "clinician", text: "42 years old, born on 3/15." },
 ];
 
-describe("buildExtractionUserContent", () => {
+// The frozen pre-widening baseline (see extractor.ts's own note): kept
+// under test because scripts/cost-widened-turn.ts prices the widened
+// sweep against it and needs it to keep working, not because anything
+// ships it. The live per-turn prompt is buildFollowUpUserContent below.
+describe("buildExtractionUserContent — the frozen cost baseline", () => {
   it("for a topic step, lists only the step's open fields and excludes fields outside it", () => {
     const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a", "b"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
@@ -117,6 +122,32 @@ describe("EXTRACTION_RESPONSE_SCHEMA", () => {
 // against), the system prompt itself now carries the FULL field manifest
 // — design.md's cost posture: "the cached prefix carries the full
 // manifest and option lists, invariant across the session."
+describe("the live per-turn prompt's derive rules (ask-copy.md rule 3)", () => {
+  it("tells the model to propose a unit only from the clinician's own words", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toContain("Companion fields");
+    expect(system).toMatch(/never from what seems medically likely/i);
+  });
+
+  it("tells the model to leave a bare number's unit alone", () => {
+    // The deterministic half owns the bare-age default and the
+    // no-default-for-weight rule (src/lib/derive.ts); the prompt must not
+    // invite the model to guess either.
+    expect(buildFollowUpExtractorSystem(FIELDS)).toMatch(/bare number with no unit/i);
+  });
+
+  it("tells the model not to propose a group's negatives unless they were spoken", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toMatch(/a deterministic step completes it/i);
+    expect(system).toMatch(/only where the clinician said so explicitly/i);
+  });
+
+  it("leaves the frozen baseline untouched — it is a measurement, not a prompt", () => {
+    expect(EXTRACTOR_SYSTEM).not.toContain("Companion fields");
+    expect(EXTRACTOR_SYSTEM).toContain("never propose for an enum or checkbox field");
+  });
+});
+
 describe("buildFollowUpExtractorSystem", () => {
   const FIELDS: FormFieldSpec[] = [
     { id: "a", section: "A", pdfFieldName: "f.a[0]", label: "Field A", type: "text", required: false },

@@ -50,8 +50,19 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 page.on("console", (m) => { if (m.type() === "error") say(`[console error] ${m.text()}`); });
 page.on("pageerror", (e) => say(`[page error] ${e.message}`));
 
+// Next.js's dev-mode indicator renders into a `nextjs-portal` element
+// asynchronously, so it is present in some screenshots and absent from
+// others taken moments apart — which made `01-start.png` differ run to
+// run and quietly falsified a "byte-identical" claim on PR #104. It is
+// tool chrome, not the product, so it is hidden before every capture:
+// artifacts of the same build should be comparable byte for byte.
+async function hideDevChrome() {
+  await page.addStyleTag({ content: "nextjs-portal, [data-nextjs-toast] { display: none !important; }" }).catch(() => {});
+}
+
 async function shoot(name) {
   const file = `${String(++shot).padStart(2, "0")}-${name}.png`;
+  await hideDevChrome();
   await page.screenshot({ path: `${OUT}/${file}`, fullPage: true });
   say(`[screenshot] ${file}`);
 }

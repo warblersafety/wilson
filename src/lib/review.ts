@@ -8,7 +8,7 @@
 // read-back.ts are: provable under vitest's node environment, with the
 // component a thin wrapper.
 import { type AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   AGE_UNIT_LABELS,
   displayFor,
@@ -45,6 +45,18 @@ export function fieldDisplay(record: AgendaRecord, fieldId: string): ReviewField
   const entry = Object.hasOwn(record, fieldId) ? record[fieldId] : undefined;
   if (entry?.state === "unasked" && entry.value) {
     return { text: entry.value, muted: false, retained: true };
+  }
+  // An ANSWERED-false checkbox reads "No" here, where displayFor() —
+  // which speaks for the PDF, and on the PDF an unchecked box is simply
+  // unchecked — renders it blank, indistinguishable from never having
+  // been asked (reviewer pass, PR #106, F2). Rule 7's group completion
+  // writes those falses in bulk, six at a time on OC-1, so leaving them
+  // invisible would put a machine-written negative on the record with
+  // nothing on the surface the clinician signs off from to show it. The
+  // facsimile keeps rendering the form's own way; only Review, whose job
+  // is verification, says it out loud.
+  if (entry?.state === "answered" && entry.value === "false" && fieldById(fieldId)?.type === "checkbox") {
+    return { text: "No", muted: false, retained: false };
   }
   const rendered = displayFor(record, fieldId);
   return { text: rendered.text, muted: rendered.muted, retained: false };

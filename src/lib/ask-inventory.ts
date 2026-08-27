@@ -53,6 +53,28 @@ import { isResolved } from "./field-state";
 export interface AskFact {
   name: string;
   fieldIds: string[];
+  // Checkbox facts only, and one of the two must be true for rule 7's
+  // group completion to write the unnamed members `"false"` (see
+  // derive.ts). Authoring has to decide which, per fact:
+  //
+  // - `exclusive`: the members are mutually exclusive answers to one
+  //   question, so naming one entails the rest. "She's female" entails
+  //   not-male whether or not the ask said the word "male".
+  // - `voicesEveryMember`: the ask's own copy names every member out
+  //   loud, which is rule 7's stated bound — "every one of them is voiced
+  //   above, so no box is ever written false unheard". OC-1 lists all
+  //   seven outcomes; RA-2 lists all four recipients.
+  //
+  // A checkbox fact with NEITHER is a multi-select whose options the ask
+  // does not enumerate — PB-3's race/ethnicity, SP-6's product type.
+  // Completing those would assert absence the clinician never stated, and
+  // on PB-3 it would be wrong on the form's own terms: race and Hispanic
+  // ethnicity are orthogonal, so "she's White" says nothing at all about
+  // `EthnicLatino`. Such a fact instead resolves from ONE answered
+  // member, so the walk moves on without asserting anything; the rest
+  // stay open and answerable from the open-fields dialog.
+  exclusive?: boolean;
+  voicesEveryMember?: boolean;
 }
 
 export interface AuthoredAsk {
@@ -120,7 +142,7 @@ function patientBasics(): AuthoredAsk[] {
       topicId: "patient-basics",
       copy: "Who is the patient — an identifier like an MRN or initials, their age, and sex?",
       askFieldIds: [f("PatientIdentifier"), f("AgeValue"), f("SexM"), f("SexF")],
-      facts: [{ name: "sex", fieldIds: [f("SexM"), f("SexF")] }],
+      facts: [{ name: "sex", fieldIds: [f("SexM"), f("SexF")], exclusive: true }],
       companionFieldIds: [f("AgeYears"), f("AgeMonths"), f("AgeWeeks"), f("AgeDays")],
     },
     {
@@ -155,6 +177,12 @@ function patientBasics(): AuthoredAsk[] {
             f("RacePacific"),
             f("RaceWhite"),
           ],
+          // Deliberately neither `exclusive` nor `voicesEveryMember`:
+          // PB-3 asks for "race or ethnicity" without naming the seven
+          // boxes, and they are not alternatives — Hispanic ethnicity is
+          // orthogonal to race on this form, so "she's White" says
+          // nothing at all about EthnicLatino. One answer resolves the
+          // fact; the rest stay open and answerable at Review.
         },
       ],
       companionFieldIds: [],
@@ -180,7 +208,7 @@ function eventTopics(): AuthoredAsk[] {
         "a medication error, or a problem after switching manufacturers?",
       askFieldIds: [a("EventDate"), a("RepAdverse"), a("RepError"), a("Defects"), a("DiffManu")],
       facts: [
-        { name: "report type", fieldIds: [a("RepAdverse"), a("RepError"), a("Defects"), a("DiffManu")] },
+        { name: "report type", fieldIds: [a("RepAdverse"), a("RepError"), a("Defects"), a("DiffManu")], voicesEveryMember: true },
       ],
       // ReportDate is rule 4's auto field: stamped at export, editable at
       // Review, never asked.
@@ -214,6 +242,9 @@ function eventTopics(): AuthoredAsk[] {
             a("Death"),
             a("OtherEvents"),
           ],
+          // OC-1 reads every one of the seven out loud before any can be
+          // written false — rule 7's bound, met literally.
+          voicesEveryMember: true,
         },
       ],
       companionFieldIds: [],
@@ -270,7 +301,7 @@ function productAvailability(): AuthoredAsk[] {
         "or was it returned to the manufacturer, and when?",
       askFieldIds: [t("EvalYes"), t("EvalNo"), t("EvalRetd"), t("Row7.PicYes")],
       facts: [
-        { name: "product availability", fieldIds: [t("EvalYes"), t("EvalNo"), t("EvalRetd")] },
+        { name: "product availability", fieldIds: [t("EvalYes"), t("EvalNo"), t("EvalRetd")], exclusive: true },
       ],
       // Conditional on "returned" — fills from the same answer, never a
       // question of its own.
@@ -328,7 +359,7 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
         p("TherapyReduceDate"),
       ],
       facts: [
-        { name: "therapy status", fieldIds: [p("TherapyOngoingYes"), p("TherapyOngoingNo")] },
+        { name: "therapy status", fieldIds: [p("TherapyOngoingYes"), p("TherapyOngoingNo")], exclusive: true },
       ],
       // Duration fills from stated words only — never computed from the
       // dates (ask-copy.md SP-4). Absent stated words it stays open,
@@ -372,6 +403,9 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
             instance === 1 ? "Page4.Prod1.Prod1CosmProf" : "Page5.Prod2.pdt2CosmProf",
             q("PdtOther"),
           ],
+          // Neither, and for the same reason: SP-6 voices brand, generic,
+          // OTC, compounded, cannabinoid and cosmetic, but not "other",
+          // and a product can be several of these at once.
         },
       ],
       companionFieldIds: [],
@@ -382,7 +416,7 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
       copy: "After stopping or reducing it, did the event improve — yes, no, or doesn't apply?",
       askFieldIds: [p("AbatedYes"), p("AbatedNo"), p("AbatedNA")],
       facts: [
-        { name: "response after stopping", fieldIds: [p("AbatedYes"), p("AbatedNo"), p("AbatedNA")] },
+        { name: "response after stopping", fieldIds: [p("AbatedYes"), p("AbatedNo"), p("AbatedNA")], exclusive: true },
       ],
       companionFieldIds: [],
     },
@@ -392,7 +426,7 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
       copy: "Was it given again — and if so, did the event come back?",
       askFieldIds: [p("ReappearYes"), p("ReappearNo"), p("ReappearNA")],
       facts: [
-        { name: "response after restarting", fieldIds: [p("ReappearYes"), p("ReappearNo"), p("ReappearNA")] },
+        { name: "response after restarting", fieldIds: [p("ReappearYes"), p("ReappearNo"), p("ReappearNA")], exclusive: true },
       ],
       companionFieldIds: [],
     },
@@ -480,7 +514,7 @@ function device(): AuthoredAsk[] {
         "If it was implanted or explanted, when?",
       askFieldIds: [d("HealthPro"), d("PatientCons"), d("OperatorOther"), d("ImplantDate"), d("ExplantDate")],
       facts: [
-        { name: "device operator", fieldIds: [d("HealthPro"), d("PatientCons"), d("OperatorOther")] },
+        { name: "device operator", fieldIds: [d("HealthPro"), d("PatientCons"), d("OperatorOther")], voicesEveryMember: true },
       ],
       companionFieldIds: [],
     },
@@ -492,8 +526,8 @@ function device(): AuthoredAsk[] {
         "And was it ever serviced by a third-party servicer?",
       askFieldIds: [d("ReuseYes"), d("ReuseNo"), d("ServicedYes"), d("ServicedNo"), d("ServiceUnk")],
       facts: [
-        { name: "reprocessing history", fieldIds: [d("ReuseYes"), d("ReuseNo")] },
-        { name: "third-party servicing history", fieldIds: [d("ServicedYes"), d("ServicedNo"), d("ServiceUnk")] },
+        { name: "reprocessing history", fieldIds: [d("ReuseYes"), d("ReuseNo")], exclusive: true },
+        { name: "third-party servicing history", fieldIds: [d("ServicedYes"), d("ServicedNo"), d("ServiceUnk")], exclusive: true },
       ],
       // Conditional on a "yes" to reprocessing — fills from the same
       // answer.
@@ -565,7 +599,7 @@ function reporter(): AuthoredAsk[] {
       topicId: "reporter-about-you",
       copy: "Are you reporting as a health professional, and what's your occupation?",
       askFieldIds: [g("ProYes"), g("ProNo"), g("Occupation")],
-      facts: [{ name: "health-professional status", fieldIds: [g("ProYes"), g("ProNo")] }],
+      facts: [{ name: "health-professional status", fieldIds: [g("ProYes"), g("ProNo")], exclusive: true }],
       companionFieldIds: [],
     },
     {
@@ -576,8 +610,9 @@ function reporter(): AuthoredAsk[] {
         "a distributor, or a packer? And should FDA withhold your identity from the manufacturer?",
       askFieldIds: [g("ManuComp"), g("UserFac"), g("DistImp"), g("Packer"), g("IdentityNo")],
       facts: [
-        { name: "other reports", fieldIds: [g("ManuComp"), g("UserFac"), g("DistImp"), g("Packer")] },
-        { name: "identity-withholding choice", fieldIds: [g("IdentityNo")] },
+        { name: "other reports", fieldIds: [g("ManuComp"), g("UserFac"), g("DistImp"), g("Packer")], voicesEveryMember: true },
+        // A single box, so there is nothing to complete either way.
+        { name: "identity-withholding choice", fieldIds: [g("IdentityNo")], voicesEveryMember: true },
       ],
       companionFieldIds: [],
     },
@@ -626,13 +661,39 @@ export function asksForTopic(topicId: string): AuthoredAsk[] {
 
 // An ask is open while any field it waits on is unresolved. Companions
 // never hold it open (see the file header).
+// Whether group completion may write the unnamed members of a checkbox
+// fact `"false"` (rule 7's bound). Exported so derive.ts and the tests
+// read the same predicate.
+export function factCompletesFromOne(fact: AskFact): boolean {
+  return fact.exclusive === true || fact.voicesEveryMember === true;
+}
+
+// A CHECKBOX fact whose options the ask does not enumerate and which is
+// not mutually exclusive is answered by ONE member: the clinician
+// answered the question, nothing entitles us to write the rest false, so
+// the walk must not wait on them either.
+//
+// Checkbox-only, deliberately. RC-1's nine contact fields are also one
+// fact — for naming, so a re-ask says "And the rest of your contact
+// details?" rather than listing them — but each is independently
+// answerable, so a name alone must not close the ask.
+function factResolvesFromOne(fact: AskFact, record: AgendaRecord): boolean {
+  if (factCompletesFromOne(fact)) return false;
+  if (!fact.fieldIds.every((id) => fieldById(id)?.type === "checkbox")) return false;
+  return fact.fieldIds.some((id) => isResolved(record[id]?.state ?? "unasked"));
+}
+
 export function unresolvedAskFieldIds(ask: AuthoredAsk, record: AgendaRecord): string[] {
+  const settled = new Set<string>();
+  for (const fact of ask.facts ?? []) {
+    if (factResolvesFromOne(fact, record)) for (const id of fact.fieldIds) settled.add(id);
+  }
   return ask.askFieldIds.filter((fieldId) => {
     const entry = record[fieldId];
     if (entry === undefined) {
       throw new Error(`ask-inventory: record missing field id: ${fieldId}`);
     }
-    return !isResolved(entry.state);
+    return !isResolved(entry.state) && !settled.has(fieldId);
   });
 }
 

@@ -157,6 +157,46 @@ design conversation first.
    text fields as "Unknown" (`scripts/fill-3500.py`'s sentinel), which
    would state the opposite of what the clinician said on the
    FDA-bound form. Companions and further rows stay untouched.
+   **Answering a checkbox group answers the whole group, added
+   2026-08-27 (#90 part 2):** the members the clinician named are
+   `"true"`, the rest `"false"`. The completion is derived from the
+   answer that triggered it, not separately grounded — a written action
+   carries no quote of its own, so provenance is checked once, on the
+   triggering candidate, by the validator. Saying "grounded on the same
+   quote" would describe a check nothing performs. A
+   clinician who answers "she was hospitalised" has answered the outcome
+   question, not one seventh of it, and the alternative — leaving the
+   unnamed six `unasked` — re-asks the same question forever and shows
+   six phantom gaps at Review. The bound is this rule's own reasoning,
+   stated at OC-1: *every one of them is voiced above, so no box is ever
+   written false unheard.* So completion applies only to a group whose
+   own ask was the one on screen; a checkbox volunteered out-of-ask
+   completes nothing, and its group completes later, when its ask voices
+   it. An `unknown` or `declined` completes nothing either — "I don't
+   know if she was hospitalised" is not an answer to the question. This
+   is mechanical and lives in `src/lib/derive.ts`, not in the extractor
+   prompt: a rule this consequential should not vary run to run.
+   **The bound has a second half, added after review:** being on screen
+   is not the same as being heard. Completion applies only where naming
+   one member entails the rest (mutually exclusive alternatives — sex,
+   ongoing, abated, reappeared) or where the ask's copy reads every
+   member out loud (OC-1's seven outcomes, RA-2's four recipients).
+   A multi-select whose options the ask does not enumerate completes
+   nothing: PB-3 asks for "race or ethnicity" without naming its seven
+   boxes, and they are not alternatives — Hispanic ethnicity is
+   orthogonal to race on this form, so "she's White" says nothing at all
+   about `EthnicLatino` and writing it `"false"` would be wrong, not
+   merely unheard. Such a fact is answered by ONE member instead: the
+   clinician answered the question, the walk moves on, and the remaining
+   boxes stay open and answerable at Review. Each fact declares which
+   case it is (`exclusive` / `voicesEveryMember` in
+   `src/lib/ask-inventory.ts`), so a new checkbox group cannot inherit
+   completion by accident.
+   **And a completion must be visible.** A checkbox answered `"false"`
+   renders as "No" on Review — where an unchecked box would otherwise be
+   indistinguishable from one never asked, which would put six
+   machine-written negatives on the record with nothing on the surface
+   the clinician signs off from to show them.
 8. **Voice.** Second person, contractions, no exclamation marks,
    mockup screen-04's register. **One TOPIC per ask, at most two
    question marks** (amended 2026-08-27, #103; amended again the same

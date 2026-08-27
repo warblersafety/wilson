@@ -21,6 +21,7 @@ import {
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "../prompts/extractor";
+import { deriveCompanionWrites } from "./derive";
 import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
@@ -127,6 +128,15 @@ export function createExtractFn(
     const classified = classifyFollowUpActions(accepted, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 
+    // ask-copy.md rule 3's mechanical derives, applied to what the turn
+    // actually wrote (src/lib/derive.ts): the rest of a checkbox group
+    // the clinician just answered, and the bare-age default. Deliberately
+    // AFTER classification and not announced by the sweep — a companion
+    // is not a separate thing the clinician told us, it is the same fact
+    // written where the form keeps it, so "Also noted — age unit: years"
+    // would be reporting our own arithmetic back at them.
+    const derived = deriveCompanionWrites(step, session.record, classified.writes);
+
     // Only ever considered when the step actually open right now is a
     // repeat-decision — never on an ordinary topic turn. Without this
     // gate, a model mis-fire during a normal field-answering turn could
@@ -147,7 +157,7 @@ export function createExtractFn(
     }
 
     return {
-      actions: classified.writes,
+      actions: [...classified.writes, ...derived],
       repeatDecision,
       replyPrefix: replyPrefix.length > 0 ? replyPrefix : undefined,
       correctionOffers: classified.correctionOffers.length > 0 ? classified.correctionOffers : undefined,

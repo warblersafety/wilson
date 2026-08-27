@@ -38,6 +38,7 @@ import {
   type RepeatGroup,
   type Topic,
 } from "./topics";
+import { bareAgeDefaultWrites } from "./derive";
 
 export interface NarrativeProposal {
   action: ProposedAction;
@@ -199,8 +200,15 @@ export function applyNarrativeProposals(
   repeatDecisions: { repeatGroup: RepeatGroup; count: number }[],
   topics: Topic[] = TOPICS,
 ): { record: AgendaRecord; repeatCounts: RepeatCounts } {
+  // ask-copy.md rule 3's bare-age default applies here too: this is a
+  // write path, and an age dictated as "61-year-old" must not leave four
+  // unit checkboxes open just because it arrived through Read-back
+  // instead of a follow-up turn (reviewer pass, PR #106, F4). Group
+  // completion is deliberately absent — it is bounded by what an ask
+  // voiced, and a narrative voices nothing.
+  const withDerives = [...actions, ...bareAgeDefaultWrites(record, actions)];
   return {
-    record: applyProposedActions(record, actions),
+    record: applyProposedActions(record, withDerives),
     repeatCounts: repeatDecisions.reduce(
       (counts, decision) => setRepeatCount(counts, decision.repeatGroup, decision.count, topics),
       repeatCounts,

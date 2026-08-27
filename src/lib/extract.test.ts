@@ -391,6 +391,44 @@ describe("createExtractFn", () => {
       expect(result.replyPrefix).toContain("42");
     });
 
+    // ask-copy.md rule 3's derives reach the record through the same
+    // single write path everything else does — proved end to end here,
+    // not just in derive.test.ts's pure unit.
+    it("completes a checkbox group the clinician just answered, through the real turn", async () => {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda } = await import("./agenda");
+      const HOSPITAL = "Page1.SecA_Patient.Hospital";
+      const DEATH = "Page1.SecA_Patient.Death";
+      // Park the walk on OC-1 by resolving everything before it.
+      let record = initAgenda();
+      const { applyAction } = await import("./agenda");
+      for (const topic of realTopics) {
+        if (topic.id === "event-outcome") break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: HOSPITAL, kind: "value", value: "true", quote: { turnIndex: 1, text: "she was hospitalised" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "How serious was the outcome?" }] });
+      const result = await extract(session, "she was hospitalised");
+
+      expect(result.actions).toContainEqual({ fieldId: HOSPITAL, type: "answer", value: "true" });
+      // The other six boxes OC-1 voiced, written false — including death,
+      // which is exactly why rule 7 bounds this to a voiced ask.
+      expect(result.actions).toContainEqual({ fieldId: DEATH, type: "answer", value: "false" });
+      expect(result.actions).toHaveLength(7);
+      // And the companions are not announced back at the clinician: they
+      // are the same fact, written where the form keeps it.
+      expect(result.replyPrefix ?? "").not.toContain("death");
+    });
+
     it("passes the full field manifest (not just openFields) to validateCandidates, via the ALL_FIELD_TYPES default", async () => {
       // A candidate for "c" (not part of TOPIC's fields, and not in the
       // open set either — already answered) must still be checked against
