@@ -126,7 +126,13 @@ export function createExtractFn(
 
     // askFieldIds computed above, before the model call — see its own
     // comment for why this is the single source shared with the prompt.
-    const classified = classifyFollowUpActions(accepted, session.record, askFieldIds, topics);
+    // Rule 5's lab-row gate runs BEFORE classification, not after the
+    // reply is composed: filtering downstream made the turn announce
+    // "Also noted: test 2 — ALT 402" for a write it then discarded
+    // (reviewer pass, PR #107, F2). Everything after this point — the
+    // reply, the correction offers, the writes — sees one set of actions.
+    const inBounds = filterLabRowOverflow(session.record, accepted);
+    const classified = classifyFollowUpActions(inBounds, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 
     // ask-copy.md rule 3's mechanical derives, applied to what the turn
@@ -137,11 +143,6 @@ export function createExtractFn(
     // written where the form keeps it, so "Also noted — age unit: years"
     // would be reporting our own arithmetic back at them.
     const derived = deriveCompanionWrites(step, session.record, classified.writes);
-
-    // Rule 5's lab-row gate: a write to row N+1 is dropped while row N is
-    // empty or holds the literal "None", so a model that scattered tests
-    // across the table cannot leave permanent blank rows on the form.
-    const written = filterLabRowOverflow(session.record, [...classified.writes, ...derived]);
 
     // Only ever considered when the step actually open right now is a
     // repeat-decision — never on an ordinary topic turn. Without this
@@ -163,7 +164,7 @@ export function createExtractFn(
     }
 
     return {
-      actions: written,
+      actions: [...classified.writes, ...derived],
       repeatDecision,
       replyPrefix: replyPrefix.length > 0 ? replyPrefix : undefined,
       correctionOffers: classified.correctionOffers.length > 0 ? classified.correctionOffers : undefined,

@@ -31,7 +31,14 @@ asks out of it. `session.txt` contains the string "device" zero times.
   exported PDF carries it, so the surface whose job is "this is what the
   form will look like" is not the one place it's missing.
 - **`10-review.png`** — `date of this report 2026-08-27` on the Review
-  card, and no Section E, availability or purchase rows at all.
+  card, and the Product availability card reading **"Not part of this
+  report."** instead of five `—` rows. Rendering a gated section's fields
+  as a wall of dashes is the confirmed-absent reading rule 5 forbids, on
+  the surface the clinician signs off from; a first version of this
+  README claimed those rows were absent when they were merely empty
+  (reviewer pass, PR #107, F4). The card also has no Edit button, because
+  reopening a gated section's fields cleared the very evidence its gate
+  reads and foreclosed the section permanently (F3).
 - **`12-open-fields.png`** — 77, down from 109, because a gated-off
   topic's fields are not gaps.
 
@@ -54,10 +61,13 @@ suppression, same `SHOT_TURNS`. They are NOT comparable to
   case, so the denominator counts topics the clinician will never see.
   design.md's round-2 unit replaces it with the nine rail rows driving
   progress; this artifact is the strongest argument yet for doing that.
-- **A gated-off section has no click-path back** (#99): a device is
-  reachable by *saying* so — any Section E field the sweep writes opens
-  the gate — but not by pointing at it. Rule 5's "add affordance" needs
-  state the record cannot hold, and that is #99's design question.
+- **A gated-off section has no click-path back**, `ReportDate` is shown
+  at Review but not editable, and a gate that opened can still be closed
+  by a path this PR only guards rather than fixes. All three are one
+  missing thing — no way to record "the clinician wants this part of the
+  form" that is not a field value — and #99 now covers all three. The
+  ReportDate half is why **this PR does not close #90**: AC-3 asks for
+  "editable at Review", and that is the one part that did not land.
 - The count is per field, not per fact (round 2's curated Review).
 - Ready still shows a PDF failure: `next dev` does not serve the Vercel
   Python function.

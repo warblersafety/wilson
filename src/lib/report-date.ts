@@ -23,6 +23,11 @@ export function formatReportDate(today: Date): string {
 // The record as it should leave for the PDF: the clinician's own, plus
 // today's date in the one field they are never asked for.
 export function stampReportDate(record: AgendaRecord, today: Date): AgendaRecord {
-  if (record[REPORT_DATE_FIELD_ID]?.state === "answered") return record;
+  // A RETAINED value counts as the clinician's, not just an answered one:
+  // a reopened report date keeps its prior value with state `unasked`
+  // ("reopen never wipes"), and stamping over it made Review show
+  // "you said: 2026-08-01" while the export carried today (reviewer pass,
+  // PR #107, F6).
+  if (record[REPORT_DATE_FIELD_ID]?.value !== undefined) return record;
   return applyAction(record, REPORT_DATE_FIELD_ID, { type: "answer" }, formatReportDate(today));
 }

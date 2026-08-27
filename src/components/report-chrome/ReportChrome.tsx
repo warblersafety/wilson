@@ -53,7 +53,15 @@ interface ReportChromeProps {
 
 export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState, children }: ReportChromeProps) {
   const rows = reportRailRows(record, repeatCounts, currentTopicId);
-  const counts = recordFieldCounts(record);
+  // Stamped once, and used for BOTH the facsimile and the counts beside
+  // it. The facsimile previews the exported PDF and the PDF carries rule
+  // 4's report date, so the preview must show it — and a count computed
+  // from the unstamped record then described one fewer field than the
+  // preview rendered (reviewer pass, PR #107, nit a). One value also
+  // means one record identity per render rather than a fresh one inside
+  // the JSX (nit b).
+  const previewed = stampReportDate(record, new Date());
+  const counts = recordFieldCounts(previewed);
   const identifier = patientIdentifier(record);
   const nothingWritten = counts.written === 0 && counts.unknown === 0;
   const { headline, note } = emptyState ?? START_EMPTY_STATE;
@@ -108,12 +116,7 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState,
         </div>
       </nav>
       <div className="report-chrome__content">{children}</div>
-      {/* The facsimile previews the PDF, and the exported PDF carries
-          rule 4's stamped report date (src/lib/report-date.ts), so the
-          preview shows it too — otherwise the one surface whose whole
-          job is "this is what the form will look like" would be the one
-          place the date is missing. */}
-      <Facsimile record={stampReportDate(record, new Date())} counts={counts} />
+      <Facsimile record={previewed} counts={counts} />
     </div>
   );
 }

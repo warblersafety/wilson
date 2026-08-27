@@ -90,9 +90,15 @@ export function involvesProductHandling(record: AgendaRecord): boolean {
 
 // Whether a topic is currently out of the report. Non-gated topics are
 // never gated off, whatever the record says.
+// Which gate each gated topic answers to. An explicit map, not a name
+// prefix: a future gated topic called `device-something` that is not
+// Section E would have inherited the device gate silently (reviewer pass,
+// PR #107, nit c).
+const DEVICE_GATED_TOPIC_IDS: ReadonlySet<string> = new Set(["device-identity", "device-usage", "device-history"]);
+
 export function isTopicGatedOff(topicId: string, record: AgendaRecord): boolean {
   if (!GATED_TOPIC_IDS.has(topicId)) return false;
-  if (topicId.startsWith("device-")) return !isDeviceReport(record);
+  if (DEVICE_GATED_TOPIC_IDS.has(topicId)) return !isDeviceReport(record);
   return !involvesProductHandling(record);
 }
 
@@ -123,7 +129,13 @@ for (const field of FORM_3500_FIELDS) {
 function rowHasContent(record: AgendaRecord, writes: ProposedAction[], row: number): boolean {
   const anchor = LAB_ROW_ANCHORS[row - 1];
   const write = writes.find((w) => w.fieldId === anchor);
-  const value = write?.type === "answer" ? write.value : record[anchor]?.state === "answered" ? record[anchor].value : undefined;
+  // A RETAINED value counts, not just an answered one. agenda.ts keeps a
+  // reopened field's prior value ("reopen never wipes"), so a clinician
+  // who hits Edit on Lab data leaves row 1 as {unasked, value: "ALT 402"}
+  // — and requiring `answered` here silently discarded their correction
+  // to row 2 with no reply and no trace (reviewer pass, PR #107, F1).
+  const stored = record[anchor];
+  const value = write?.type === "answer" ? write.value : stored?.value;
   return value !== undefined && value.trim().toLowerCase() !== "none";
 }
 

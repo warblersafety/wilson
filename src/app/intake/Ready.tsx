@@ -18,6 +18,7 @@ import { formatReadyCounts, READY_COPY, readyCounts, START_OVER_CONFIRM_COPY } f
 import { PDF_COPY } from "@/lib/review";
 import type { TalkSession } from "@/lib/talk";
 import { usePdfExport } from "./use-pdf-export";
+import { stampReportDate } from "@/lib/report-date";
 
 interface ReadyProps {
   session: TalkSession;
@@ -27,7 +28,11 @@ interface ReadyProps {
 export function Ready({ session, onStartOver }: ReadyProps) {
   const [confirmingStartOver, setConfirmingStartOver] = useState(false);
   const pdf = usePdfExport(session.record);
-  const counts = readyCounts(session.record);
+  // Counted from the record the PDF actually carries, stamp included:
+  // this line sits beside a download offering that PDF, and describing
+  // one fewer written field than it contains is the same inconsistency
+  // the facsimile's header had (reviewer pass, PR #107, nit a).
+  const counts = readyCounts(stampReportDate(session.record, new Date()));
 
   return (
     <ReportChrome record={session.record} repeatCounts={session.repeatCounts} currentTopicId={null}>

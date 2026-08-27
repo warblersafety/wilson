@@ -47,6 +47,10 @@ Unlike text/date fields, a checkbox or enum candidate's "value" must be one of t
 - For a **checkbox** field, the legal values are exactly the strings "true" or "false" — nothing else. Propose "true" when the narrative clearly indicates the thing the checkbox represents applies; propose "false" when the narrative clearly, explicitly indicates it does not. A checkbox's label describes what "true" means (e.g. "Outcome: Hospitalization" — the narrative saying the patient was admitted overnight grounds "true" there).
 - For an **enum** field, you will be given its exact list of legal options — the value must be spelled exactly as one of them, never a paraphrase or a close synonym.
 
+## "None" is an answer, not a blank
+
+Three asks take prose or a table rather than a value: the relevant medical history, the relevant tests or labs, and anything else FDA should know. When the clinician clearly says there is nothing — "no relevant history", "none", "nothing else" — propose kind "value" with the literal string "None" for that ask's own field, NOT kind "unknown". The exported form prints an unanswered text field as "Unknown", which would tell FDA the opposite of what the clinician said. Reserve "unknown" for a clinician who does not have the information, which is a different thing from one who says there is none.
+
 ## Companion fields — one fact, several boxes
 
 Form 3500 keeps some single facts in several fields at once. When the narrative states the fact, propose every field it fills, each grounded on the same quote:

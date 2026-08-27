@@ -142,6 +142,17 @@ describe("the live per-turn prompt's derive rules (ask-copy.md rule 3)", () => {
     expect(system).toMatch(/only where the clinician said so explicitly/i);
   });
 
+  // Rule 7's text-ask negative, which nothing implemented until now: the
+  // PDF filler prints an unanswered text field as "Unknown", so a "no
+  // relevant history" recorded as unknown states the opposite of what the
+  // clinician said, on an FDA-bound form (reviewer pass, PR #107, F7).
+  it("tells the model a stated 'none' is the literal value None, never unknown", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toContain('"None" is an answer, not a blank');
+    expect(system).toMatch(/prints an unanswered text field as "Unknown"/);
+    expect(system).toMatch(/Reserve "unknown" for a clinician who does not have the information/);
+  });
+
   it("leaves the frozen baseline untouched — it is a measurement, not a prompt", () => {
     expect(EXTRACTOR_SYSTEM).not.toContain("Companion fields");
     expect(EXTRACTOR_SYSTEM).toContain("never propose for an enum or checkbox field");
