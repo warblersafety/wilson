@@ -22,6 +22,7 @@ import {
   SESSION_EXPORT_COPY,
   sessionRecord,
 } from "./session-export";
+import { REPORT_DATE_FIELD_ID, stampReportDate } from "./report-date";
 import { initTalkSession, type TalkSession } from "./talk";
 import { scriptedSteps } from "./ux-floor";
 
@@ -98,13 +99,20 @@ describe("the session bundle", () => {
     }
   });
 
-  it("equals the session's record field for field, all 227", async () => {
+  it("equals the session's record field for field, all 227 but the stamp", async () => {
     const session = await scriptedSession();
     const bundle = buildSessionBundle(session, EXPORTED_AT);
     expect(Object.keys(bundle.record)).toHaveLength(FORM_3500_FIELDS.length);
     for (const field of FORM_3500_FIELDS) {
+      // ReportDate is rule 4's auto field, stamped on the way out by
+      // every export path in the codebase (see "the record JSON" below).
+      // It is the ONE field allowed to differ, and it is exempted by name
+      // rather than by a loose comparison — 226 fields still have to be
+      // identical, and a second field drifting fails here.
+      if (field.id === REPORT_DATE_FIELD_ID) continue;
       expect(bundle.record[field.id], field.id).toEqual(session.record[field.id]);
     }
+    expect(bundle.record[REPORT_DATE_FIELD_ID].state).toBe("answered");
   });
 
   it("carries the repeat counts and the volunteered repeats as they stand", async () => {
@@ -134,17 +142,52 @@ describe("the session bundle", () => {
 });
 
 describe("the record JSON", () => {
-  // AC-5, second half.
+  // AC-5, second half. Compared against the stamped record, which is what
+  // leaves — see the ReportDate tests below.
   it("round-trips through JSON.parse to the stored record", async () => {
     const session = await scriptedSession();
-    expect(JSON.parse(serializeJson(sessionRecord(session)))).toEqual(session.record);
+    const exported = sessionRecord(session, EXPORTED_AT);
+    expect(JSON.parse(serializeJson(exported))).toEqual(exported);
+    // Everything the clinician established is untouched: the stamp is the
+    // only difference between what is stored and what leaves.
+    for (const field of FORM_3500_FIELDS) {
+      if (field.id === REPORT_DATE_FIELD_ID) continue;
+      expect(exported[field.id], field.id).toEqual(session.record[field.id]);
+    }
   });
 
   it("carries field states and values, not just values", () => {
     const record = applyAction(initAgenda(), "Page1.SecA_Patient.AgeValue", { type: "answer" }, "58");
-    const exported = JSON.parse(serializeJson(sessionRecord({ ...initTalkSession(), record })));
+    const exported = JSON.parse(serializeJson(sessionRecord({ ...initTalkSession(), record }, EXPORTED_AT)));
     expect(exported["Page1.SecA_Patient.AgeValue"]).toEqual({ state: "answered", value: "58" });
     expect(exported["Page1.SecA_Patient.DateBirth"]).toEqual({ state: "unasked" });
+  });
+
+  // Reviewer pass, PR #112. Every other export path stamps rule 4's auto
+  // field — pdf-export.ts, ReportChrome, Ready's own counts line — so an
+  // unstamped JSON put three artifacts off one screen in disagreement
+  // about the field the clinician is never asked for.
+  it("stamps ReportDate, the way every other export path does", async () => {
+    const session = await scriptedSession();
+    expect(session.record[REPORT_DATE_FIELD_ID].state).toBe("unasked");
+    const exported = sessionRecord(session, new Date(2026, 7, 27, 12, 0));
+    expect(exported[REPORT_DATE_FIELD_ID]).toEqual({ state: "answered", value: "2026-08-27" });
+  });
+
+  it("agrees with the PDF downloaded beside it", async () => {
+    const session = await scriptedSession();
+    const now = new Date(2026, 7, 27, 12, 0);
+    // pdf-export.ts fills from stampReportDate(record, today); the JSON
+    // must be the same record, not a differently-derived one.
+    expect(sessionRecord(session, now)).toEqual(stampReportDate(session.record, now));
+    expect(buildSessionBundle(session, now).record).toEqual(stampReportDate(session.record, now));
+  });
+
+  it("never overwrites a report date the clinician gave", async () => {
+    const session = await scriptedSession();
+    const stated = applyAction(session.record, REPORT_DATE_FIELD_ID, { type: "answer" }, "2026-08-01");
+    const exported = sessionRecord({ ...session, record: stated }, new Date(2026, 7, 27, 12, 0));
+    expect(exported[REPORT_DATE_FIELD_ID].value).toBe("2026-08-01");
   });
 });
 
@@ -214,7 +257,12 @@ describe("the export path, structurally", () => {
   it.each(["src/lib/session-export.ts", "src/app/intake/download-file.ts"])(
     "%s neither calls out nor persists",
     (path) => {
-      const source = read(path).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      // Raw source, comments included. Stripping `//` to end-of-line
+      // would hide a forbidden token later on the same line, and neither
+      // file mentions one in a comment — so the strip only weakened the
+      // one check standing behind a privacy claim the copy makes out
+      // loud (reviewer pass, PR #112).
+      const source = read(path);
       for (const forbidden of ["fetch(", "localStorage", "sessionStorage", "XMLHttpRequest", "navigator.send"]) {
         expect(source, `${path} contains ${forbidden}`).not.toContain(forbidden);
       }

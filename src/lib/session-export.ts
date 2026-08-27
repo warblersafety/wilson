@@ -27,6 +27,7 @@
 // (blob, object URL, anchor click) lives in the app layer, which is the
 // only part that cannot run under tsconfig.node.json.
 import type { AgendaRecord } from "./agenda";
+import { stampReportDate } from "./report-date";
 import type { TalkSession, TalkTurn } from "./talk";
 import type { RepeatCounts, RepeatGroup } from "./topics";
 
@@ -52,13 +53,24 @@ export interface SessionBundle {
   volunteeredRepeats: Partial<Record<RepeatGroup, true>>;
 }
 
-// The record as stored — states and values both. Not a values-only
-// projection: "unknown" and "declined" are clinician-established states
-// (design.md), and a diagnostic export that flattened them to absent
-// would lose the exact distinction most worth having when a session went
-// wrong.
-export function sessionRecord(session: TalkSession): AgendaRecord {
-  return session.record;
+// The record as it LEAVES — states and values both, with rule 4's auto
+// field stamped.
+//
+// Not a values-only projection: "unknown" and "declined" are
+// clinician-established states (design.md), and a diagnostic export that
+// flattened them to absent would lose the exact distinction most worth
+// having when a session went wrong.
+//
+// And stamped, because every other export path stamps: pdf-export.ts
+// before filling the form, ReportChrome before previewing it, Ready
+// before counting written fields. An unstamped export would put a record
+// JSON saying `ReportDate: unasked` next to a PDF printing today's date
+// and a counts line that included it — three artifacts off the same
+// screen disagreeing about the one field the clinician is never asked
+// for (reviewer pass, PR #112). stampReportDate() leaves a clinician's
+// own answer alone, so this adds a date and never overwrites one.
+export function sessionRecord(session: TalkSession, now: Date): AgendaRecord {
+  return stampReportDate(session.record, now);
 }
 
 // `now` is a parameter, never `new Date()` inside: the caller owns the
@@ -73,7 +85,7 @@ export function buildSessionBundle(session: TalkSession, now: Date): SessionBund
     appVersion: APP_VERSION,
     exportedAt: now.toISOString(),
     transcript: session.transcript,
-    record: session.record,
+    record: sessionRecord(session, now),
     repeatCounts: session.repeatCounts,
     // Normalized, not passed through: `volunteeredRepeats` is optional on
     // TalkSession (talk.ts's additive convention), and `undefined` would

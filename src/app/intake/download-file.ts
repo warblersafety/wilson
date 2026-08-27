@@ -24,15 +24,28 @@ export function triggerDownload(url: string, filename: string): void {
   document.body.removeChild(link);
 }
 
-// Client-side only, and short-lived: the object URL is revoked as soon as
-// the click is handed off, so a clinician who exports repeatedly does not
-// accumulate blobs for the page's lifetime. Nothing is written to
-// storage and nothing leaves the browser (design.md's privacy posture).
+// How long the object URL lives, and why it is not `finally`.
+//
+// Clicking an <a download> QUEUES a task to fetch the URL; it does not
+// read the blob synchronously. Revoking in the same task — which a
+// try/finally does — can pull the blob out from under that queued fetch,
+// and the clinician gets nothing or an empty file. Chrome tolerates it;
+// WebKit and Gecko have not been relied on to. This file already carries
+// one Safari workaround, and shipping a Safari-breaking revoke beside it
+// would be a poor joke.
+//
+// So: revoke on a later task. Still short-lived — a clinician who
+// exports repeatedly does not accumulate blobs for the page's lifetime —
+// but never before the download that needs it has started. usePdfExport
+// solves the same problem the other available way, by revoking in an
+// effect cleanup; there is no component lifecycle here to hang that on.
+//
+// Nothing is written to storage and nothing leaves the browser
+// (design.md's privacy posture).
+const REVOKE_DELAY_MS = 60_000;
+
 export function downloadJson(value: unknown, filename: string): void {
   const url = URL.createObjectURL(new Blob([serializeJson(value)], { type: "application/json" }));
-  try {
-    triggerDownload(url, filename);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  triggerDownload(url, filename);
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
 }

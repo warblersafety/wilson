@@ -1,0 +1,36 @@
+# Issue #92 - the downloads, clicked in a real browser
+#
+# The only proof that reaches the revoke-timing fix (reviewer pass, PR
+# #112, finding 1): no test in this repo renders a DOM, so "the file
+# actually lands, with content" is unobservable from vitest.
+#
+# Produced by verify-downloads.mjs beside this file, run the way
+# scripts/artifact-session.mjs documents - Playwright installed into a
+# scratch directory, never a repo dependency:
+#
+#   mkdir -p /tmp/wilson-artifact/pw && cd /tmp/wilson-artifact/pw
+#   npm init -y && npm i playwright
+#   cp <repo>/runs/unit-92/verify-downloads.mjs .
+#   # in the repo: npm run dev &
+#   #             npx tsx scripts/artifact-seed.ts > /tmp/wilson-artifact/seed.json
+#   SEED=/tmp/wilson-artifact/seed.json node verify-downloads.mjs
+#
+# What it shows: both artifacts download from BOTH surfaces, the record
+# carries all 227 fields with ReportDate stamped (finding 2), the bundle
+# leads with its version, and all 23 widget-sourced turns survive.
+
+=== review ===
+record:  wilson-record-2026-08-27.json  14750 bytes  keys=227
+         ReportDate = {"state":"answered","value":"2026-08-27"}
+bundle:  wilson-session-2026-08-27.json  24240 bytes
+         first key = bundleVersion = 1
+         appVersion=0.1.0 turns=48 fields=227
+         widget turns = 23
+
+=== ready ===
+record:  wilson-record-2026-08-27.json  14750 bytes  keys=227
+         ReportDate = {"state":"answered","value":"2026-08-27"}
+bundle:  wilson-session-2026-08-27.json  24240 bytes
+         first key = bundleVersion = 1
+         appVersion=0.1.0 turns=48 fields=227
+         widget turns = 23

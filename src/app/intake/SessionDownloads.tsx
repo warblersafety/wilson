@@ -21,7 +21,10 @@ export function SessionDownloads({ session }: SessionDownloadsProps) {
   // Stamped at the click, not at render: a report left open overnight
   // should export with the date it was exported, not the date the
   // surface first mounted.
-  const downloadRecord = () => downloadJson(sessionRecord(session), recordFilename(new Date()));
+  const downloadRecord = () => {
+    const now = new Date();
+    downloadJson(sessionRecord(session, now), recordFilename(now));
+  };
   const downloadBundle = () => {
     const now = new Date();
     downloadJson(buildSessionBundle(session, now), bundleFilename(now));
