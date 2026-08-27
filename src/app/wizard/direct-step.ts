@@ -45,6 +45,15 @@ import type { TalkSession, TalkStep } from "@/lib/talk";
 export interface StepForSessionOptions {
   // See the file header above. Default false: no talker turn appended.
   appendReply?: boolean;
+  // What the write this call follows just recorded — ask-copy.md rule 8's
+  // dismiss acknowledgment (#110), composed by chip-grammar.ts's
+  // dismissAcknowledgment(). Prepended to the recomputed question exactly
+  // as talk.ts's respond() prepends the conversational path's sweep
+  // prefix, so one tap produces one talker turn carrying both. The
+  // alternative — a talker turn of its own — is the double-bubble class
+  // unit #89 removed, and it would also make the tap's write and its
+  // acknowledgment two separately-droppable things.
+  replyPrefix?: string;
 }
 
 export async function stepForSession(
@@ -52,7 +61,11 @@ export async function stepForSession(
   options: StepForSessionOptions = {},
 ): Promise<TalkStep> {
   const step = nextStep(session.record, session.repeatCounts);
-  const reply = await askDeterministic(step, session);
+  const question = await askDeterministic(step, session);
+  // Composed before the `done` check has any say: the prefix is about a
+  // write that already happened, so the last dismiss of a session must
+  // not be the one nobody is told about.
+  const reply = options.replyPrefix ? `${options.replyPrefix} ${question}` : question;
   const resultSession: TalkSession = options.appendReply
     ? { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] }
     : session;

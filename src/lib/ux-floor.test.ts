@@ -23,6 +23,7 @@ import {
   STATED_UNGATED_ASK_COUNT,
   templateMarkerViolations,
 } from "./ux-floor";
+import { AUTHORED_ASKS } from "./ask-inventory";
 import {
   FIELD_ID_INVENTORY,
   MANIFEST_LABEL_INVENTORY,
@@ -70,6 +71,20 @@ describe("the rendered-copy inventory", () => {
     // 130 frames, not one: a re-ask is composed per still-open fact, so
     // the reference path proves almost none of them.
     expect(INVENTORY.filter((entry) => entry.source.startsWith("re-ask:")).length).toBeGreaterThan(100);
+  });
+
+  // Issue #110. Every ask, both dismiss chips — not a sample: the tap
+  // acknowledgment names facts, and the asks whose fact list would read
+  // worst (DV-1's ten device fields, RC-1's eight contact fields) are
+  // exactly the ones a fixture would have left out.
+  it("renders rule 8's dismiss acknowledgment for every ask and both chips", () => {
+    const dismissals = INVENTORY.filter((entry) => entry.source.startsWith("sweep:dismiss/"));
+    expect(dismissals).toHaveLength(AUTHORED_ASKS.length * 2);
+    const bySource = new Map(dismissals.map((entry) => [entry.source, entry.text]));
+    expect(bySource.get("sweep:dismiss/RA-2/mark_unknown")).toBe(
+      "Marked other reports and identity-withholding choice as not on hand.",
+    );
+    expect(bySource.get("sweep:dismiss/DV-1/decline")).toBe("Marked the rest of the device details as declined.");
   });
 
   it("renders every field's display name", () => {

@@ -19,6 +19,7 @@ import { Chip } from "@/components/Chip";
 import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
+  dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
   remainingCorrectionOffers,
@@ -94,7 +95,15 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(current.reply, answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(await stepForSession(nextSession, { appendReply: true }));
+      onSubmitted(
+        await stepForSession(nextSession, {
+          appendReply: true,
+          // ask-copy.md rule 8 (#110). Named from the same step the
+          // `fieldIds` above came from, so the sentence names exactly the
+          // facts this tap resolved.
+          replyPrefix: dismissAcknowledgment(current.nextStep, action),
+        }),
+      );
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {

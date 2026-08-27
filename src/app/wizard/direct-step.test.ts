@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { askDeterministic } from "@/lib/ask";
 import { applyActionToFields, dismissableFieldIds, widgetTurnText } from "@/lib/chip-grammar";
 import { initTalkSession, processTurn, startTalk, type ExtractFn } from "@/lib/talk";
+import { initRepeatCounts, setRepeatCount } from "@/lib/topics";
 import { stepForSession } from "./direct-step";
 
 describe("stepForSession", () => {
@@ -87,3 +88,47 @@ describe("stepForSession", () => {
     expect(transcript[typedIndex - 1]).toEqual({ role: "talker", text: afterDismiss.reply });
   });
 });
+
+// Issue #110: a dismiss tap's acknowledgment reaches the transcript the
+// same way the sweep's does — prepended to the recomputed question, so
+// the talker turn carries both (talk.ts's respond() composes the
+// conversational path's prefix identically). A separate talker turn was
+// the alternative and is not what this does: two bubbles for one tap is
+// the double-bubble class unit #89 removed.
+describe("stepForSession replyPrefix", () => {
+  it("prepends the prefix to the reply and to the appended talker turn", async () => {
+    const session = initTalkSession();
+    const bare = await stepForSession(session, { appendReply: true });
+    const prefixed = await stepForSession(session, { appendReply: true, replyPrefix: "Marked age as not on hand." });
+    expect(prefixed.reply).toBe(`Marked age as not on hand. ${bare.reply}`);
+    expect(prefixed.session.transcript).toEqual([{ role: "talker", text: prefixed.reply }]);
+  });
+
+  it("omitting the prefix leaves the reply exactly as it was", async () => {
+    const session = initTalkSession();
+    const bare = await stepForSession(session, { appendReply: true });
+    const explicit = await stepForSession(session, { appendReply: true, replyPrefix: undefined });
+    expect(explicit.reply).toBe(bare.reply);
+  });
+
+  // The prefix is about a write that already happened, so it must survive
+  // the walk running out of questions — otherwise the last dismiss of a
+  // session is the one nobody is told about.
+  it("still carries the prefix when the recomputed step is done", async () => {
+    const answered = {
+      ...initTalkSession(),
+      record: dismissEverything(),
+      repeatCounts: setRepeatCount(setRepeatCount(initRepeatCounts(), "suspect-product", 1), "concomitant-medication", 1),
+    };
+    const result = await stepForSession(answered, { appendReply: true, replyPrefix: "Marked age as declined." });
+    expect(result.nextStep.kind).toBe("done");
+    expect(result.reply.startsWith("Marked age as declined. ")).toBe(true);
+  });
+});
+
+function dismissEverything() {
+  const record = initTalkSession().record;
+  const out = { ...record };
+  for (const id of Object.keys(out)) out[id] = { state: "unknown" as const };
+  return out;
+}

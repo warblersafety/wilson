@@ -52,6 +52,15 @@ import { isResolved } from "./field-state";
 // every one of them.
 export interface AskFact {
   name: string;
+  // The same fact, named for a sentence that supplies no article of its
+  // own — rule 8's `Marked {name} as not on hand.` (#110). Only the
+  // rule-9 bulk-mapped names need one: "rest of the device details" is
+  // authored to follow rule 9's frame, which spells the article itself
+  // ("And the {name}?"), so it cannot stand at the head of a sentence.
+  // Authored per fact rather than derived, because "does this name need
+  // an article?" is an English question about the name, not a shape any
+  // rule can read off the field list.
+  standaloneName?: string;
   fieldIds: string[];
   // Checkbox facts only, and one of the two must be true for rule 7's
   // group completion to write the unnamed members `"false"` (see
@@ -448,6 +457,7 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
       facts: [
         {
           name: "rest of the purchase details",
+          standaloneName: "the rest of the purchase details",
           fieldIds: [
             p("PlaceName"),
             p("Address"),
@@ -490,6 +500,7 @@ function device(): AuthoredAsk[] {
       facts: [
         {
           name: "rest of the device details",
+          standaloneName: "the rest of the device details",
           fieldIds: [
             d("BrandName"),
             d("CommName"),
@@ -578,6 +589,7 @@ function reporter(): AuthoredAsk[] {
       facts: [
         {
           name: "rest of your contact details",
+          standaloneName: "the rest of your contact details",
           fieldIds: [
             g("LastName"),
             g("FirstName"),
@@ -697,19 +709,39 @@ export function unresolvedAskFieldIds(ask: AuthoredAsk, record: AgendaRecord): s
   });
 }
 
-// The names of the facts an ask is still waiting on, in the ask's own
-// field order, each named once — what rule 9's re-ask frames say.
-export function unresolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): string[] {
-  const unresolved = new Set(unresolvedAskFieldIds(ask, record));
+// The facts a given subset of an ask's fields belongs to, in the ask's own
+// field order, each named once. Takes the field ids rather than a record
+// so a caller that ALREADY has the exact set — a NextStep's own
+// `fieldIds`, which is what a dismiss chip writes — names those and
+// nothing else, instead of re-deriving a second set and hoping the two
+// agree (extract.ts records the same lesson about askFieldIds: one value,
+// so they cannot drift apart).
+function factNamesFor(ask: AuthoredAsk, fieldIds: string[], pick: (fact: AskFact) => string): string[] {
+  const wanted = new Set(fieldIds);
   const factByFieldId = new Map<string, AskFact>();
   for (const fact of ask.facts ?? []) for (const fieldId of fact.fieldIds) factByFieldId.set(fieldId, fact);
   const names: string[] = [];
   for (const fieldId of ask.askFieldIds) {
-    if (!unresolved.has(fieldId)) continue;
-    const name = factByFieldId.get(fieldId)?.name ?? displayName(fieldId);
+    if (!wanted.has(fieldId)) continue;
+    const fact = factByFieldId.get(fieldId);
+    const name = fact === undefined ? displayName(fieldId) : pick(fact);
     if (!names.includes(name)) names.push(name);
   }
   return names;
+}
+
+// The names of the facts an ask is still waiting on, in the ask's own
+// field order, each named once — what rule 9's re-ask frames say.
+export function unresolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): string[] {
+  return factNamesFor(ask, unresolvedAskFieldIds(ask, record), (fact) => fact.name);
+}
+
+// The facts a dismiss tap over `fieldIds` resolves, named for a sentence
+// that supplies no article of its own — rule 8's dismiss acknowledgment
+// (chip-grammar.ts's dismissAcknowledgment). Identical to the names above
+// for every fact but the three bulk-mapped ones; see AskFact.standaloneName.
+export function standaloneFactNamesFor(ask: AuthoredAsk, fieldIds: string[]): string[] {
+  return factNamesFor(ask, fieldIds, (fact) => fact.standaloneName ?? fact.name);
 }
 
 export function askApplies(ask: AuthoredAsk, record: AgendaRecord): boolean {

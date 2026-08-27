@@ -9,7 +9,7 @@ import type { AgendaRecord } from "./agenda";
 import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { ProposedAction } from "./talk";
 import type { Topic } from "./topics";
-import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
+import { classifyFollowUpActions, describeDismissal, describeFollowUpSweep } from "./followup-sweep";
 import { syntheticAsk } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], label = id): FormFieldSpec {
@@ -56,7 +56,7 @@ describe("classifyFollowUpActions", () => {
     expect(result.writes).toEqual([{ fieldId: "a", type: "answer", value: "42" }]);
     expect(result.outOfAskWrites).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual([]);
+    expect(result.collisions).toEqual([]);
     expect(result.volunteeredRepeatGroups).toEqual([]);
   });
 
@@ -119,7 +119,7 @@ describe("classifyFollowUpActions", () => {
     expect(result.writes).toEqual([]);
     expect(result.outOfAskWrites).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual(["a"]);
+    expect(result.collisions.map((c) => c.fieldId)).toEqual(["a"]);
   });
 
   it("a collision on an already-resolved field is still a collision, not two correction offers", () => {
@@ -130,7 +130,7 @@ describe("classifyFollowUpActions", () => {
     ];
     const result = classifyFollowUpActions(actions, record, [], TOPICS);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual(["a"]);
+    expect(result.collisions.map((c) => c.fieldId)).toEqual(["a"]);
   });
 
   it("a candidate for a repeat-instance-2+ field writes nothing and records the group as volunteered", () => {
@@ -139,7 +139,7 @@ describe("classifyFollowUpActions", () => {
     const result = classifyFollowUpActions(actions, record, [], TOPICS);
     expect(result.writes).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual([]);
+    expect(result.collisions).toEqual([]);
     expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
   });
 
@@ -198,7 +198,7 @@ describe("classifyFollowUpActions", () => {
 
   it("returns empty result for an empty actions list", () => {
     const result = classifyFollowUpActions([], recordOf({}), [], TOPICS);
-    expect(result).toEqual({ writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [], volunteeredRepeatGroups: [] });
+    expect(result).toEqual({ writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] });
   });
 
   it("throws on a field id missing from the given record — fail loud, not silently skip", () => {
@@ -256,7 +256,7 @@ describe("describeFollowUpSweep", () => {
 
   it("returns an empty string when there is nothing to announce", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [], volunteeredRepeatGroups: [] },
+      { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] },
       FIELDS,
     );
     expect(result).toBe("");
@@ -268,7 +268,7 @@ describe("describeFollowUpSweep", () => {
         writes: [{ fieldId: LOT, type: "answer", value: "8834" }],
         outOfAskWrites: [{ fieldId: LOT, type: "answer", value: "8834" }],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -289,7 +289,7 @@ describe("describeFollowUpSweep", () => {
           { fieldId: DESC, type: "answer", value: "rash" },
         ],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -313,7 +313,7 @@ describe("describeFollowUpSweep", () => {
             currentValue: "8/19",
           },
         ],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -337,7 +337,7 @@ describe("describeFollowUpSweep", () => {
             currentValue: undefined,
           },
         ],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -348,7 +348,7 @@ describe("describeFollowUpSweep", () => {
 
   it("phrases a collision as a clarifying question naming the field", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [STOP_DATE], volunteeredRepeatGroups: [] },
+      { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20"] }], volunteeredRepeatGroups: [] },
       FIELDS,
     );
     expect(result).toContain("therapy stop date");
@@ -361,7 +361,7 @@ describe("describeFollowUpSweep", () => {
         writes: [],
         outOfAskWrites: [],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: ["suspect-product"],
       },
       FIELDS,
@@ -377,7 +377,7 @@ describe("describeFollowUpSweep", () => {
         correctionOffers: [
           { fieldId: STOP_DATE, action: { fieldId: STOP_DATE, type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
         ],
-        collisionFieldIds: [DESC],
+        collisions: [{ fieldId: DESC, values: ["rash", "hives"] }],
         volunteeredRepeatGroups: ["concomitant-medication"],
       },
       FIELDS,
@@ -395,11 +395,102 @@ describe("describeFollowUpSweep", () => {
         writes: [{ fieldId: realField.id, type: "answer", value: "8834" }],
         outOfAskWrites: [{ fieldId: realField.id, type: "answer", value: "8834" }],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FORM_3500_FIELDS,
     );
     expect(result).not.toMatch(/Page\d+\./);
+  });
+});
+
+// Issues #109 and #110. docs/ask-copy.md rule 8 authors these sentences
+// verbatim; before this unit the build rendered two of them differently
+// and the third not at all. `toBe`, not `toContain`, deliberately: rule
+// 1's whole premise is that the contract IS the copy, and a containment
+// assertion is exactly what let "Also noted: age — 58." pass for
+// "Also noted — age: 58." for as long as it did.
+describe("rule 8's Patterns, rendered byte-for-byte", () => {
+  const LOT = "Page4.Prod1.Prod1LotNum"; // "lot number"
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate"; // "therapy stop date"
+  const FIELDS = [fieldById(LOT)!, fieldById(STOP_DATE)!];
+
+  const empty = { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] };
+
+  it("out-of-ask write: `Also noted — {name}: {value}.`", () => {
+    const write = { fieldId: LOT, type: "answer" as const, value: "8834" };
+    const result = describeFollowUpSweep({ ...empty, writes: [write], outOfAskWrites: [write] }, FIELDS);
+    expect(result).toBe("Also noted — lot number: 8834.");
+  });
+
+  it("collision: `I heard two values for {name}: {a} and {b} — which should I write?`", () => {
+    const result = describeFollowUpSweep(
+      { ...empty, collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20"] }] },
+      FIELDS,
+    );
+    expect(result).toBe("I heard two values for therapy stop date: 8/19 and 8/20 — which should I write?");
+  });
+
+  it("dismiss tap: `Marked {name} as not on hand.` / `Marked {name} as declined.`", () => {
+    expect(describeDismissal(["age"], "mark_unknown")).toBe("Marked age as not on hand.");
+    expect(describeDismissal(["age"], "decline")).toBe("Marked age as declined.");
+  });
+});
+
+describe("the collision reply quotes the values that collided (#109)", () => {
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate";
+  const FIELDS = [fieldById(STOP_DATE)!];
+
+  it("the classifier keeps every colliding candidate's value, in turn order", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "8/19" },
+      { fieldId: "a", type: "answer", value: "8/20" },
+    ];
+    const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "8/20"] }]);
+  });
+
+  it("describes a mark_unknown/decline candidate the same way the correction offer does", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "8/19" },
+      { fieldId: "a", type: "mark_unknown" },
+    ];
+    const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "unknown"] }]);
+  });
+
+  // Rule 8 authors the two-value sentence only. Three proposals for one
+  // field is reachable (nothing in validateCandidates() caps or dedupes
+  // per field), so the build has to say something true about it: the
+  // count is derived rather than asserted, following open-fields.ts's
+  // openFieldsHeading() — "derived from the count, never hardcoded".
+  // Filed as a contract gap; see the comment on collisionSentence().
+  it("quotes all of them, and does not claim `two`, when three collided", () => {
+    const result = describeFollowUpSweep(
+      { writes: [], outOfAskWrites: [], correctionOffers: [], volunteeredRepeatGroups: [],
+        collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20", "8/21"] }] },
+      FIELDS,
+    );
+    expect(result).toBe("I heard 3 values for therapy stop date: 8/19, 8/20, and 8/21 — which should I write?");
+  });
+});
+
+describe("describeDismissal (#110)", () => {
+  // The facts a tap covers, never its fields: one tap on RA-2 writes five
+  // fields and names two facts. Rule 9 already made this call for the
+  // re-ask frames — "enumerating its fields is the recite-the-field-list
+  // failure this whole contract exists to remove" — and a dismiss
+  // acknowledgment reciting ten device fields would be that same defect
+  // in a new sentence.
+  it("names several facts through rule 9's own join", () => {
+    expect(describeDismissal(["other reports", "identity-withholding choice"], "mark_unknown")).toBe(
+      "Marked other reports and identity-withholding choice as not on hand.",
+    );
+  });
+
+  it("refuses to compose an acknowledgment for nothing", () => {
+    expect(() => describeDismissal([], "mark_unknown")).toThrow(/at least one/);
   });
 });

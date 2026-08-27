@@ -12,7 +12,7 @@ import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { FieldState } from "./field-state";
 import { REPEAT_GROUP_LABELS } from "./ask";
-import { displayNameFor } from "./display-names";
+import { displayNameFor, joinNames } from "./display-names";
 import type { ProposedAction } from "./talk";
 import { repeatGroupOfLaterInstanceField, TOPICS, type RepeatGroup, type Topic } from "./topics";
 
@@ -25,10 +25,23 @@ export interface CorrectionOffer {
   currentValue?: string;
 }
 
+// A field this turn proposed more than one candidate for. Carries the
+// values, not just the id: ask-copy.md rule 8's collision line quotes
+// both, and the build used to ask "which one did you mean?" with neither
+// value on screen — asking the clinician to disambiguate from memory on
+// exactly the turn the record is already known to be ambiguous (#109).
+export interface FieldCollision {
+  fieldId: string;
+  // Every candidate's value, in the order the extractor returned them,
+  // described the same way a correction offer describes one (so a
+  // `mark_unknown` collides as "unknown", not as a missing slot).
+  values: string[];
+}
+
 export interface FollowUpSweepResult {
   // Every field this turn actually writes — apply via
   // talk.ts's applyProposedActions(). A subset of the accepted candidates
-  // handed in: correction-offer and collision fieldIds are deliberately
+  // handed in: correction-offer and collision fields are deliberately
   // excluded, never silently written.
   writes: ProposedAction[];
   // The subset of `writes` outside the fields this turn's own ask named —
@@ -38,7 +51,7 @@ export interface FollowUpSweepResult {
   correctionOffers: CorrectionOffer[];
   // Fields with 2+ candidates this turn — a collision, not a sequence
   // (design.md, #52's rule): written nowhere, named in the reply instead.
-  collisionFieldIds: string[];
+  collisions: FieldCollision[];
   // Repeat groups a later-instance field was volunteered for this turn —
   // no field write, no count write (design.md: "never attributed by the
   // sweep"); surfaces later as a hint on that group's own repeat-decision
@@ -56,7 +69,8 @@ export interface FollowUpSweepResult {
 //   1. Does the field belong to a repeat group's instance 2+? -> a
 //      volunteered-later-instance mention: no write, group recorded.
 //   2. Among what's left, does the SAME field appear more than once? ->
-//      a collision: no write, field id recorded.
+//      a collision: no write, field id AND every colliding value
+//      recorded (rule 8's reply quotes them).
 //   3. For what's left after that, is the field currently `unasked`? ->
 //      a write (in-ask or out-of-ask, by whether its id is in
 //      `askFieldIds`); otherwise (answered/unknown/declined) -> a
@@ -88,11 +102,11 @@ export function classifyFollowUpActions(
     group.push(action);
     byField.set(action.fieldId, group);
   }
-  const collisionFieldIds: string[] = [];
+  const collisions: FieldCollision[] = [];
   const singular: ProposedAction[] = [];
   for (const [fieldId, group] of byField) {
     if (group.length > 1) {
-      collisionFieldIds.push(fieldId);
+      collisions.push({ fieldId, values: group.map(describeActionValue) });
     } else {
       singular.push(group[0]);
     }
@@ -121,7 +135,7 @@ export function classifyFollowUpActions(
     }
   }
 
-  return { writes, outOfAskWrites, correctionOffers, collisionFieldIds, volunteeredRepeatGroups };
+  return { writes, outOfAskWrites, correctionOffers, collisions, volunteeredRepeatGroups };
 }
 
 // The clinician-facing name for a field in an acknowledgment or a
@@ -159,6 +173,39 @@ function correctionOfferSentence(offer: CorrectionOffer, fields: FormFieldSpec[]
   return `You said ${describeOfferedChange(offer)} for ${phrase} — it's ${describeCurrentState(offer)}. Replace it?`;
 }
 
+// ask-copy.md rule 8: `I heard two values for {name}: {a} and {b} — which
+// should I write?`. The count is derived rather than asserted, following
+// open-fields.ts's openFieldsHeading() ("derived from the count, never
+// hardcoded"): nothing in validateCandidates() caps or dedupes a turn's
+// candidates per field, so three proposals for one field is reachable and
+// "two" would then be a false statement on an FDA report. Rule 8 authors
+// the two-value sentence only — the numeral beyond it is this build's
+// answer to a case the contract does not cover, and the gap is filed
+// (warblersafety/wilson#113) rather than settled here.
+function collisionSentence(collision: FieldCollision, fields: FormFieldSpec[]): string {
+  const count = collision.values.length === 2 ? "two" : `${collision.values.length}`;
+  const name = fieldOrId(collision.fieldId, fields);
+  return `I heard ${count} values for ${name}: ${joinNames(collision.values)} — which should I write?`;
+}
+
+// ask-copy.md rule 8's dismiss-tap acknowledgment (#110). Takes the
+// FACTS the tap resolved, never their fields — chip-grammar.ts's
+// dismissAcknowledgment() is the caller that works them out, from rule
+// 9's own fact names. One tap on DV-1 writes ten fields and
+// names one fact; naming the ten would be the recite-the-field-list
+// failure rule 9 exists to remove, in a new sentence.
+//
+// Rendered as a prefix on the next question (direct-step.ts's
+// replyPrefix), not as a talker turn of its own: the sweep's own
+// acknowledgments compose that way (talk.ts's respond()), and a second
+// bubble per tap is the double-bubble class unit #89 removed.
+export function describeDismissal(names: string[], action: "mark_unknown" | "decline"): string {
+  if (names.length === 0) {
+    throw new Error("describeDismissal: a dismissal must name at least one resolved fact");
+  }
+  return `Marked ${joinNames(names)} as ${action === "mark_unknown" ? "not on hand" : "declined"}.`;
+}
+
 // Turns one turn's FollowUpSweepResult into the acknowledgment/
 // correction-offer/collision/suggestion text talk.ts's processTurn()
 // prepends to the next question (design.md: "no widened write is ever
@@ -173,17 +220,17 @@ export function describeFollowUpSweep(
 
   if (result.outOfAskWrites.length > 0) {
     const fragments = result.outOfAskWrites.map(
-      (action) => `${fieldOrId(action.fieldId, fields)} — ${describeActionValue(action)}`,
+      (action) => `${fieldOrId(action.fieldId, fields)}: ${describeActionValue(action)}`,
     );
-    sentences.push(`Also noted: ${fragments.join("; ")}.`);
+    sentences.push(`Also noted — ${fragments.join("; ")}.`);
   }
 
   for (const offer of result.correctionOffers) {
     sentences.push(correctionOfferSentence(offer, fields));
   }
 
-  for (const fieldId of result.collisionFieldIds) {
-    sentences.push(`You gave more than one answer for ${fieldOrId(fieldId, fields)} — which one did you mean?`);
+  for (const collision of result.collisions) {
+    sentences.push(collisionSentence(collision, fields));
   }
 
   for (const group of result.volunteeredRepeatGroups) {
