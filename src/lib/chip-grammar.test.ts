@@ -232,7 +232,6 @@ describe("dismissAcknowledgment", () => {
     // RA-2 is the ask #110 names: five fields, two facts.
     const reporterAboutYou = TOPICS.find((t) => t.id === "reporter-about-you")!;
     const ra2 = reporterAboutYou.asks.find((a) => a.id === "RA-2")!;
-    const record = initAgenda();
     const step: NextStep = { kind: "topic", topic: reporterAboutYou, ask: ra2, fieldIds: ra2.askFieldIds };
     expect(dismissableFieldIds(step)).toHaveLength(5);
     expect(dismissAcknowledgment(step, "mark_unknown")).toBe(

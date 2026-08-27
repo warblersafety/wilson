@@ -51,7 +51,7 @@ transcript above it: 15 turns; ends with this ask: false; identical text earlier
 
 === turn 9 (topic) ===
 progress: Anything else · topic 6 of 34
-ask bubble: Marked test 1 as not on hand. Anything else FDA should know?
+ask bubble: Marked relevant tests or labs as not on hand. Anything else FDA should know?
 transcript above it: 17 turns; ends with this ask: false; identical text earlier in history: 0
 [screenshot] 10-followups-turn-9.png
 
@@ -78,7 +78,7 @@ transcript above it: 25 turns; ends with this ask: false; identical text earlier
 
 === turn 14 (topic) ===
 progress: Suspect product #1: usage timeline · topic 10 of 34
-ask bubble: Marked therapy start date, therapy stop date, therapy status, and dose reduced on as not on hand. What was it prescribed or used for?
+ask bubble: Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
 transcript above it: 27 turns; ends with this ask: false; identical text earlier in history: 0
 
 === turn 15 (topic) ===
@@ -109,7 +109,7 @@ transcript above it: 37 turns; ends with this ask: false; identical text earlier
 
 === turn 20 (repeat-decision) ===
 progress: Concomitant medication #2 · topic 24 of 34
-ask bubble: Marked other medication 1 as not on hand. Is there another medication to add?
+ask bubble: Marked other medications as not on hand. Is there another medication to add?
 transcript above it: 39 turns; ends with this ask: false; identical text earlier in history: 0
 [screenshot] 13-followups-repeat-20.png
 
@@ -140,47 +140,47 @@ Review before you sign off.Your signature is the safety boundary, not mine. Edit
 [2] And the sex?
 [3] And the sex? — I don't have that
 [4] Marked sex as not on hand. What's the patient's weight — and date of birth, if you record it?
-[5] Marked sex as not on hand. What's the patient's weight — and date of birth, if you record it? — I don't have that
+[5] What's the patient's weight — and date of birth, if you record it? — I don't have that
 [6] Marked weight and date of birth as not on hand. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
-[7] Marked weight and date of birth as not on hand. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — I don't have that
+[7] For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — I don't have that
 [8] Marked race or ethnicity as not on hand. Describe what happened — the event, product problem, or medication error, in your own words.
-[9] Marked race or ethnicity as not on hand. Describe what happened — the event, product problem, or medication error, in your own words. — I don't have that
+[9] Describe what happened — the event, product problem, or medication error, in your own words. — I don't have that
 [10] Marked event description as not on hand. When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
-[11] Marked event description as not on hand. When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers? — I don't have that
+[11] When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers? — I don't have that
 [12] Marked date of event and report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
-[13] Marked date of event and report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that
+[13] How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that
 [14] Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
-[15] Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use? — I don't have that
+[15] Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use? — I don't have that
 [16] Marked relevant history as not on hand. Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
-[17] Marked relevant history as not on hand. Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date. — I don't have that
-[18] Marked test 1 as not on hand. Anything else FDA should know?
-[19] Marked test 1 as not on hand. Anything else FDA should know? — I don't have that
+[17] Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date. — I don't have that
+[18] Marked relevant tests or labs as not on hand. Anything else FDA should know?
+[19] Anything else FDA should know? — I don't have that
 [20] Marked additional comments as not on hand. What's the suspect product — name, strength, and manufacturer or compounder, if known?
-[21] Marked additional comments as not on hand. What's the suspect product — name, strength, and manufacturer or compounder, if known? — I don't have that
+[21] What's the suspect product — name, strength, and manufacturer or compounder, if known? — I don't have that
 [22] Marked product name, strength, and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand.
-[23] Marked product name, strength, and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that
+[23] Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that
 [24] Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?
-[25] Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route? — I don't have that
+[25] How was it taken — dose, how often, and by what route? — I don't have that
 [26] Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
-[27] Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that
-[28] Marked therapy start date, therapy stop date, therapy status, and dose reduced on as not on hand. What was it prescribed or used for?
-[29] Marked therapy start date, therapy stop date, therapy status, and dose reduced on as not on hand. What was it prescribed or used for? — I don't have that
+[27] When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that
+[28] Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
+[29] What was it prescribed or used for? — I don't have that
 [30] Marked diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
-[31] Marked diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that
+[31] Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that
 [32] Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
-[33] Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that
+[33] After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that
 [34] Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?
-[35] Marked response after stopping as not on hand. Was it given again — and if so, did the event come back? — I don't have that
+[35] Was it given again — and if so, did the event come back? — I don't have that
 [36] Marked response after restarting as not on hand. Was there another suspect product?
-[37] Marked response after restarting as not on hand. Was there another suspect product? — No
+[37] Was there another suspect product? — No
 [38] Is the patient on other medications? Name them, with rough start and stop dates if you have them.
 [39] Is the patient on other medications? Name them, with rough start and stop dates if you have them. — I don't have that
-[40] Marked other medication 1 as not on hand. Is there another medication to add?
-[41] Marked other medication 1 as not on hand. Is there another medication to add? — No
+[40] Marked other medications as not on hand. Is there another medication to add?
+[41] Is there another medication to add? — No
 [42] Your contact details for the report — name, address, phone, and email?
 [43] Your contact details for the report — name, address, phone, and email? — I don't have that
 [44] Marked the rest of your contact details as not on hand. Are you reporting as a health professional, and what's your occupation?
-[45] Marked the rest of your contact details as not on hand. Are you reporting as a health professional, and what's your occupation? — I don't have that
+[45] Are you reporting as a health professional, and what's your occupation? — I don't have that
 [screenshot] 15-review-paper-facsimile.png
 [surface] review — Form 3500 facsimile shown
 [screenshot] 16-open-fields.png

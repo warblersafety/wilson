@@ -523,7 +523,10 @@ export async function scriptedSteps(): Promise<TalkStep[]> {
   for (let guard = 0; guard < 200; guard += 1) {
     steps.push(step);
     if (step.nextStep.kind === "done") return steps;
-    step = await processTurn(step.session, widgetTurnText(step.reply, "I don't have that"), {
+    // step.question, not step.reply — the same thing AskForm quotes into
+    // a tap's clinician turn. Driving the composed reply here would make
+    // the floor's walk diverge from the surface it is meant to model.
+    step = await processTurn(step.session, widgetTurnText(step.question, "I don't have that"), {
       ask: askDeterministic,
       extract: dismissWhatWasAsked,
     });

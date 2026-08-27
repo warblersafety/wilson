@@ -92,7 +92,12 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         record: applyActionToFields(current.session.record, fieldIds, { type: action }),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(current.reply, answerLabel), source: "widget" },
+          // current.question, never current.reply: a tap's own transcript
+          // turn is clinician-role, and current.reply may carry the
+          // PREVIOUS tap's "Marked … as not on hand." acknowledgment —
+          // which would then read as something the clinician said
+          // (reviewer pass, #109/#110).
+          { role: "clinician", text: widgetTurnText(current.question, answerLabel), source: "widget" },
         ],
       };
       onSubmitted(

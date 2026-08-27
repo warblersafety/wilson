@@ -62,12 +62,14 @@ export async function stepForSession(
 ): Promise<TalkStep> {
   const step = nextStep(session.record, session.repeatCounts);
   const question = await askDeterministic(step, session);
-  // Composed before the `done` check has any say: the prefix is about a
+  // Composed for every step kind, `done` included: the prefix is about a
   // write that already happened, so the last dismiss of a session must
-  // not be the one nobody is told about.
+  // not be the one nobody is told about. `question` is returned alongside
+  // it — see TalkStep.question for why a chip tap needs the unprefixed
+  // form.
   const reply = options.replyPrefix ? `${options.replyPrefix} ${question}` : question;
   const resultSession: TalkSession = options.appendReply
     ? { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] }
     : session;
-  return { session: resultSession, reply, nextStep: step };
+  return { session: resultSession, reply, question, nextStep: step };
 }

@@ -23,7 +23,8 @@ import {
   STATED_UNGATED_ASK_COUNT,
   templateMarkerViolations,
 } from "./ux-floor";
-import { AUTHORED_ASKS } from "./ask-inventory";
+import { AUTHORED_ASKS, unresolvedFactNames } from "./ask-inventory";
+import { initAgenda } from "./agenda";
 import {
   FIELD_ID_INVENTORY,
   MANIFEST_LABEL_INVENTORY,
@@ -85,6 +86,31 @@ describe("the rendered-copy inventory", () => {
       "Marked other reports and identity-withholding choice as not on hand.",
     );
     expect(bySource.get("sweep:dismiss/DV-1/decline")).toBe("Marked the rest of the device details as declined.");
+  });
+
+  // Reviewer pass on #109/#110: these three named a Review-row key or a
+  // manifest row inside a sentence. Pinned by their rendered form, and
+  // paired with the rule-9 names they must NOT have changed.
+  it("names facts whose display name is not prose through standaloneName", () => {
+    const text = (source: string) => INVENTORY.find((entry) => entry.source === source)?.text;
+    expect(text("sweep:dismiss/LD-1/mark_unknown")).toBe("Marked relevant tests or labs as not on hand.");
+    expect(text("sweep:dismiss/CM-1/mark_unknown")).toBe("Marked other medications as not on hand.");
+    expect(text("sweep:dismiss/SP-4/mark_unknown")).toBe(
+      "Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand.",
+    );
+  });
+
+  it("leaves rule 9's own names untouched — standaloneName is additive", () => {
+    const record = initAgenda();
+    const byId = (id: string) => AUTHORED_ASKS.find((ask) => ask.id === id)!;
+    expect(unresolvedFactNames(byId("LD-1"), record)).toEqual(["test 1"]);
+    expect(unresolvedFactNames(byId("CM-1"), record)).toEqual(["other medication 1"]);
+    expect(unresolvedFactNames(byId("SP-4"), record)).toEqual([
+      "therapy start date",
+      "therapy stop date",
+      "therapy status",
+      "dose reduced on",
+    ]);
   });
 
   it("renders every field's display name", () => {

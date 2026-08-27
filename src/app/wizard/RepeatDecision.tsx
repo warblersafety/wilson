@@ -23,6 +23,10 @@ interface RepeatDecisionProps {
   repeatGroup: RepeatGroup;
   afterInstance: number;
   reply: string;
+  // The decision's own question, without any acknowledgment `reply` was
+  // composed with — see TalkStep.question. `reply` is what the surface
+  // SHOWS; this is what a chip tap may quote into a clinician turn.
+  question: string;
   onChange: (next: TalkStep) => void;
   disabled?: boolean;
 }
@@ -32,6 +36,7 @@ export function RepeatDecision({
   repeatGroup,
   afterInstance,
   reply,
+  question,
   onChange,
   disabled = false,
 }: RepeatDecisionProps) {
@@ -47,7 +52,7 @@ export function RepeatDecision({
         repeatCounts: setRepeatCount(session.repeatCounts, repeatGroup, count),
         transcript: [
           ...session.transcript,
-          { role: "clinician", text: widgetTurnText(reply, answerLabel), source: "widget" },
+          { role: "clinician", text: widgetTurnText(question, answerLabel), source: "widget" },
         ],
       };
       setError(null);

@@ -287,6 +287,19 @@ function eventTopics(): AuthoredAsk[] {
       // Openness attaches to LD-1's own resolution — row 1's test — so an
       // empty row 4 is never a phantom gap in open-fields or the counts.
       askFieldIds: ["Page3.TestDataTable.Row1.TestData1"],
+      // Named for rule 8's sentence: row 1 is where openness attaches, but
+      // "Marked test 1 as not on hand." tells a clinician who answered
+      // "any relevant tests or labs?" that wilson recorded something about
+      // a numbered row they never saw — and invites "so what about tests 2
+      // through 8?". LD-1 has one ask field, so it never reaches rule 9's
+      // frame and `name` is never rendered (reviewer pass, #109/#110).
+      facts: [
+        {
+          name: "test 1",
+          standaloneName: "relevant tests or labs",
+          fieldIds: ["Page3.TestDataTable.Row1.TestData1"],
+        },
+      ],
       companionFieldIds: LAB_WRITE_TARGET_FIELD_IDS,
     },
     {
@@ -369,6 +382,17 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
       ],
       facts: [
         { name: "therapy status", fieldIds: [p("TherapyOngoingYes"), p("TherapyOngoingNo")], exclusive: true },
+        // A one-field fact purely for its name — the second reason AskFact
+        // exists ("one field whose display name doesn't read as a noun
+        // phrase inside rule 9's frames"). "dose reduced on" is a
+        // two-column Review key; `name` keeps it so rule 9 is unchanged,
+        // and `standaloneName` is what rule 8's sentence can actually say
+        // (reviewer pass, #109/#110).
+        {
+          name: "dose reduced on",
+          standaloneName: "the date the dose was reduced",
+          fieldIds: [p("TherapyReduceDate")],
+        },
       ],
       // Duration fills from stated words only — never computed from the
       // dates (ask-copy.md SP-4). Absent stated words it stays open,
@@ -562,6 +586,16 @@ function concomitantMedication(instance: number): AuthoredAsk[] {
           ? "Is the patient on other medications? Name them, with rough start and stop dates if you have them."
           : "What's the next medication — its name, and rough start and stop dates?",
       askFieldIds: [`${row}.Prod${instance}`],
+      // CM-1's ask is plural — "is the patient on other medications?" — so
+      // its dismissal says so. "Marked other medication 1 as not on hand."
+      // names a table row the ask never mentioned. Instance 1 only: the
+      // later instances' naming belongs to #111, which is amending their
+      // copy. One ask field, so rule 9's frame is unreachable and `name`
+      // never renders (reviewer pass, #109/#110).
+      facts:
+        instance === 1
+          ? [{ name: "other medication 1", standaloneName: "other medications", fieldIds: [`${row}.Prod${instance}`] }]
+          : undefined,
       companionFieldIds: [`${row}.Start${instance}`, end],
     },
   ];

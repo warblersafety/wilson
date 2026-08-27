@@ -153,6 +153,18 @@ export type AskFn = (step: NextStep, session: TalkSession) => Promise<string>;
 export interface TalkStep {
   session: TalkSession;
   reply: string;
+  // The ask alone, without whatever acknowledgment `reply` may have been
+  // composed with (the sweep's prefix, a dismiss tap's rule-8 line). The
+  // transcript's talker turn carries the full `reply` — but a chip tap's
+  // own "question — answer" turn must quote only the QUESTION: it is a
+  // `role: "clinician"` turn, and folding a talker's acknowledgment into
+  // it attributes a machine-composed statement to the clinician, which
+  // chip-grammar.ts's widgetTurnText() exists to prevent. Before this
+  // field, two dismiss taps in a row produced "Marked age and sex as not
+  // on hand. What's the patient's weight…? — I don't have that" as
+  // something the clinician said (reviewer pass, #109/#110). Equal to
+  // `reply` whenever there is no prefix, which is most turns.
+  question: string;
   nextStep: NextStep;
   // Issue #44: one-tap "replace it?" correction offers surfaced by THIS
   // turn's widened sweep. Deliberately NOT part of TalkSession — never
@@ -195,6 +207,7 @@ async function respond(
   return {
     session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
     reply,
+    question,
     nextStep: step,
   };
 }
