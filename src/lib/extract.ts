@@ -22,6 +22,7 @@ import {
   buildFollowUpUserContent,
 } from "../prompts/extractor";
 import { deriveCompanionWrites } from "./derive";
+import { filterLabRowOverflow } from "./gates";
 import { ALL_FIELD_TYPES, validateCandidates, validateRepeatCandidate } from "./extraction-validator";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
@@ -137,6 +138,11 @@ export function createExtractFn(
     // would be reporting our own arithmetic back at them.
     const derived = deriveCompanionWrites(step, session.record, classified.writes);
 
+    // Rule 5's lab-row gate: a write to row N+1 is dropped while row N is
+    // empty or holds the literal "None", so a model that scattered tests
+    // across the table cannot leave permanent blank rows on the form.
+    const written = filterLabRowOverflow(session.record, [...classified.writes, ...derived]);
+
     // Only ever considered when the step actually open right now is a
     // repeat-decision — never on an ordinary topic turn. Without this
     // gate, a model mis-fire during a normal field-answering turn could
@@ -157,7 +163,7 @@ export function createExtractFn(
     }
 
     return {
-      actions: [...classified.writes, ...derived],
+      actions: written,
       repeatDecision,
       replyPrefix: replyPrefix.length > 0 ? replyPrefix : undefined,
       correctionOffers: classified.correctionOffers.length > 0 ? classified.correctionOffers : undefined,

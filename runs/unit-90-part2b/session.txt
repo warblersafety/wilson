@@ -1,0 +1,195 @@
+[screenshot] 01-start.png
+[surface] start — heading: Report an adverse event
+
+=== turn 1 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: And the sex?
+transcript above it: 1 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 02-followups-turn-1.png
+
+=== turn 2 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: What's the patient's weight — and date of birth, if you record it?
+transcript above it: 3 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 03-followups-turn-2.png
+
+=== turn 3 (topic) ===
+progress: Patient basics · topic 1 of 34
+ask bubble: For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+transcript above it: 5 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 04-followups-turn-3.png
+
+=== turn 4 (topic) ===
+progress: What happened · topic 2 of 34
+ask bubble: Describe what happened — the event, product problem, or medication error, in your own words.
+transcript above it: 7 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 05-followups-turn-4.png
+
+=== turn 5 (topic) ===
+progress: What happened · topic 2 of 34
+ask bubble: When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+transcript above it: 9 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 06-followups-turn-5.png
+
+=== turn 6 (topic) ===
+progress: Outcome · topic 3 of 34
+ask bubble: How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+transcript above it: 11 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 07-followups-turn-6.png
+
+=== turn 7 (topic) ===
+progress: Medical history · topic 4 of 34
+ask bubble: Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+transcript above it: 13 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 8 (topic) ===
+progress: Lab data · topic 5 of 34
+ask bubble: Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+transcript above it: 15 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 9 (topic) ===
+progress: Anything else · topic 6 of 34
+ask bubble: Anything else FDA should know?
+transcript above it: 17 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 10 (topic) ===
+progress: Suspect product #1: identity · topic 8 of 34
+ask bubble: What's the suspect product — name, strength, and manufacturer or compounder, if known?
+transcript above it: 19 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 11 (topic) ===
+progress: Suspect product #1: identity · topic 8 of 34
+ask bubble: Lot number, and the NDC or other unique ID — if they're on hand.
+transcript above it: 21 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 12 (topic) ===
+progress: Suspect product #1: dosing · topic 9 of 34
+ask bubble: How was it taken — dose, how often, and by what route?
+transcript above it: 23 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 13 (topic) ===
+progress: Suspect product #1: usage timeline · topic 10 of 34
+ask bubble: When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+transcript above it: 25 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 14 (topic) ===
+progress: Suspect product #1: usage timeline · topic 10 of 34
+ask bubble: What was it prescribed or used for?
+transcript above it: 27 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 15 (topic) ===
+progress: Suspect product #1: type and expiration · topic 11 of 34
+ask bubble: Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+transcript above it: 29 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 16 (topic) ===
+progress: Suspect product #1: response after stopping/restarting · topic 12 of 34
+ask bubble: After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+transcript above it: 31 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 17 (topic) ===
+progress: Suspect product #1: response after stopping/restarting · topic 12 of 34
+ask bubble: Was it given again — and if so, did the event come back?
+transcript above it: 33 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 18 (repeat-decision) ===
+progress: Suspect product #2: identity · topic 14 of 34
+ask bubble: Was there another suspect product?
+transcript above it: 35 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 08-followups-repeat-18.png
+
+=== turn 19 (topic) ===
+progress: Concomitant medication #1 · topic 23 of 34
+ask bubble: Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+transcript above it: 37 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 20 (repeat-decision) ===
+progress: Concomitant medication #2 · topic 24 of 34
+ask bubble: Is there another medication to add?
+transcript above it: 39 turns; ends with this ask: false; identical text earlier in history: 0
+[screenshot] 09-followups-repeat-20.png
+
+=== turn 21 (topic) ===
+progress: Reporter contact info · topic 33 of 34
+ask bubble: Your contact details for the report — name, address, phone, and email?
+transcript above it: 41 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 22 (topic) ===
+progress: About you · topic 34 of 34
+ask bubble: Are you reporting as a health professional, and what's your occupation?
+transcript above it: 43 turns; ends with this ask: false; identical text earlier in history: 0
+
+=== turn 23 (topic) ===
+progress: About you · topic 34 of 34
+ask bubble: Two housekeeping items — have you also reported this to the manufacturer, a user facility, a distributor, or a packer? And should FDA withhold your identity from the manufacturer?
+transcript above it: 45 turns; ends with this ask: false; identical text earlier in history: 0
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[follow-ups complete]
+[screenshot] 10-review.png
+
+[surface] review — body text:
+Review before you sign off.Your signature is the safety boundary, not mine. Edit anything and I’ll ask about it again.A · Patient basicsPatient InformationEditpatient identifierMRN 44-1902age61age unit: years—age unit: months—age unit: weeks—age unit: days—date of birthUnknownsex: male—sex: female—weightUnknownweight unit: lb—weight unit: kg—race/ethnicity: American Indian or Alaska Native—race/ethnicity: Asian—race/ethnicity: Black or African American—race/ethnicity: Hispanic or Latino—race/ethnicity: Middle Eastern or North African—race/ethnicity: Native Hawaiian or Pacific Islander—race/ethnicity: White—B · What happenedAdverse Event, Product Problem (or Product Use Error)Editreport type: adverse event—report type: medication error—report type: product problem—report type: different-manufacturer problem—date of eventUnknowndate of this report2026-08-27event descriptionUnknownadditional commentsUnknownB · OutcomeAdverse Event, Product Problem (or Product Use Error)Editoutcome: death—date of death—outcome: hospitalization—outcome: life-threatening—outcome: disability or permanent damage—outcome: required intervention—outcome: congenital anomaly—outcome: other serious event—B · Medical historyAdverse Event, Product Problem (or Product Use Error)Editrelevant historyUnknownB · Lab dataAdverse Event, Product Problem (or Product Use Error)Edittest 1Unknowntest 1 result range (low)—test 1 result range (high)—test 1 date—test 2—test 2 result range (low)—test 2 result range (high)—test 2 date—test 3—test 3 result range (low)—test 3 result range (high)—test 4—test 4 result range (low)—test 4 result range (high)—test 5—test 5 result range (low)—test 5 result range (high)—test 6—test 6 result range (low)—test 6 result range (high)—test 7—test 7 result range (low)—test 8—test 8 result range (low)—test 8 result range (high)—test 8 date—test 7 result range (high)—test 3 date—test 4 date—test 5 date—test 6 date—test 7 date—C · Product availabilityProduct AvailabilityEditpicture of the product—returned to manufacturer (date)—returned to manufacturer—product available: no—product available: yes—D · Suspect product #1Suspect ProductsEditproduct nameUnknownstrengthUnknownstrength unit—NDC or unique IDUnknownmanufacturer/compounderUnknownlot numberUnknowndoseUnknowndose unit—frequencyUnknownfrequency (other)—routeUnknownroute (other)—therapy start dateUnknowntherapy stop dateUnknowndose reduced onUnknowntherapy duration—therapy duration unit—therapy ongoing: yes—therapy ongo
+
+=== COMPLETE TRANSCRIPT (45 turns) ===
+[1] 61-year-old on amoxicillin-clavulanate for a dental abscess developed a diffuse maculopapular rash and low-grade fever on day 4. Drug stopped, rash resolved over a week.
+[2] And the sex?
+[3] And the sex? — I don't have that
+[4] What's the patient's weight — and date of birth, if you record it?
+[5] What's the patient's weight — and date of birth, if you record it? — I don't have that
+[6] For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+[7] For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — I don't have that
+[8] Describe what happened — the event, product problem, or medication error, in your own words.
+[9] Describe what happened — the event, product problem, or medication error, in your own words. — I don't have that
+[10] When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+[11] When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers? — I don't have that
+[12] How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+[13] How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that
+[14] Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+[15] Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use? — I don't have that
+[16] Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+[17] Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date. — I don't have that
+[18] Anything else FDA should know?
+[19] Anything else FDA should know? — I don't have that
+[20] What's the suspect product — name, strength, and manufacturer or compounder, if known?
+[21] What's the suspect product — name, strength, and manufacturer or compounder, if known? — I don't have that
+[22] Lot number, and the NDC or other unique ID — if they're on hand.
+[23] Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that
+[24] How was it taken — dose, how often, and by what route?
+[25] How was it taken — dose, how often, and by what route? — I don't have that
+[26] When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+[27] When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that
+[28] What was it prescribed or used for?
+[29] What was it prescribed or used for? — I don't have that
+[30] Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+[31] Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that
+[32] After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+[33] After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that
+[34] Was it given again — and if so, did the event come back?
+[35] Was it given again — and if so, did the event come back? — I don't have that
+[36] Was there another suspect product?
+[37] Was there another suspect product? — No
+[38] Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+[39] Is the patient on other medications? Name them, with rough start and stop dates if you have them. — I don't have that
+[40] Is there another medication to add?
+[41] Is there another medication to add? — No
+[42] Your contact details for the report — name, address, phone, and email?
+[43] Your contact details for the report — name, address, phone, and email? — I don't have that
+[44] Are you reporting as a health professional, and what's your occupation?
+[45] Are you reporting as a health professional, and what's your occupation? — I don't have that
+[screenshot] 11-review-paper-facsimile.png
+[surface] review — Form 3500 facsimile shown
+[screenshot] 12-open-fields.png
+[surface] open-fields dialog:
+77 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.age unit: yearsnot asked yetAnswerage unit: monthsnot asked yetAnswerage unit: weeksnot asked yetAnswerage unit: daysnot asked yetAnswerdate of birthyou didn't have itAnswersex: maleyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Native Hawaiian or Pacific Islanderyou didn't have itAnswerrace/ethnicity: Whiteyou didn't have itAnswerreport type: adverse eventyou didn't have itAnswerreport type: medication erroryou didn't have itAnswerreport type: product problemyou didn't have itAnswerreport type: different-manufacturer problemyou didn't have itAnswerdate of eventyou didn't have itAnswerevent descriptionyou didn't have itAnsweroutcome: deathyou didn't have itAns
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 13-ready.png
+
+[surface] ready — body text:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields2 written · 73 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againwilson stores nothing on its own servers — this download is your copy.
+
+=== SUMMARY ===
+turns driven: 23
+screenshots: 13
+double-render occurrences (this unit's bug): 0
+turns whose ask text is echoed earlier in the history (#90's template copy): 0

@@ -21,6 +21,7 @@ import {
 import { curatedRows, type CuratedRow } from "./report-chrome";
 import { reopenTopic, TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { displayNameFor } from "./display-names";
+import { formatReportDate, REPORT_DATE_FIELD_ID } from "./report-date";
 
 export interface ReviewFieldDisplay {
   text: string | null;
@@ -41,10 +42,17 @@ export interface ReviewFieldDisplay {
 // wipes"), and until now nothing user-facing read it back (PR #64,
 // finding 7), so a clinician who reopened a topic saw a blanked field
 // reading as never-answered.
-export function fieldDisplay(record: AgendaRecord, fieldId: string): ReviewFieldDisplay {
+export function fieldDisplay(record: AgendaRecord, fieldId: string, today: Date = new Date()): ReviewFieldDisplay {
   const entry = Object.hasOwn(record, fieldId) ? record[fieldId] : undefined;
   if (entry?.state === "unasked" && entry.value) {
     return { text: entry.value, muted: false, retained: true };
+  }
+  // Rule 4's auto field: Review shows the date the export will stamp,
+  // rather than a blank that reads as a gap in a field nobody is ever
+  // asked. Not written to the record here — the stamp belongs at export,
+  // so a draft resumed tomorrow carries tomorrow's date.
+  if (fieldId === REPORT_DATE_FIELD_ID && entry?.state !== "answered") {
+    return { text: formatReportDate(today), muted: false, retained: false };
   }
   // An ANSWERED-false checkbox reads "No" here, where displayFor() —
   // which speaks for the PDF, and on the PDF an unchecked box is simply

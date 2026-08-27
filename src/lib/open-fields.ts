@@ -27,6 +27,7 @@ import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { CuratedRow } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { isListableGap } from "./ask-inventory";
+import { isTopicGatedOff } from "./gates";
 import { displayName } from "./display-names";
 
 export type OpenFieldReasonKind = "unknown" | "not-asked";
@@ -115,6 +116,9 @@ export function openFieldEntries(
   // order — the same walk every other derivation in this codebase uses.
   for (const topic of topics) {
     if (!isReachable(topic, repeatCounts)) continue;
+    // Rule 5: a gated-off topic is excluded from this dialog and from the
+    // counts it drives. "Not part of this report" is not a gap.
+    if (isTopicGatedOff(topic.id, record)) continue;
     for (const fieldId of topic.fieldIds) {
       const field = fieldsById.get(fieldId);
       if (!field) {

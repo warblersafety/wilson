@@ -17,6 +17,8 @@ import type { AgendaRecord } from "@/lib/agenda";
 import { formatFieldCounts, patientIdentifier, recordFieldCounts, reportRailRows } from "@/lib/report-chrome";
 import type { RepeatCounts } from "@/lib/topics";
 import { Facsimile } from "./Facsimile";
+import { GATED_OFF_RAIL_MARK } from "@/lib/report-chrome";
+import { stampReportDate } from "@/lib/report-date";
 
 // The footer's nothing-written-yet copy assumes the Start surface's own
 // framing ("wilson asks one topic at a time") — true once the topic-by-
@@ -82,6 +84,12 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState,
               {state === "unknown" && (
                 <span className="report-rail__row-mark report-rail__row-mark--unknown">unknown</span>
               )}
+              {/* ask-copy.md rule 5: gated-off is never confirmed-absent,
+                  so the rail says what it is rather than showing nothing
+                  or a check. */}
+              {state === "gated-off" && (
+                <span className="report-rail__row-mark report-rail__row-mark--gated-off">{GATED_OFF_RAIL_MARK}</span>
+              )}
             </li>
           ))}
         </ol>
@@ -100,7 +108,12 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState,
         </div>
       </nav>
       <div className="report-chrome__content">{children}</div>
-      <Facsimile record={record} counts={counts} />
+      {/* The facsimile previews the PDF, and the exported PDF carries
+          rule 4's stamped report date (src/lib/report-date.ts), so the
+          preview shows it too — otherwise the one surface whose whole
+          job is "this is what the form will look like" would be the one
+          place the date is missing. */}
+      <Facsimile record={stampReportDate(record, new Date())} counts={counts} />
     </div>
   );
 }

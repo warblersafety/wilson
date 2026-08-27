@@ -39,6 +39,7 @@ import {
   type Topic,
 } from "./topics";
 import { bareAgeDefaultWrites } from "./derive";
+import { filterLabRowOverflow } from "./gates";
 
 export interface NarrativeProposal {
   action: ProposedAction;
@@ -206,7 +207,7 @@ export function applyNarrativeProposals(
   // instead of a follow-up turn (reviewer pass, PR #106, F4). Group
   // completion is deliberately absent — it is bounded by what an ask
   // voiced, and a narrative voices nothing.
-  const withDerives = [...actions, ...bareAgeDefaultWrites(record, actions)];
+  const withDerives = filterLabRowOverflow(record, [...actions, ...bareAgeDefaultWrites(record, actions)]);
   return {
     record: applyProposedActions(record, withDerives),
     repeatCounts: repeatDecisions.reduce(
