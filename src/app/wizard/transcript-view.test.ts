@@ -11,6 +11,8 @@ import { applyActionToFields, dismissableFieldIds, widgetTurnText } from "@/lib/
 import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 import { visibleTranscriptTurns } from "./transcript-view";
+import { frameDuplicateViolations, scriptedFrames, type RenderedFrame } from "@/lib/ux-floor";
+import { DOUBLE_BUBBLE_FRAMES } from "../../../fixtures/ux-floor/violations";
 
 // What the clinician actually sees on Follow-ups: Transcript renders
 // every visible turn, then AskForm (or RepeatDecision) renders the reply
@@ -188,5 +190,62 @@ describe("Wizard's wiring to the helper", () => {
     expect(transcriptElement, "Wizard no longer renders <Transcript>").not.toBeNull();
     expect(transcriptElement![0]).toContain("turns={visibleTranscriptTurns(current)}");
     expect(transcriptElement![0]).not.toContain("session.transcript");
+  });
+});
+
+
+// --- the UX floor's double-bubble check (Issue #91, AC-4) -----------------
+
+// #89's tests above count occurrences of ONE string, the current ask.
+// The floor's check is the general form of the same rule and lives here
+// because this is where the render helper does: across a full scripted
+// walk, no string at all may appear twice in a single rendered frame.
+
+// What Wizard.tsx actually composes: Transcript over visibleTranscriptTurns,
+// then AskForm's (or RepeatDecision's) accent bubble.
+function shippedFrame(step: TalkStep): RenderedFrame {
+  const rendersAsk = step.nextStep.kind === "topic" || step.nextStep.kind === "repeat-decision";
+  return [
+    ...visibleTranscriptTurns(step).map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text })),
+    ...(rendersAsk ? [{ source: "current-ask", text: step.reply }] : []),
+  ];
+}
+
+// The rule that shipped BEFORE #89: the stored transcript rendered whole,
+// so its trailing talker turn and the current-ask bubble carried the same
+// string. This is the injected-violation fixture AC-5 asks for, and it is
+// the real defect rather than an imitation — the single line #89 changed,
+// changed back.
+function preFixFrame(step: TalkStep): RenderedFrame {
+  const rendersAsk = step.nextStep.kind === "topic" || step.nextStep.kind === "repeat-decision";
+  return [
+    ...step.session.transcript.map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text })),
+    ...(rendersAsk ? [{ source: "current-ask", text: step.reply }] : []),
+  ];
+}
+
+describe("the UX floor: no string renders twice in one frame", () => {
+  it("holds at every turn of a scripted walk", async () => {
+    const frames = await scriptedFrames(shippedFrame);
+    expect(frames.length).toBeGreaterThan(20);
+    expect(frameDuplicateViolations(frames)).toEqual([]);
+  });
+
+  it("goes red on the render rule that shipped the double bubble", async () => {
+    // Steve's 2026-08-26 staging screenshot: the identical paragraph
+    // back-to-back in gray and teal, on every turn of the walk.
+    const frames = await scriptedFrames(preFixFrame);
+    const found = frameDuplicateViolations(frames);
+    expect(found.length).toBeGreaterThan(20);
+    expect(found[0].detail).toContain("renders twice in the same frame");
+    // Always the accent bubble: the transcript turn is legitimately
+    // there, the second copy of it is not.
+    expect(found.every((v) => v.source === "current-ask")).toBe(true);
+  });
+
+  it("goes red on a hand-built frame carrying the same duplicate", () => {
+    // The class stated as data, so the check is proven independently of
+    // the walk that happens to drive it.
+    expect(frameDuplicateViolations(DOUBLE_BUBBLE_FRAMES)).toHaveLength(1);
   });
 });
