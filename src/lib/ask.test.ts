@@ -20,7 +20,7 @@ import { displayName } from "./display-names";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { initTalkSession, type TalkSession } from "./talk";
 import { scriptedWalk } from "./ux-floor";
-import { initRepeatCounts, nextStep, setRepeatCount, TOPICS } from "./topics";
+import { TOPICS } from "./topics";
 
 function sessionWith(record: AgendaRecord): TalkSession {
   return { ...initTalkSession(), record };

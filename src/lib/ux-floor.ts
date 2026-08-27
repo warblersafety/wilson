@@ -32,7 +32,7 @@ import {
   REPEAT_GROUP_LABELS,
   VOLUNTEERED_REPEAT_HINT,
 } from "./ask";
-import { AUTHORED_ASKS } from "./ask-inventory";
+import { AUTHORED_ASKS, unresolvedAskFieldIds } from "./ask-inventory";
 import { displayName } from "./display-names";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { GATED_OFF_RAIL_STATE } from "./gates";
@@ -44,7 +44,7 @@ import { GATED_OFF_RAIL_MARK } from "./report-chrome";
 import { GATED_OFF_REVIEW_COPY, PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import { START_COPY } from "./start-surface";
 import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep } from "./talk";
-import { initRepeatCounts, nextStep, setRepeatCount } from "./topics";
+import { initRepeatCounts, nextStep, setRepeatCount, type RepeatGroup } from "./topics";
 import { widgetTurnText } from "./chip-grammar";
 
 // A string a clinician can read, and where it came from. The source is
@@ -164,18 +164,17 @@ export function renderedCopyInventory(): RenderedString[] {
     // field list. The reference path renders none of these.
     for (const resolved of ask.askFieldIds) {
       const partial: AgendaRecord = { ...record, [resolved]: { state: "answered", value: "x" } };
-      // An ask whose every field is one settled fact has nothing left to
-      // ask, and askCopy() refuses to compose copy for it (ask.ts). Not a
-      // gap in the sweep: there is no string to render.
-      const unresolvedRemains = ask.askFieldIds.some((id) => id !== resolved);
-      if (!unresolvedRemains) continue;
-      let text: string;
-      try {
-        text = askCopy(ask, partial);
-      } catch {
-        continue;
-      }
-      out.push({ source: `re-ask:${ask.id}/${resolved}`, text });
+      // An ask whose one answer settled every fact it waits on has
+      // nothing left to ask, and askCopy() refuses to compose copy for it
+      // (ask.ts). Asked of the same function askCopy() asks, rather than
+      // caught from its throw: a catch here would also swallow "record
+      // missing field id" — the inventory naming a field the manifest
+      // does not have — and silently drop that ask's frames out of the
+      // sweep. A floor that quietly stops checking is the failure this
+      // whole unit exists to prevent, so the only thing skipped here is
+      // the case that genuinely has no string to render.
+      if (unresolvedAskFieldIds(ask, partial).length === 0) continue;
+      out.push({ source: `re-ask:${ask.id}/${resolved}`, text: askCopy(ask, partial) });
     }
   }
 
@@ -340,11 +339,25 @@ function dismiss(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
   return fieldIds.reduce((rec, id) => applyAction(rec, id, { type: "mark_unknown" }), record);
 }
 
+// What the clinician answers to a repeat decision: the new total for the
+// group. Returning `afterInstance` is "no, that was the last one".
+export type RepeatChoice = (group: RepeatGroup, afterInstance: number) => number;
+
+// The reference path: every group declined. This is what the contract's
+// stated ask count describes, and — until this parameter existed — it was
+// the ONLY walk any check ran over.
+const DECLINE_REPEATS: RepeatChoice = (_group, afterInstance) => afterInstance;
+
 // Every turn the walk actually voices, in order, from a fresh session
 // dismissed straight through to done. `seed` opens gates: an empty record
 // is rule 5's ungated single-product no-device walk, which is what the
-// contract's stated count describes.
-export function scriptedWalk(seed: AgendaRecord = initAgenda()): WalkTurn[] {
+// contract's stated count describes. `choose` decides each repeat group's
+// total, so a walk with three concomitant medications is reachable —
+// see REPEAT_COUNT_CHOICES for why that matters.
+export function scriptedWalk(
+  seed: AgendaRecord = initAgenda(),
+  choose: RepeatChoice = DECLINE_REPEATS,
+): WalkTurn[] {
   let record = seed;
   let counts = initRepeatCounts();
   const turns: WalkTurn[] = [];
@@ -357,7 +370,7 @@ export function scriptedWalk(seed: AgendaRecord = initAgenda()): WalkTurn[] {
         id: step.repeatGroup,
         text: REPEAT_DECISION_COPY[step.repeatGroup],
       });
-      counts = setRepeatCount(counts, step.repeatGroup, step.afterInstance);
+      counts = setRepeatCount(counts, step.repeatGroup, choose(step.repeatGroup, step.afterInstance));
       continue;
     }
     turns.push({ kind: "ask", id: step.ask.id, text: askCopy(step.ask, record) });
@@ -392,6 +405,30 @@ export const GATE_STATE_SEEDS: Array<[string, () => AgendaRecord]> = [
   [
     "death-recorded",
     () => applyAction(initAgenda(), "Page1.SecA_Patient.Death", { type: "answer" }, "true"),
+  ],
+];
+
+// The second dimension of "never just the reference path", and the one
+// the first cut of this file missed: how many instances a repeat group
+// has. Gate state changes WHICH asks the walk reaches; repeat count
+// changes how many times it reaches the same one — and a group's later
+// instances share one authored string, so that is where a walk can
+// repeat itself without any ask being wrong.
+//
+// Suspect products stop at 2 and their copy distinguishes the second
+// ("the second suspect product"). Concomitant medications go to 10 and
+// theirs does not — see the departure ux-floor.test.ts pins, and #111.
+export const REPEAT_COUNT_CHOICES: Array<[string, RepeatChoice]> = [
+  ["declined", DECLINE_REPEATS],
+  ["two-suspect-products", (group, after) => (group === "suspect-product" ? 2 : after)],
+  ["three-concomitant-medications", (group, after) => (group === "concomitant-medication" ? 3 : after)],
+  [
+    "every-group-at-capacity",
+    (group, after) => {
+      if (group === "suspect-product") return 2;
+      if (group === "concomitant-medication") return 10;
+      return after;
+    },
   ],
 ];
 
@@ -477,12 +514,11 @@ export async function scriptedFrames(render: (step: TalkStep) => RenderedFrame):
 export function frameDuplicateViolations(frames: RenderedFrame[]): UxFloorViolation[] {
   const out: UxFloorViolation[] = [];
   for (const [index, frame] of frames.entries()) {
-    const seenAt = new Map<string, number>();
+    const seen = new Set<string>();
     const reported = new Set<string>();
     for (const entry of frame) {
-      const first = seenAt.get(entry.text);
-      if (first === undefined) {
-        seenAt.set(entry.text, index);
+      if (!seen.has(entry.text)) {
+        seen.add(entry.text);
         continue;
       }
       if (reported.has(entry.text)) continue;

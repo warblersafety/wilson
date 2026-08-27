@@ -19,6 +19,7 @@ import {
   renderedCopyInventory,
   scriptedWalk,
   GATE_STATE_SEEDS,
+  REPEAT_COUNT_CHOICES,
   STATED_UNGATED_ASK_COUNT,
   templateMarkerViolations,
 } from "./ux-floor";
@@ -169,6 +170,57 @@ describe("every gate state, not just the reference path", () => {
   // repetition.
   it.each(GATE_STATE_SEEDS)("never repeats a turn in the %s walk", (_name, seed) => {
     expect(consecutiveDuplicateViolations(scriptedWalk(seed()))).toEqual([]);
+  });
+
+  // Gate state is only one dimension. Repeat count is the other, and the
+  // first cut of this file missed it: every gate seed above leaves both
+  // repeat groups at one instance, so a walk with three concomitant
+  // medications — an ordinary session — was never checked.
+  //
+  // It is not clean when it is. docs/ask-copy.md authors ONE CM-2 string
+  // for concomitant instances 2-10 ("What's the next medication — its
+  // name, and rough start and stop dates?"), and once a count is decided
+  // no repeat decision separates the instances, so instances 2 and 3 are
+  // byte-identical back-to-back turns. That is AC-2's own defect class,
+  // authored by the contract rather than introduced by the build, so it
+  // is filed (#111) rather than fixed here — a copy amendment takes a
+  // doc-review pass.
+  //
+  // Pinned as an exact set rather than described in a comment, the way
+  // ask.test.ts pins rule 8's six departures: a NINTH repeating ask, or a
+  // repetition anywhere outside the concomitant group, fails here first.
+  it("repeats only where the contract's own copy leaves it no choice", () => {
+    const repeating = new Set<string>();
+    for (const [gate, seed] of GATE_STATE_SEEDS) {
+      for (const [choice, choose] of REPEAT_COUNT_CHOICES) {
+        for (const violation of consecutiveDuplicateViolations(scriptedWalk(seed(), choose))) {
+          repeating.add(`${violation.source.replace(/^turn:\d+ \((.*)\)$/, "$1")} (${gate}/${choice})`);
+        }
+      }
+    }
+    const askIds = new Set([...repeating].map((entry) => entry.split(" ")[0]));
+    expect([...askIds].sort()).toEqual([
+      "CM-2-10",
+      "CM-2-3",
+      "CM-2-4",
+      "CM-2-5",
+      "CM-2-6",
+      "CM-2-7",
+      "CM-2-8",
+      "CM-2-9",
+    ]);
+  });
+
+  it("keeps the suspect-product group clean — its second instance is authored apart", () => {
+    // The contract got this one right, and pinning it is what makes the
+    // concomitant departure a defect rather than a convention: SP-1-2
+    // says "the second suspect product", so a two-product walk repeats
+    // nothing.
+    for (const [gate, seed] of GATE_STATE_SEEDS) {
+      const walk = scriptedWalk(seed(), REPEAT_COUNT_CHOICES[1][1]);
+      expect(consecutiveDuplicateViolations(walk), gate).toEqual([]);
+      expect(walk.some((turn) => turn.id === "SP-1-2"), gate).toBe(true);
+    }
   });
 
   it("asks strictly more once a gate opens, and never fewer", () => {
