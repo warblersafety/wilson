@@ -24,7 +24,15 @@ refreshes it.
   every PR at the first push, draft while review and fixes are in
   progress; ready means merging is the only step left.
 - `staging` — human-facing preview. Steve promotes `dev → staging` via a
-  promotion PR that Claude prepares — the same rules apply to every
+  promotion PR that Claude prepares — and unless the round-gate skip
+  test passes (a mechanical diff-path test, [docs/round-gate.md](docs/round-gate.md)
+  "When it runs", its output pasted on the PR), the promotion PR is
+  **not prepared at all until the gate's READY verdict is posted, and
+  its head must match the verdict's named `dev` SHA** — a verdict is
+  void once `dev` advances past it. The verdict is copied onto the
+  promotion PR once it exists. This gate binds `dev → staging`
+  preparation only; `staging → main` copies the already-posted verdict
+  forward, no new run. The same rules apply to every
   promotion PR, `staging → main` included (see `main` below): a plain
   summary, a title describing the whole rollup rather than inherited
   from whichever unit happened to merge last, and **opened as draft**
@@ -118,9 +126,9 @@ refreshes it.
 - Second triage, on the issue: `urgent` (interrupts current work), `keep`
   (never expires), or unlabeled (default — auto-expires after 14 days
   untouched). Tier, and whether it needs a spec, is judged at pickup.
-- Review: the `dev` rule above. Amendments to `docs/charter.md` or
-  `docs/design.md` additionally take a `doc-review` pass (operator
-  toolbox). Promotion PRs hand Steve the paste-ready
+- Review: the `dev` rule above. Amendments to `docs/charter.md`,
+  `docs/design.md`, or `docs/round-gate.md` additionally take a
+  `doc-review` pass (operator toolbox). Promotion PRs hand Steve the paste-ready
   `/code-review <effort> <PR URL> --comment` command and confirm its
   findings — or the zero-finding record — actually landed on the PR.
 
