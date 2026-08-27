@@ -12,6 +12,7 @@ import { AskForm } from "./AskForm";
 import { stepForSession } from "./direct-step";
 import { RepeatDecision } from "./RepeatDecision";
 import { Transcript } from "./Transcript";
+import { visibleTranscriptTurns } from "./transcript-view";
 
 // No model call — askDeterministic never touches the network, so this is
 // safe to run on both the initial mount and every reload.
@@ -113,7 +114,12 @@ export function Wizard({ onDone }: WizardProps) {
   return (
     <ReportChrome record={session.record} repeatCounts={session.repeatCounts} currentTopicId={progress?.topic.id ?? null}>
       <main className="wizard">
-        <Transcript turns={session.transcript} progress={progress} />
+        {/* visibleTranscriptTurns, not session.transcript (Issue #89):
+            talk.ts appends every composed reply to the session, so the
+            ask below would otherwise render here too — the same
+            paragraph back-to-back in gray and teal on every turn. The
+            session keeps the turn; only this view drops it. */}
+        <Transcript turns={visibleTranscriptTurns(current)} progress={progress} />
         {step.kind === "topic" && (
           <AskForm current={current} onSubmitted={handleStep} onPendingChange={setIsSubmitting} />
         )}
