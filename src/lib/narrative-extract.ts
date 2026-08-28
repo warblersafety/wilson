@@ -38,6 +38,8 @@ import {
   type RepeatGroup,
   type Topic,
 } from "./topics";
+import { bareAgeDefaultWrites, completeExclusiveFactWrites } from "./derive";
+import { filterLabRowOverflow } from "./gates";
 
 export interface NarrativeProposal {
   action: ProposedAction;
@@ -97,10 +99,17 @@ export function resolveNarrativeExtraction(
   // shape, which extract.ts's existing caller never needed.
   const rejectedCandidates = new Set(rejected.map((r) => r.candidate));
   const acceptedCandidates = response.candidates.filter((c) => !rejectedCandidates.has(c));
-  const proposals: NarrativeProposal[] = accepted.map((action, i) => ({
-    action,
-    quote: acceptedCandidates[i].quote,
-  }));
+  // Rule 5's lab-row gate applies HERE, at proposal time — not after the
+  // clinician confirms on read-back. Filtering downstream let a proposal
+  // they had explicitly ticked vanish with nothing said (reviewer pass,
+  // PR #107, F2); dropping it here means it is never offered, which is
+  // the honest half of the same rule. Judged against an empty record on
+  // purpose: the narrative pass is the first thing to touch the report,
+  // so the batch's own ordering is all there is to judge.
+  const inBounds = new Set(filterLabRowOverflow({}, accepted));
+  const proposals: NarrativeProposal[] = accepted
+    .map((action, i) => ({ action, quote: acceptedCandidates[i].quote }))
+    .filter(({ action }) => inBounds.has(action));
 
   // Each candidate validated against the group it itself names — for this
   // pass there is no single "the question being asked" the way a per-turn
@@ -135,8 +144,41 @@ export function resolveNarrativeExtraction(
   return { proposals, repeatDecisions, rejected };
 }
 
+// The model call, split out so a scripted stand-in can replace exactly it
+// and nothing else — see extract.ts's ProposeFn for the full reasoning.
+// Everything downstream (grounding, instance-2 rejection, the repeat-count
+// range check, resolveNarrativeExtraction) stays the real code, so the
+// round-gate driver's read-back surface is this build's, not a mock of it.
+export type NarrativeProposeFn = (
+  narrative: string,
+  openFields: FormFieldSpec[],
+) => Promise<NarrativeExtractionResponse | null>;
+
+function narrativeModelProposer(client: Anthropic): NarrativeProposeFn {
+  return async (narrative, openFields) => {
+    const response = await client.messages.parse({
+      model: EXTRACTOR_MODEL,
+      // Larger than extract.ts's per-turn 4096: this call can legitimately
+      // ground candidates across dozens of fields in one response, not ≤3.
+      max_tokens: 8192,
+      system: [{ type: "text", text: NARRATIVE_EXTRACTOR_SYSTEM, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: buildNarrativeExtractionUserContent(narrative, openFields) }],
+      output_config: { format: zodOutputFormat(NARRATIVE_EXTRACTION_RESPONSE_SCHEMA) },
+    });
+    return response.parsed_output;
+  };
+}
+
 export function createNarrativeExtractFn(
   client: Anthropic = sharedAnthropicClient(),
+  topics: Topic[] = TOPICS,
+  fields: FormFieldSpec[] = FORM_3500_FIELDS,
+): NarrativeExtractFn {
+  return createNarrativeExtractFnFrom(narrativeModelProposer(client), topics, fields);
+}
+
+export function createNarrativeExtractFnFrom(
+  propose: NarrativeProposeFn,
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): NarrativeExtractFn {
@@ -151,17 +193,7 @@ export function createNarrativeExtractFn(
     // transcript this call grounds against, not one turn in a longer one.
     const transcript: TalkTurn[] = [{ role: "clinician", text: narrative }];
 
-    const response = await client.messages.parse({
-      model: EXTRACTOR_MODEL,
-      // Larger than extract.ts's per-turn 4096: this call can legitimately
-      // ground candidates across dozens of fields in one response, not ≤3.
-      max_tokens: 8192,
-      system: [{ type: "text", text: NARRATIVE_EXTRACTOR_SYSTEM, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildNarrativeExtractionUserContent(narrative, openFields) }],
-      output_config: { format: zodOutputFormat(NARRATIVE_EXTRACTION_RESPONSE_SCHEMA) },
-    });
-
-    const parsed = response.parsed_output;
+    const parsed = await propose(narrative, openFields);
     if (!parsed) {
       // `parsed_output` is genuinely null only for a response with no text
       // block at all (empty content, or a thinking/tool_use-only response)
@@ -199,8 +231,34 @@ export function applyNarrativeProposals(
   repeatDecisions: { repeatGroup: RepeatGroup; count: number }[],
   topics: Topic[] = TOPICS,
 ): { record: AgendaRecord; repeatCounts: RepeatCounts } {
+  // ask-copy.md rule 3's bare-age default applies here too: this is a
+  // write path, and an age dictated as "61-year-old" must not leave four
+  // unit checkboxes open just because it arrived through Read-back
+  // instead of a follow-up turn (reviewer pass, PR #106, F4).
+  //
+  // Rule 7's exclusive-fact completion (amended 2026-08-28, #126) ALSO
+  // reaches this path now, and deliberately: entailment carries on the
+  // clinician's own words, not on a list being read, so "58-year-old
+  // man" settles sex at Read-back the same as it would in-ask — before
+  // this amendment the record ended up holding `SexM: answered "true"`
+  // beside `SexF: unknown`, and the walk re-asked sex right after the
+  // clinician had just answered it (gate run #1, C3 — issue #126).
+  // voicesEveryMember completion (OC-1's outcomes, RA-2's recipients)
+  // stays bounded to the ask that was actually on screen — a narrative
+  // voices no ask — so it still never reaches this path; the comment
+  // this replaced ("group completion is deliberately absent... a
+  // narrative voices nothing") was the letter of that OLD, blanket
+  // in-ask-only bound, and is only half true post-#126.
+  // completeExclusiveFactWrites() is the exact same function extract.ts's
+  // follow-up path folds into deriveCompanionWrites — one mechanism, not
+  // a parallel implementation of it.
+  const withDerives = [
+    ...actions,
+    ...bareAgeDefaultWrites(record, actions),
+    ...completeExclusiveFactWrites(record, actions),
+  ];
   return {
-    record: applyProposedActions(record, actions),
+    record: applyProposedActions(record, withDerives),
     repeatCounts: repeatDecisions.reduce(
       (counts, decision) => setRepeatCount(counts, decision.repeatGroup, decision.count, topics),
       repeatCounts,

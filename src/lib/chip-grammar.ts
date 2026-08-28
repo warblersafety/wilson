@@ -6,9 +6,9 @@
 // multi-slot repeat groups, and the "question — answer" transcript
 // formatting a chip tap needs.
 import { applyAction, type AgendaRecord } from "./agenda";
-import { MAX_FIELDS_PER_ASK } from "./ask";
+import { standaloneFactNamesFor } from "./ask-inventory";
 import type { FieldAction } from "./field-state";
-import type { CorrectionOffer } from "./followup-sweep";
+import { describeDismissal, type CorrectionOffer, type FieldCollision } from "./followup-sweep";
 import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
 
 export interface RepeatDecisionOptions {
@@ -50,25 +50,79 @@ export function repeatDecisionOptions(
 // renders tapped answers as question/answer pairs rather than invented
 // speech, for the same reason: a machine-composed line must never read
 // as something the clinician said.
-export function widgetTurnText(question: string, answerLabel: string): string {
-  return `${question} — ${answerLabel}`;
+//
+// Issue #123: this used to take the question too, composing
+// `${question} — ${answerLabel}` — the talker's ask, spliced whole into
+// the clinician's own turn. Both turns are already on screen at once
+// (Transcript renders the talker turn, then the chip write appends this
+// one right after it), so quoting the question a second time only made
+// the clinician's half of the conversation read as a recitation of
+// wilson's own words — docs/mockups/screen-04.png's answer bubbles carry
+// only the answer. ux-floor.ts's clinicianEchoViolations() holds the
+// build to this: no clinician turn may contain its preceding talker turn
+// verbatim.
+export function widgetTurnText(answerLabel: string): string {
+  return answerLabel;
 }
 
-// Which of a step's fields AskForm's "I don't have that"/"rather not
-// say" chips are allowed to write. A "topic" step's fieldIds is NOT
-// itself capped by nextStep() (most real topics have more than
-// MAX_FIELDS_PER_ASK unresolved fields — patient-basics has 19 at once),
-// but askDeterministic() only ever phrases the first MAX_FIELDS_PER_ASK
-// of them into the visible question (src/lib/ask.ts). Passing the
-// UNCAPPED step.fieldIds to applyActionToFields() below would silently
-// write declined/unknown to every one of a topic's unresolved fields,
-// including the 16 the clinician was never shown a question about and so
-// never had a chance to decline (reviewer pass on PR #64 — this used to
-// be AskForm.tsx's own `current.nextStep.fieldIds`, uncapped). A
-// non-topic step (repeat-decision, done) has no ask-form fields to
-// dismiss at all.
+// The two dismiss chips' visible labels, and the action each writes.
+// ONE home, because three things have to agree on these strings and two
+// of them are not the component: AskForm renders them, the round-gate
+// case fixtures tap them by visible text through a real browser, and
+// gate-simulate.ts resolves them headlessly. They lived in all three,
+// so renaming the chip left the whole suite green and broke 122 of the
+// gate driver's 139 steps — silently, and only at gate time, which is
+// exactly when the driver is most likely to have rotted (doc-review on
+// #96). Keyed BY LABEL because the label is what a clinician taps and
+// what the driver clicks.
+export const DISMISS_CHIPS = {
+  "I don't have that": "mark_unknown",
+  "Rather not say": "decline",
+} as const satisfies Record<string, "mark_unknown" | "decline">;
+
+export type DismissChipLabel = keyof typeof DISMISS_CHIPS;
+
+// Which of a step's fields AskForm's dismiss chips are allowed to write: exactly the facts the visible question
+// named, and nothing else. Under the label-template walk this needed a
+// cap — nextStep() returned every unresolved field of a topic (19 for
+// patient-basics) while the question phrased only the first three, so an
+// uncapped dismiss silently wrote unknown/declined to 16 fields the
+// clinician was never shown (reviewer pass on PR #64). Authored asks
+// close that gap at the source: step.fieldIds IS the ask's own unresolved
+// askFieldIds, so the visible question and the dismiss set are the same
+// list by construction rather than by two modules agreeing to slice
+// alike. ask-copy.md rule 2 keeps the other half of it — an ask's
+// derive/auto companions are never in askFieldIds, so a dismiss can
+// never reach them. A non-topic step (repeat-decision, done) has no
+// ask-form fields to dismiss at all.
 export function dismissableFieldIds(step: NextStep): string[] {
-  return step.kind === "topic" ? step.fieldIds.slice(0, MAX_FIELDS_PER_ASK) : [];
+  return step.kind === "topic" ? step.fieldIds : [];
+}
+
+// What rule 8's dismiss acknowledgment says a tap just recorded (#110):
+// the FACTS the visible question asked for, named through rule 9's own
+// fact names, so the two sentences a clinician can see about one ask —
+// its re-ask frame and its dismissal — name the same things. Fields would
+// be the wrong unit: one tap on DV-1 writes ten of them and asks about
+// one fact, and "Marked device brand name, common device name, procode,
+// ... as not on hand." is the recite-the-field-list failure rule 9 exists
+// to remove.
+//
+// Named from dismissableFieldIds() — the SAME list the tap writes, not a
+// second set re-derived from the record — so the acknowledgment can never
+// name a fact the tap left alone, or miss one it resolved.
+//
+// `undefined`, not a string, on a step with nothing to dismiss: a
+// repeat-decision or `done` step has no ask-form fields at all. Guarded
+// on the composed NAMES rather than on the field ids, because names is
+// what describeDismissal() refuses to compose from nothing — a step
+// whose fieldIds named nothing in its own ask would otherwise pass a
+// field-count guard and throw inside AskForm, losing the tap's write
+// behind a generic failure message (reviewer pass).
+export function dismissAcknowledgment(step: NextStep, action: "mark_unknown" | "decline"): string | undefined {
+  if (step.kind !== "topic") return undefined;
+  const names = standaloneFactNamesFor(step.ask, dismissableFieldIds(step));
+  return names.length === 0 ? undefined : describeDismissal(names, action);
 }
 
 // AskForm's "I don't have that"/"rather not say" chips dismiss a whole
@@ -102,6 +156,19 @@ export function remainingCorrectionOffers(
   acceptedFieldId: string,
 ): CorrectionOffer[] | undefined {
   const rest = (offers ?? []).filter((offer) => offer.fieldId !== acceptedFieldId);
+  return rest.length > 0 ? rest : undefined;
+}
+
+// AskForm's one-tap collision-choice accept (Issue #124), the exact same
+// concern as remainingCorrectionOffers() just above and for the same
+// reason: stepForSession()'s fresh TalkStep carries no collisions of its
+// own, so resolving one field's collision must not silently drop another
+// field's still-pending one if both happened to land in the same turn.
+export function remainingCollisions(
+  collisions: FieldCollision[] | undefined,
+  resolvedFieldId: string,
+): FieldCollision[] | undefined {
+  const rest = (collisions ?? []).filter((collision) => collision.fieldId !== resolvedFieldId);
   return rest.length > 0 ? rest : undefined;
 }
 

@@ -17,6 +17,8 @@ import type { AgendaRecord } from "@/lib/agenda";
 import { formatFieldCounts, patientIdentifier, recordFieldCounts, reportRailRows } from "@/lib/report-chrome";
 import type { RepeatCounts } from "@/lib/topics";
 import { Facsimile } from "./Facsimile";
+import { GATED_OFF_RAIL_MARK } from "@/lib/report-chrome";
+import { stampReportDate } from "@/lib/report-date";
 
 // The footer's nothing-written-yet copy assumes the Start surface's own
 // framing ("wilson asks one topic at a time") — true once the topic-by-
@@ -51,7 +53,15 @@ interface ReportChromeProps {
 
 export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState, children }: ReportChromeProps) {
   const rows = reportRailRows(record, repeatCounts, currentTopicId);
-  const counts = recordFieldCounts(record);
+  // Stamped once, and used for BOTH the facsimile and the counts beside
+  // it. The facsimile previews the exported PDF and the PDF carries rule
+  // 4's report date, so the preview must show it — and a count computed
+  // from the unstamped record then described one fewer field than the
+  // preview rendered (reviewer pass, PR #107, nit a). One value also
+  // means one record identity per render rather than a fresh one inside
+  // the JSX (nit b).
+  const previewed = stampReportDate(record, new Date());
+  const counts = recordFieldCounts(previewed);
   const identifier = patientIdentifier(record);
   const nothingWritten = counts.written === 0 && counts.unknown === 0;
   const { headline, note } = emptyState ?? START_EMPTY_STATE;
@@ -82,6 +92,12 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState,
               {state === "unknown" && (
                 <span className="report-rail__row-mark report-rail__row-mark--unknown">unknown</span>
               )}
+              {/* ask-copy.md rule 5: gated-off is never confirmed-absent,
+                  so the rail says what it is rather than showing nothing
+                  or a check. */}
+              {state === "gated-off" && (
+                <span className="report-rail__row-mark report-rail__row-mark--gated-off">{GATED_OFF_RAIL_MARK}</span>
+              )}
             </li>
           ))}
         </ol>
@@ -100,7 +116,7 @@ export function ReportChrome({ record, repeatCounts, currentTopicId, emptyState,
         </div>
       </nav>
       <div className="report-chrome__content">{children}</div>
-      <Facsimile record={record} counts={counts} />
+      <Facsimile record={previewed} counts={counts} />
     </div>
   );
 }

@@ -14,10 +14,18 @@
 import { useState } from "react";
 import { Dialog } from "@/components/Dialog";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
-import { formatReadyCounts, READY_COPY, readyCounts, START_OVER_CONFIRM_COPY } from "@/lib/ready";
+import {
+  formatReadyCounts,
+  READY_COPY,
+  readyCounts,
+  readySurfaceView,
+  START_OVER_CONFIRM_COPY,
+} from "@/lib/ready";
 import { PDF_COPY } from "@/lib/review";
 import type { TalkSession } from "@/lib/talk";
 import { usePdfExport } from "./use-pdf-export";
+import { stampReportDate } from "@/lib/report-date";
+import { SessionDownloads } from "./SessionDownloads";
 
 interface ReadyProps {
   session: TalkSession;
@@ -27,15 +35,26 @@ interface ReadyProps {
 export function Ready({ session, onStartOver }: ReadyProps) {
   const [confirmingStartOver, setConfirmingStartOver] = useState(false);
   const pdf = usePdfExport(session.record);
-  const counts = readyCounts(session.record);
+  // Counted from the record the PDF actually carries, stamp included:
+  // this line sits beside a download offering that PDF, and describing
+  // one fewer written field than it contains is the same inconsistency
+  // the facsimile's header had (reviewer pass, PR #107, nit a).
+  const counts = readyCounts(stampReportDate(session.record, new Date()));
+  // Issue #128: one PDF-generation state at a time. Every branch below
+  // reads `view`, never `pdf.status` directly (ready.test.ts asserts
+  // that source-scanned), so the attempting/succeeded/failed decision is
+  // made in exactly one place and provable without a DOM.
+  const view = readySurfaceView(pdf.status);
 
   return (
     <ReportChrome record={session.record} repeatCounts={session.repeatCounts} currentTopicId={null}>
       <main className="ready">
-        <span className="ready__mark" aria-hidden="true">
-          ✓
-        </span>
-        <h1 className="ready__heading">{READY_COPY.heading}</h1>
+        {view.showMark && (
+          <span className="ready__mark" aria-hidden="true">
+            ✓
+          </span>
+        )}
+        <h1 className="ready__heading">{view.heading}</h1>
         <p className="ready__subhead">{READY_COPY.subhead}</p>
 
         {/* Screen 07's summary strip, two rows rather than four: the
@@ -56,32 +75,41 @@ export function Ready({ session, onStartOver }: ReadyProps) {
         </dl>
 
         <div className="ready__actions">
-          <button
-            type="button"
-            className="ready__download"
-            onClick={() => pdf.download()}
-            disabled={pdf.status !== "ready"}
-          >
-            {READY_COPY.downloadCta}
-          </button>
+          {view.showDownload && (
+            <button
+              type="button"
+              className="ready__download"
+              onClick={() => pdf.download()}
+              disabled={!view.downloadEnabled}
+            >
+              {READY_COPY.downloadCta}
+            </button>
+          )}
           <button type="button" className="ready__start-over" onClick={() => setConfirmingStartOver(true)}>
             {READY_COPY.startOverCta}
           </button>
         </div>
 
-        {pdf.status === "loading" && (
+        {view.showGenerating && (
           <p className="ready__pdf-status" role="status">
             {PDF_COPY.generating}
           </p>
         )}
-        {pdf.status === "error" && (
+        {view.failureMessage && (
           <div className="ready__pdf-status ready__pdf-status--error">
-            <p role="alert">{pdf.error}</p>
+            <p role="alert">{view.failureMessage}</p>
             <button type="button" onClick={pdf.retry}>
               {PDF_COPY.retryCta}
             </button>
           </div>
         )}
+
+        {/* AC-1's other two downloads. Above the storage line on
+            purpose: that line is the reason all three exist ("wilson
+            stores nothing on its own servers — this download is your
+            copy"), so it reads as the caption to the whole offering
+            rather than to the PDF alone. */}
+        <SessionDownloads session={session} />
 
         <p className="ready__storage">{READY_COPY.storage}</p>
 

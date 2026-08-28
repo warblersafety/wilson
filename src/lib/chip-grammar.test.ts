@@ -3,32 +3,36 @@
 // wrappers, same convention as the rest of src/app/wizard.
 import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
-import type { CorrectionOffer } from "./followup-sweep";
-import { TOPICS, type NextStep, type Topic } from "./topics";
+import type { CorrectionOffer, FieldCollision } from "./followup-sweep";
+import { initRepeatCounts, nextStep, TOPICS, type NextStep, type Topic } from "./topics";
 import {
   applyActionToFields,
+  dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
+  remainingCollisions,
   remainingCorrectionOffers,
   repeatDecisionOptions,
   widgetTurnText,
 } from "./chip-grammar";
+import { syntheticTopic } from "./synthetic-topic";
 
 const SUSPECT_PRODUCT_TOPICS: Topic[] = [
-  { id: "p1", section: "D", label: "Suspect product 1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 },
-  { id: "p2", section: "D", label: "Suspect product 2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 },
+  syntheticTopic({ id: "p1", section: "D", label: "Suspect product 1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 }),
+  syntheticTopic({ id: "p2", section: "D", label: "Suspect product 2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 }),
 ];
 
-const CONCOMITANT_TOPICS: Topic[] = Array.from({ length: 10 }, (_, i) => ({
-  id: `c${i + 1}`,
-  section: "F",
-  label: `Concomitant medication ${i + 1}`,
-  fieldIds: [`c${i + 1}`],
-  repeatGroup: "concomitant-medication" as const,
-  repeatInstance: i + 1,
-}));
+const CONCOMITANT_TOPICS: Topic[] = Array.from({ length: 10 }, (_, i) =>
+  syntheticTopic({
+    id: `c${i + 1}`,
+    section: "F",
+    label: `Concomitant medication ${i + 1}`,
+    fieldIds: [`c${i + 1}`],
+    repeatGroup: "concomitant-medication" as const,
+    repeatInstance: i + 1,
+  }),
+);
 
 describe("repeatDecisionOptions", () => {
   it("needs no count follow-through for a two-slot group — yes has only one possible meaning", () => {
@@ -54,10 +58,12 @@ describe("repeatDecisionOptions", () => {
 });
 
 describe("widgetTurnText", () => {
-  it("formats a chip-driven answer as question — answerLabel, never fabricated prose", () => {
-    expect(widgetTurnText("Was there another concomitant medication?", "Yes, 5 in total")).toBe(
-      "Was there another concomitant medication? — Yes, 5 in total",
-    );
+  // Issue #123: no question folded in — the talker turn asking it is
+  // already the preceding entry in the transcript, both bubbles on
+  // screen at once, so the clinician's own turn is just the chip's words.
+  it("renders exactly the chip's own label, never the question it answers", () => {
+    expect(widgetTurnText("Yes, 5 in total")).toBe("Yes, 5 in total");
+    expect(widgetTurnText("I don't have that")).toBe("I don't have that");
   });
 });
 
@@ -83,16 +89,18 @@ describe("applyActionToFields", () => {
 // fieldIds, so one "Rather not say" tap on a bundled topic wrote
 // declined/unknown to every unresolved field in it — up to 19 on
 // patient-basics — even though askDeterministic() only ever asked about
-// the first MAX_FIELDS_PER_ASK. dismissableFieldIds() is the fix; these
-// tests cover both the pure cap and the actual dismiss write end to end.
+// the first three. Authored asks close that at the source — a topic step's
+// fieldIds IS the ask's own unresolved askFieldIds — and
+// dismissableFieldIds() is what keeps the two the same list; these tests
+// cover both the pure pass-through and the actual dismiss write end to end.
 describe("dismissableFieldIds", () => {
-  it("caps a topic step's fieldIds to MAX_FIELDS_PER_ASK", () => {
-    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a", "b", "c", "d", "e"] };
-    expect(dismissableFieldIds(step)).toEqual(["a", "b", "c"]);
+  it("passes a topic step's fieldIds through whole — the ask IS the dismiss set now", () => {
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], ask: TOPICS[0].asks[0], fieldIds: ["a", "b", "c", "d", "e"] };
+    expect(dismissableFieldIds(step)).toEqual(["a", "b", "c", "d", "e"]);
   });
 
   it("passes an already-short fieldIds list through unchanged", () => {
-    const step: NextStep = { kind: "topic", topic: TOPICS[0], fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPICS[0], ask: TOPICS[0].asks[0], fieldIds: ["a"] };
     expect(dismissableFieldIds(step)).toEqual(["a"]);
   });
 
@@ -103,31 +111,37 @@ describe("dismissableFieldIds", () => {
     expect(dismissableFieldIds({ kind: "done" })).toEqual([]);
   });
 
-  it("against the real manifest: patient-basics bundles far more fields than the cap", () => {
+  it("against the real manifest: a dismiss can never reach patient-basics' 19 fields", () => {
+    // The real topic the bug was found on. The authored ask PB-1 waits on
+    // four of the topic's nineteen fields — the four the question names —
+    // and its derive companions (the age-unit checkboxes) are not among
+    // them, so no dismiss can write them (ask-copy.md rule 2).
     const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
-    // The real topic the bug was found on — proof this isn't a
-    // synthetic-fixture-only guarantee.
-    expect(patientBasics.fieldIds.length).toBeGreaterThan(MAX_FIELDS_PER_ASK);
-    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
-    const ids = dismissableFieldIds(step);
-    expect(ids).toEqual(patientBasics.fieldIds.slice(0, MAX_FIELDS_PER_ASK));
-    expect(ids.length).toBe(MAX_FIELDS_PER_ASK);
+    expect(patientBasics.fieldIds.length).toBe(19);
+    const pb1 = patientBasics.asks[0];
+    const step: NextStep = { kind: "topic", topic: patientBasics, ask: pb1, fieldIds: pb1.askFieldIds };
+    expect(dismissableFieldIds(step)).toEqual(pb1.askFieldIds);
+    expect(dismissableFieldIds(step)).toHaveLength(4);
+    for (const companion of pb1.companionFieldIds) {
+      expect(dismissableFieldIds(step)).not.toContain(companion);
+    }
   });
 
-  it("against the real manifest: a dismiss on patient-basics writes exactly the phrased fields and no more", () => {
+  it("against the real manifest: a dismiss on patient-basics writes exactly the asked fields and no more", () => {
     const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
-    const step: NextStep = { kind: "topic", topic: patientBasics, fieldIds: patientBasics.fieldIds };
+    const step: NextStep = { kind: "topic", topic: patientBasics, ask: patientBasics.asks[0], fieldIds: patientBasics.asks[0].askFieldIds };
     const record = initAgenda();
     const phrasedIds = dismissableFieldIds(step);
 
     const result = applyActionToFields(record, phrasedIds, { type: "decline" });
 
     for (const id of phrasedIds) expect(result[id].state).toBe("declined");
-    // The other 16 of patient-basics's 19 fields — never shown to the
-    // clinician this turn — must be untouched. This is the exact
-    // regression: one tap used to decline all 19.
+    // The other 15 of patient-basics's 19 fields — PB-1's derive
+    // companions and the facts PB-2 and PB-3 ask for, none of them shown
+    // this turn — must be untouched. This is the exact regression: one
+    // tap used to decline all 19.
     const unphrasedIds = patientBasics.fieldIds.filter((id) => !phrasedIds.includes(id));
-    expect(unphrasedIds).toHaveLength(patientBasics.fieldIds.length - MAX_FIELDS_PER_ASK);
+    expect(unphrasedIds).toHaveLength(15);
     for (const id of unphrasedIds) expect(result[id]).toEqual(record[id]);
   });
 });
@@ -163,6 +177,104 @@ describe("remainingCorrectionOffers", () => {
   it("is a no-op when the accepted id isn't among the given offers", () => {
     const offers = [offer("a"), offer("b")];
     expect(remainingCorrectionOffers(offers, "z")).toEqual(offers);
+  });
+});
+
+// Issue #124: the same same-turn-siblings concern remainingCorrectionOffers
+// solves above, for collisions — accepting one field's colliding value
+// must not silently drop another field's still-pending collision from the
+// same turn (stepForSession()'s fresh TalkStep carries neither kind of
+// its own).
+describe("remainingCollisions", () => {
+  function collision(fieldId: string): FieldCollision {
+    return {
+      fieldId,
+      values: [`${fieldId}-1`, `${fieldId}-2`],
+      actions: [
+        { fieldId, type: "answer", value: `${fieldId}-1` },
+        { fieldId, type: "answer", value: `${fieldId}-2` },
+      ],
+    };
+  }
+
+  it("drops only the resolved field's collision, keeping every other one from the same turn", () => {
+    const collisions = [collision("a"), collision("b"), collision("c")];
+    expect(remainingCollisions(collisions, "b")).toEqual([collision("a"), collision("c")]);
+  });
+
+  it("returns undefined, not an empty array, once resolving it empties the list", () => {
+    expect(remainingCollisions([collision("a")], "a")).toBeUndefined();
+  });
+
+  it("returns undefined for an undefined input list (no collisions this turn)", () => {
+    expect(remainingCollisions(undefined, "a")).toBeUndefined();
+  });
+
+  it("is a no-op when the resolved id isn't among the given collisions", () => {
+    const collisions = [collision("a"), collision("b")];
+    expect(remainingCollisions(collisions, "z")).toEqual(collisions);
+  });
+});
+
+// Reviewer pass on PR #142, finding 2 (SHOULD-FIX): both pending-offer
+// channels can be live in the same turn, and AskForm.tsx's three
+// handlers (accept-correction, accept-collision, dismiss) must each
+// carry BOTH forward — the one they just resolved (via the remaining*
+// helper above) AND the other, untouched. Before this fix each handler
+// spread only its own channel, so accepting one silently dropped
+// whatever was pending on the other — worst case, a same-turn
+// correction offer's chip vanishing while its field stayed answered at
+// the wrong value, which the walk then never re-asks about (it's
+// `answered`, not `unasked`). AskForm.tsx has no test harness (this repo
+// has no component tests at all), so this pins the composition at the
+// level reachable without one: the exact shape each handler now builds,
+// proving the two helpers never interfere with each other's list.
+describe("remainingCorrectionOffers and remainingCollisions carried together (Issue #142 reviewer pass, finding 2)", () => {
+  function offer(fieldId: string): CorrectionOffer {
+    return {
+      fieldId,
+      action: { fieldId, type: "answer", value: `value for ${fieldId}` },
+      currentState: "answered",
+      currentValue: `old value for ${fieldId}`,
+    };
+  }
+
+  function collision(fieldId: string): FieldCollision {
+    return {
+      fieldId,
+      values: [`${fieldId}-1`, `${fieldId}-2`],
+      actions: [
+        { fieldId, type: "answer", value: `${fieldId}-1` },
+        { fieldId, type: "answer", value: `${fieldId}-2` },
+      ],
+    };
+  }
+
+  it("accepting a correction offer (handleAcceptCorrection's shape) leaves a same-turn collision fully intact", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b"), collision("c")];
+    const next = {
+      correctionOffers: remainingCorrectionOffers(correctionOffers, "a"),
+      collisions, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ correctionOffers: undefined, collisions: [collision("b"), collision("c")] });
+  });
+
+  it("accepting a collision (handleAcceptCollision's shape) leaves a same-turn correction offer fully intact", () => {
+    const correctionOffers = [offer("a"), offer("b")];
+    const collisions = [collision("c")];
+    const next = {
+      collisions: remainingCollisions(collisions, "c"),
+      correctionOffers, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ collisions: undefined, correctionOffers: [offer("a"), offer("b")] });
+  });
+
+  it("dismissing (handleDismiss's shape) carries both channels forward untouched — a dismiss resolves neither", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b")];
+    const next = { correctionOffers, collisions };
+    expect(next).toEqual({ correctionOffers: [offer("a")], collisions: [collision("b")] });
   });
 });
 
@@ -207,5 +319,85 @@ describe("checkbox/enum manifest coverage — no raw identifiers surfaced", () =
         expect(option).not.toMatch(RAW_OPT_CODE);
       }
     }
+  });
+});
+
+// Issue #110: rule 8 authors an acknowledgment for a dismiss tap, and
+// before this unit the build rendered nothing — the clinician saw their
+// own "…question… — I don't have that" line and then the next question,
+// with no statement that anything had been recorded. Design.md's "no
+// widened write is ever invisible" holds for the sweep's writes; a tap
+// writes MORE fields at once than the sweep usually does.
+describe("dismissAcknowledgment", () => {
+  it("names the facts the visible question asked for, not its fields", () => {
+    // RA-2 is the ask #110 names: five fields, two facts.
+    const reporterAboutYou = TOPICS.find((t) => t.id === "reporter-about-you")!;
+    const ra2 = reporterAboutYou.asks.find((a) => a.id === "RA-2")!;
+    const step: NextStep = { kind: "topic", topic: reporterAboutYou, ask: ra2, fieldIds: ra2.askFieldIds };
+    expect(dismissableFieldIds(step)).toHaveLength(5);
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBe(
+      "Marked other reports and identity-withholding choice as not on hand.",
+    );
+  });
+
+  it("names only what is still open, so a tap on a re-ask acknowledges the re-ask", () => {
+    // The real step, from nextStep(), not a hand-built one: the narrowing
+    // this asserts IS nextStep()'s own unresolvedAskFieldIds() slice, and
+    // a fixture that re-listed every field would assert nothing.
+    const record = { ...initAgenda(), "Page1.SecA_Patient.PatientIdentifier": { state: "answered" as const, value: "MRN 41" } };
+    const step = nextStep(record, initRepeatCounts());
+    expect(step.kind).toBe("topic");
+    expect(dismissAcknowledgment(step, "decline")).toBe("Marked age and sex as declined.");
+  });
+
+  // Reviewer pass: the guard used to count field ids while the throw it
+  // guards counts composed names. A step whose fieldIds belong to no fact
+  // of its own ask passes the first and trips the second — which reaches
+  // the clinician as AskForm's generic failure message, after the tap's
+  // record write has already been made.
+  it("returns undefined, never throws, when a step's fields name nothing in its ask", () => {
+    const patientBasics = TOPICS.find((t) => t.id === "patient-basics")!;
+    const step: NextStep = {
+      kind: "topic",
+      topic: patientBasics,
+      ask: patientBasics.asks[0],
+      fieldIds: ["Page6.SecE_Device.BrandName"],
+    };
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBeUndefined();
+  });
+
+  it("has nothing to acknowledge on a step with no dismissable fields", () => {
+    expect(dismissAcknowledgment({ kind: "done" }, "mark_unknown")).toBeUndefined();
+    expect(
+      dismissAcknowledgment({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 }, "mark_unknown"),
+    ).toBeUndefined();
+  });
+
+  // Rule 9's arrival frame (#125): "Dismiss chips on an arrival frame
+  // cover exactly its open side — the named still-need facts, or the
+  // bulk remainder — never facts already on the record: the same
+  // scoping this rule gives re-asks." dismissableFieldIds() and
+  // dismissAcknowledgment() both take their fieldIds from step.fieldIds
+  // — nextStep()'s own unresolved slice — which is computed identically
+  // regardless of which COPY (primary/arrival/re-ask) askDeterministic
+  // composes for the same step; this pins that no code path exists for
+  // "which frame is showing" to leak into which fields a chip can touch.
+  it("scopes a dismiss on an arrival-eligible step to exactly its open side, never the held fields", () => {
+    // PatientIdentifier resolved (as narrative extraction would from an
+    // MRN mentioned up front) — PB-1 arrives with one fact already held,
+    // two still open, on what would be its first (arrival) voicing.
+    const pb1 = TOPICS.find((t) => t.id === "patient-basics")!.asks.find((a) => a.id === "PB-1")!;
+    const record = {
+      ...initAgenda(),
+      [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" },
+    };
+    const step = nextStep(record, initRepeatCounts());
+    expect(step.kind).toBe("topic");
+    const fieldIds = dismissableFieldIds(step);
+    // The held fact (patient identifier) is untouched by the chip.
+    expect(fieldIds).not.toContain(pb1.askFieldIds[0]);
+    // Exactly the still-open facts — age and sex — nothing more.
+    expect(fieldIds).toEqual(pb1.askFieldIds.slice(1));
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBe("Marked age and sex as not on hand.");
   });
 });

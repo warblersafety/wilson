@@ -1,0 +1,177 @@
+{
+  "devSha": "77f9a1f0ae7c50a7521ab895db51c154ed49b42f",
+  "treeClean": true,
+  "cases": [
+    {
+      "id": "C1",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    },
+    {
+      "id": "C2",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    },
+    {
+      "id": "C3",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    },
+    {
+      "id": "C4",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "gate-opened-device",
+        "gate-opened-product-handling",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    },
+    {
+      "id": "C5",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    },
+    {
+      "id": "C6",
+      "failures": [],
+      "surfaces": [
+        "report-chrome",
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready"
+      ],
+      "allSurfaces": [
+        "start",
+        "read-back",
+        "follow-ups",
+        "review",
+        "review-paper-facsimile",
+        "open-fields",
+        "ready",
+        "report-chrome",
+        "gate-opened-device",
+        "gate-opened-product-handling"
+      ]
+    }
+  ],
+  "surfacesUnion": [
+    "follow-ups",
+    "gate-opened-device",
+    "gate-opened-product-handling",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "neverReached": []
+}

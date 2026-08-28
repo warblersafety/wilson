@@ -7,6 +7,7 @@
 // real Storage type). window.fetch already satisfies this interface
 // structurally, so the wizard passes it straight through with no adapter.
 import type { AgendaRecord } from "./agenda";
+import { stampReportDate } from "./report-date";
 
 export interface PdfFetchResponse {
   ok: boolean;
@@ -30,13 +31,19 @@ export async function fetchReportPdf(
   record: AgendaRecord,
   fetchImpl: PdfFetch,
   signal?: AbortSignal,
+  today: Date = new Date(),
 ): Promise<ArrayBuffer> {
+  // ask-copy.md rule 4: the report date is stamped here, on the way out,
+  // and never asked. Applied to the request rather than to the session's
+  // record, so a draft resumed tomorrow exports with tomorrow's date
+  // rather than the day the tab happened to be opened.
+  const exported = stampReportDate(record, today);
   let response: PdfFetchResponse;
   try {
     response = await fetchImpl("/api/generate-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
+      body: JSON.stringify(exported),
       signal,
     });
   } catch {

@@ -1,0 +1,23 @@
+{
+  "caseId": "C4",
+  "narratives": [
+    {
+      "narrative": "Patient used an EpiPen auto-injector for anaphylaxis and the needle failed to deploy. No epinephrine was delivered.",
+      "candidates": [
+        {
+          "fieldId": "Page2.SecB_Adverse.DescEvent",
+          "kind": "value",
+          "value": "the needle failed to deploy",
+          "quote": "the needle failed to deploy"
+        },
+        {
+          "fieldId": "Page6.SecE_Device.BrandName",
+          "kind": "value",
+          "value": "EpiPen",
+          "quote": "EpiPen"
+        }
+      ]
+    }
+  ],
+  "turns": []
+}

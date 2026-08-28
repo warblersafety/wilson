@@ -4,7 +4,7 @@
 // topicStatuses()' positional walk, which cannot express `unknown` and
 // mis-reports out-of-order fills under dictation-first."
 import { describe, expect, it } from "vitest";
-import { initAgenda, type AgendaRecord } from "./agenda";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
   curatedRowState,
   curatedRows,
@@ -13,14 +13,15 @@ import {
   reportRailRows,
 } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { syntheticTopic } from "./synthetic-topic";
 
 // A tiny, self-contained topic list — the real 34-topic/227-field
 // manifest is exercised separately below (the fixed-row/real-manifest
 // tests), but the state-derivation rules themselves are clearer to prove
 // against a handful of topics with a handful of fields each.
 const TEST_TOPICS: Topic[] = [
-  { id: "a1", section: "A", label: "A one", fieldIds: ["fa", "fb"], repeatGroup: null, repeatInstance: null },
-  { id: "b1", section: "B", label: "B one", fieldIds: ["fc"], repeatGroup: null, repeatInstance: null },
+  syntheticTopic({ id: "a1", section: "A", label: "A one", fieldIds: ["fa", "fb"], repeatGroup: null, repeatInstance: null }),
+  syntheticTopic({ id: "b1", section: "B", label: "B one", fieldIds: ["fc"], repeatGroup: null, repeatInstance: null }),
 ];
 
 function recordWith(states: Record<string, AgendaRecord[string]["state"]>): AgendaRecord {
@@ -142,11 +143,31 @@ describe("curatedRows — the nine curated rows", () => {
 });
 
 describe("reportRailRows — against the real 34-topic manifest", () => {
-  it("a fresh session shows every row untouched", () => {
+  it("a fresh session shows every row untouched, except the one rule 5 gates off", () => {
     const record = initAgenda();
     const statuses = reportRailRows(record, {}, null);
     expect(statuses).toHaveLength(9);
-    expect(statuses.every((s) => s.state === "untouched")).toBe(true);
+    // Product availability is gated: a report that is not yet a product
+    // problem, a device, or an OTC/compounded/cannabinoid/cosmetic type
+    // does not include it — and "not part of this report" is its own
+    // state, not "untouched", because untouched implies it is coming.
+    const gated = statuses.filter((s) => s.state === "gated-off");
+    expect(gated.map((s) => s.row.id)).toEqual(["product-availability"]);
+    expect(statuses.filter((s) => s.state !== "gated-off").every((s) => s.state === "untouched")).toBe(true);
+  });
+
+  it("brings a gated-off row back into the report once the record says it belongs", () => {
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    const statuses = reportRailRows(record, {}, null);
+    expect(statuses.find((s) => s.row.id === "product-availability")?.state).not.toBe("gated-off");
+  });
+
+  it("does not gate a row that merely contains a gated topic among ungated ones", () => {
+    // The suspect-product rows bundle the purchase topic (gated) with
+    // five ungated ones, so the row stays in the report and reports on
+    // what is still in play.
+    const statuses = reportRailRows(initAgenda(), { "suspect-product": 1 }, null);
+    expect(statuses.find((s) => s.row.id === "suspect-product-1")?.state).not.toBe("gated-off");
   });
 
   it("marks the row containing the live cursor's topic as current", () => {

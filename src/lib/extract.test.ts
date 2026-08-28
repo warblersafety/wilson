@@ -4,12 +4,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExtractionResponse } from "../prompts/extractor";
-import { MAX_FIELDS_PER_ASK } from "./ask";
 import { createExtractFn } from "./extract";
 import type { FormFieldSpec } from "./form-3500-fields";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { initRepeatCounts, setRepeatCount, type Topic } from "./topics";
 import type { TalkSession } from "./talk";
+import { syntheticTopic } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"]): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label: id, type, required: false };
@@ -19,31 +19,31 @@ const FIELD_A = field("a", "text");
 const FIELD_B = field("b", "text");
 const FIELDS = [FIELD_A, FIELD_B];
 
-const TOPIC: Topic = {
+const TOPIC: Topic = syntheticTopic({
   id: "t1",
   section: "A",
   label: "Topic 1",
   fieldIds: ["a", "b"],
   repeatGroup: null,
   repeatInstance: null,
-};
+});
 
-const REPEAT_TOPIC_1: Topic = {
+const REPEAT_TOPIC_1: Topic = syntheticTopic({
   id: "g1",
   section: "D",
   label: "Group instance 1",
   fieldIds: ["a"],
   repeatGroup: "suspect-product",
   repeatInstance: 1,
-};
-const REPEAT_TOPIC_2: Topic = {
+});
+const REPEAT_TOPIC_2: Topic = syntheticTopic({
   id: "g2",
   section: "D",
   label: "Group instance 2",
   fieldIds: ["b"],
   repeatGroup: "suspect-product",
   repeatInstance: 2,
-};
+});
 
 function unaskedRecordFor(fieldIds: string[]): AgendaRecord {
   const record: AgendaRecord = {};
@@ -349,25 +349,44 @@ describe("createExtractFn", () => {
       const result = await extract(sessionWith(), "42, or was it 45");
       expect(result.actions).toEqual([]);
       expect(result.replyPrefix?.toLowerCase()).toContain("which");
+      // Issue #124: the pending-state channel a collision-choice chip
+      // reads (AskForm.tsx) — carries each candidate's own writable
+      // action, not just its rendered value.
+      expect(result.collisions).toEqual([
+        {
+          fieldId: "a",
+          values: ["42", "45"],
+          actions: [
+            { fieldId: "a", type: "answer", value: "42" },
+            { fieldId: "a", type: "answer", value: "45" },
+          ],
+        },
+      ]);
     });
 
-    it("flags a field as out-of-ask when it's unresolved in the topic but beyond MAX_FIELDS_PER_ASK — askDeterministic never actually phrased it", async () => {
-      // A 4-field, all-unasked topic: nextStep() itself returns all four
-      // fieldIds (it doesn't cap), but askDeterministic() only ever
-      // phrases the first MAX_FIELDS_PER_ASK (3) of them into the visible
-      // question — so a candidate for the 4th must still count as
-      // out-of-ask and be named in the reply, or "no invisible write"
-      // would be broken for any topic wider than the phrasing cap (most
-      // of the real manifest: patient-basics has 19 fields, event-outcome
-      // has 8, lab data has 31...).
-      expect(MAX_FIELDS_PER_ASK).toBe(3);
-      const fourFieldTopic: Topic = {
+    it("flags a field as out-of-ask when the ask never named it — no invisible write", async () => {
+      // A topic whose authored ask waits on three of its four fields; the
+      // fourth is a derive companion (ask-copy.md rule 2 — an age unit,
+      // a weight unit, a stated-only country). A candidate for that
+      // fourth field must still count as out-of-ask and be named in the
+      // reply, or "no invisible write" breaks for exactly the fields the
+      // clinician was never asked about.
+      const wideTopic: Topic = {
         id: "wide",
         section: "A",
         label: "Wide topic",
         fieldIds: ["a", "b", "c", "d"],
         repeatGroup: null,
         repeatInstance: null,
+        asks: [
+          {
+            id: "wide-ask",
+            topicId: "wide",
+            copy: "synthetic ask for wide",
+            askFieldIds: ["a", "b", "c"],
+            companionFieldIds: ["d"],
+          },
+        ],
       };
       const fields = [field("a", "text"), field("b", "text"), field("c", "text"), field("d", "text")];
       vi.spyOn(client.messages, "parse").mockResolvedValue(
@@ -376,13 +395,124 @@ describe("createExtractFn", () => {
           repeatDecision: null,
         }),
       );
-      const extract = createExtractFn(client, [fourFieldTopic], fields);
+      const extract = createExtractFn(client, [wideTopic], fields);
       const session = sessionWith({
         record: { a: { state: "unasked" }, b: { state: "unasked" }, c: { state: "unasked" }, d: { state: "unasked" } },
       });
       const result = await extract(session, "and also, 42 for the fourth thing");
       expect(result.actions).toEqual([{ fieldId: "d", type: "answer", value: "42" }]);
       expect(result.replyPrefix).toContain("42");
+    });
+
+    // ask-copy.md rule 3's derives reach the record through the same
+    // single write path everything else does — proved end to end here,
+    // not just in derive.test.ts's pure unit.
+    it("completes a checkbox group the clinician just answered, through the real turn", async () => {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda } = await import("./agenda");
+      const HOSPITAL = "Page1.SecA_Patient.Hospital";
+      const DEATH = "Page1.SecA_Patient.Death";
+      // Park the walk on OC-1 by resolving everything before it.
+      let record = initAgenda();
+      const { applyAction } = await import("./agenda");
+      for (const topic of realTopics) {
+        if (topic.id === "event-outcome") break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: HOSPITAL, kind: "value", value: "true", quote: { turnIndex: 1, text: "she was hospitalised" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "How serious was the outcome?" }] });
+      const result = await extract(session, "she was hospitalised");
+
+      expect(result.actions).toContainEqual({ fieldId: HOSPITAL, type: "answer", value: "true" });
+      // The other six boxes OC-1 voiced, written false — including death,
+      // which is exactly why rule 7 bounds this to a voiced ask.
+      expect(result.actions).toContainEqual({ fieldId: DEATH, type: "answer", value: "false" });
+      expect(result.actions).toHaveLength(7);
+      // And the companions are not announced back at the clinician: they
+      // are the same fact, written where the form keeps it.
+      expect(result.replyPrefix ?? "").not.toContain("death");
+    });
+
+    // ask-copy.md rule 7's amendment (#126), the doc-review's own
+    // residue: "the volunteered path exercises different machinery than
+    // Read-back and deserves its own named deterministic test." This is
+    // that test — extract.ts's real classifyFollowUpActions +
+    // deriveCompanionWrites pipeline, distinct from
+    // narrative-extract.test.ts's applyNarrativeProposals proof
+    // (derive.test.ts's own Read-back describe block). PB-1's sex is
+    // DECLINED (not merely unasked) before the volunteer arrives, so
+    // this also proves supersession end to end: the walk is parked past
+    // patient-basics entirely, and the clinician volunteers sex while
+    // answering event-what-happened's own WH-1.
+    it("VOLUNTEERED WRITE completes an exclusive fact through the real per-turn sweep, superseding a prior decline", async () => {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda, applyAction } = await import("./agenda");
+      const SEX_M = "Page1.SecA_Patient.SexM";
+      const SEX_F = "Page1.SecA_Patient.SexF";
+      const DESC = "Page2.SecB_Adverse.DescEvent";
+      // Park the walk on event-what-happened by declining everything
+      // before it — patient-basics' PB-1 included, so SexM/SexF are
+      // `declined`, not `unasked`, when the volunteer arrives.
+      let record = initAgenda();
+      for (const topic of realTopics) {
+        if (topic.id === "event-what-happened") break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: DESC, kind: "value", value: "hives", quote: { turnIndex: 1, text: "broke out in hives" } },
+            { fieldId: SEX_M, kind: "value", value: "true", quote: { turnIndex: 1, text: "he's male" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({
+        record,
+        transcript: [
+          {
+            role: "talker",
+            text: "Describe what happened — the event, product problem, or medication error, in your own words.",
+          },
+        ],
+      });
+      const result = await extract(session, "He broke out in hives. Oh, and he's male, by the way.");
+
+      // The in-ask write, unaffected.
+      expect(result.actions).toContainEqual({ fieldId: DESC, type: "answer", value: "hives" });
+      // The volunteered write supersedes the prior `declined` state — a
+      // write, not a correction offer (followup-sweep.test.ts pins the
+      // classifier's own half of this rule directly).
+      expect(result.actions).toContainEqual({ fieldId: SEX_M, type: "answer", value: "true" });
+      expect(result.correctionOffers ?? []).toEqual([]);
+      // Atomic completion reaches all the way through the real pipeline:
+      // the sibling is derived false in the SAME batch, never left a
+      // phantom `declined` beside an answered-true SexM.
+      expect(result.actions).toContainEqual({ fieldId: SEX_F, type: "answer", value: "false" });
+      // Naming: the fact is announced once, by its own stated value — no
+      // separate naming for the derived sibling (design.md's exemption
+      // — "the sibling falses are that same fact's representation, not
+      // separate writes owed separate naming").
+      expect(result.replyPrefix ?? "").toContain("sex: male");
+      expect(result.replyPrefix ?? "").not.toContain("sex: female");
+
+      // And applied through the real write path, the record ends with
+      // sex fully resolved.
+      const { applyProposedActions } = await import("./talk");
+      const nextRecord = applyProposedActions(record, result.actions);
+      expect(nextRecord[SEX_M]).toEqual({ state: "answered", value: "true" });
+      expect(nextRecord[SEX_F]).toEqual({ state: "answered", value: "false" });
     });
 
     it("passes the full field manifest (not just openFields) to validateCandidates, via the ALL_FIELD_TYPES default", async () => {
@@ -417,6 +547,124 @@ describe("createExtractFn", () => {
       expect(call.system[0].text).toContain("## Full field manifest");
       expect(call.system[0].text).toContain("a (text)");
       expect(call.system[0].cache_control).toEqual({ type: "ephemeral" });
+    });
+  });
+
+  // Issue #121 / docs/ask-copy.md rule 7's text-ask negative: MH-1/LD-1/
+  // AC-1's own field, forced to answered "None" regardless of what the
+  // extractor proposed for it this turn — proved end to end here (not
+  // just derive.test.ts's pure unit), the same way the checkbox-group
+  // companion test above proves rule 3's derives reach the record
+  // through the real turn.
+  describe("the text-ask negative (Issue #121)", () => {
+    const OTHER_HISTORY = "Page3.Sec6Data.OtherHistory";
+    const ADDITIONAL_COMMENTS = "Page3.AdditionalComments";
+
+    // Parks the walk on `stopBeforeTopicId` by declining every field of
+    // every topic ahead of it, mirroring the checkbox-group test above.
+    async function sessionParkedBefore(stopBeforeTopicId: string) {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda, applyAction } = await import("./agenda");
+      let record = initAgenda();
+      for (const topic of realTopics) {
+        if (topic.id === stopBeforeTopicId) break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      return { realTopics, realFields, record };
+    }
+
+    it("overrides a mark_unknown proposal with answered None — the extractor's kind does not matter", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "no relevant history" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toContainEqual({ fieldId: OTHER_HISTORY, type: "answer", value: "None" });
+      expect(result.actions).not.toContainEqual({ fieldId: OTHER_HISTORY, type: "mark_unknown" });
+    });
+
+    it("still writes None when the extractor proposes nothing at all for a clear negative", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({ candidates: [], repeatDecision: null }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toContainEqual({ fieldId: OTHER_HISTORY, type: "answer", value: "None" });
+    });
+
+    it("overrides a wrong-kind 'value' proposal too — regardless of kind means regardless", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: OTHER_HISTORY, kind: "value", value: "no relevant history", quote: { turnIndex: 1, text: "no relevant history" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "answer", value: "None" }]);
+    });
+
+    it("leaves a genuinely unknown answer as mark_unknown — ignorance is not a negative", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "I don't have that information" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "I don't have that information");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "mark_unknown" }]);
+    });
+
+    it("resolves AC-1's negative the same way", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-additional-comments");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: ADDITIONAL_COMMENTS, kind: "unknown", quote: { turnIndex: 1, text: "nothing else to add" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Anything else FDA should know?" }] });
+      const result = await extract(session, "nothing else to add");
+      expect(result.actions).toEqual([{ fieldId: ADDITIONAL_COMMENTS, type: "answer", value: "None" }]);
+    });
+
+    it("does not disturb a different text-ask field already resolved earlier in the session", async () => {
+      const { realTopics, realFields, record: parked } = await sessionParkedBefore("event-medical-history");
+      // AC-1's field carries an earlier, unrelated answer — rule 7: "Companions
+      // and further rows stay untouched."
+      const { applyAction } = await import("./agenda");
+      const record = applyAction(parked, ADDITIONAL_COMMENTS, { type: "answer" }, "life is good");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "none" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "none");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "answer", value: "None" }]);
+      expect(result.actions).not.toContainEqual(expect.objectContaining({ fieldId: ADDITIONAL_COMMENTS }));
     });
   });
 });

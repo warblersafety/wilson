@@ -7,11 +7,58 @@
 // design), so this action is expected to fail cleanly here; callers get a
 // typed ok:false instead of an unhandled server exception, so the UI can
 // show an inline, retryable error without losing the clinician's message.
-import { createExtractFn } from "@/lib/extract";
+import { readFileSync } from "node:fs";
+import { createExtractFn, createExtractFnFrom } from "@/lib/extract";
 import { askDeterministic } from "@/lib/ask";
-import { createNarrativeExtractFn, type NarrativeExtractResult } from "@/lib/narrative-extract";
+import {
+  createNarrativeExtractFn,
+  createNarrativeExtractFnFrom,
+  type NarrativeExtractFn,
+  type NarrativeExtractResult,
+} from "@/lib/narrative-extract";
+import {
+  createScriptedNarrativeProposeFn,
+  createScriptedProposeFn,
+  parseExtractionScript,
+  type ExtractionScript,
+} from "@/lib/scripted-extract";
 import { validateNarrative } from "@/lib/start-surface";
-import { processTurn, type TalkSession, type TalkStep } from "@/lib/talk";
+import { processTurn, type ExtractFn, type TalkSession, type TalkStep } from "@/lib/talk";
+
+// The round-gate case driver's fake model (Issue #96). Active ONLY when
+// WILSON_GATE_SCRIPT names a script file AND this is not a production
+// build — two conditions, because either alone is one mistake away from a
+// clinician's real report being answered by a fixture. The variable is
+// server-side and unprefixed, so it is not exposed to the browser and
+// cannot be set by anything reaching the app over the network.
+//
+// It substitutes for the model call alone; see src/lib/scripted-extract.ts
+// for why that boundary is the whole point. Read once per process rather
+// than per request — a script that changed mid-case would make the run's
+// evidence describe two different scripts.
+let cachedScript: ExtractionScript | null = null;
+
+function gateScript(): ExtractionScript | null {
+  const path = process.env.WILSON_GATE_SCRIPT;
+  if (path === undefined || path.length === 0) return null;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("WILSON_GATE_SCRIPT is set in a production build — refusing to run the fake extractor");
+  }
+  cachedScript ??= parseExtractionScript(readFileSync(path, "utf8"));
+  return cachedScript;
+}
+
+function extractFn(): ExtractFn {
+  const script = gateScript();
+  return script === null ? createExtractFn() : createExtractFnFrom(createScriptedProposeFn(script));
+}
+
+function narrativeExtractFn(): NarrativeExtractFn {
+  const script = gateScript();
+  return script === null
+    ? createNarrativeExtractFn()
+    : createNarrativeExtractFnFrom(createScriptedNarrativeProposeFn(script));
+}
 
 export type SubmitTurnResult = { ok: true; step: TalkStep } | { ok: false; message: string };
 
@@ -19,7 +66,7 @@ export async function submitTurn(session: TalkSession, message: string): Promise
   try {
     const step = await processTurn(session, message, {
       ask: askDeterministic,
-      extract: createExtractFn(),
+      extract: extractFn(),
     });
     return { ok: true, step };
   } catch (err) {
@@ -49,7 +96,7 @@ export async function submitNarrative(session: TalkSession, narrative: string): 
     return { ok: false, message: validation.message };
   }
   try {
-    const result = await createNarrativeExtractFn()(session, validation.trimmed);
+    const result = await narrativeExtractFn()(session, validation.trimmed);
     return { ok: true, result };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : "Something went wrong." };

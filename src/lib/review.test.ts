@@ -3,14 +3,17 @@
 // an edit reopens the topic as a normal question (the existing reopen
 // path)."
 import { describe, expect, it } from "vitest";
+import { displayName } from "./display-names";
+import { openFieldEntries } from "./open-fields";
+import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
   fieldDisplay,
   fieldIdsForReviewRow,
+  isReviewRowGatedOff,
   reopenReviewRow,
   reviewFieldRows,
   reviewRows,
-  shortFieldLabel,
   SIGN_OFF_CTA,
 } from "./review";
 import { TOPICS, type RepeatCounts } from "./topics";
@@ -183,30 +186,12 @@ describe("copy", () => {
   });
 });
 
-describe("shortFieldLabel", () => {
-  it("drops a leading segment that only repeats the card's own heading", () => {
-    expect(
-      shortFieldLabel("Suspect Product #1: Name, Strength, Manufacturer/Compounder: Lot #", "Suspect product #1"),
-    ).toBe("Name, Strength, Manufacturer/Compounder: Lot #");
-  });
-
-  it("leaves a label alone when its first segment is real content, not repetition", () => {
-    expect(shortFieldLabel("Sex: Female", "Patient basics")).toBe("Sex: Female");
-    expect(shortFieldLabel("Type of Report: Adverse Event", "What happened")).toBe("Type of Report: Adverse Event");
-  });
-
-  it("never collapses to the last segment — two 'Yes' rows in one card would be unreadable", () => {
-    const row = "Suspect product #1";
-    const abated = shortFieldLabel("Suspect Product #1: Event Abated after use Stopped or Dose Reduced?: Yes", row);
-    const ongoing = shortFieldLabel("Suspect Product #1: Is therapy/usage still on-going?: Yes", row);
-    expect(abated).not.toBe(ongoing);
-    expect(abated).toBe("Event Abated after use Stopped or Dose Reduced?: Yes");
-  });
-
-  it("keeps the whole label rather than returning an empty one", () => {
-    expect(shortFieldLabel("Patient basics: ", "Patient basics")).toBe("Patient basics: ");
-  });
-});
+// Row labels are authored display names now (ask-copy.md rule 6), so the
+// two label-shaping helpers this block used to cover — one that dropped a
+// manifest label's card-repeating prefix, one that dropped a composed
+// row's last segment — are gone with the derivation they served.
+// display-names.test.ts owns the names themselves; reviewFieldRows below
+// proves the rows read from them.
 
 describe("reviewFieldRows", () => {
   const AGE_VALUE = "Page1.SecA_Patient.AgeValue";
@@ -235,7 +220,50 @@ describe("reviewFieldRows", () => {
     const rows = rowsFor(record, "suspect-product-1");
     expect(rows.find((r) => r.fieldId === PROD_NAME)?.text).toBe("Amoxicillin 875");
     expect(rows.find((r) => r.fieldId === PROD_STRENGTH)).toBeUndefined();
-    expect(rows.find((r) => r.fieldId === PROD_NAME)?.label).toBe("Name, Strength, Manufacturer/Compounder");
+    // The composition's authored caption, naming everything under it —
+    // not the anchor's own name, which would understate a row showing
+    // three facts (reviewer pass, PR #98, finding 2).
+    expect(rows.find((r) => r.fieldId === PROD_NAME)?.label).toBe("product name, strength, and manufacturer");
+  });
+
+  // Rule 7's group completion writes falses in bulk — six at a time on
+  // OC-1 — and displayFor() renders an unchecked box blank, because on
+  // the PDF that is what it is. Review's job is verification, so it says
+  // "No" out loud (reviewer pass, PR #106, F2).
+  // Rule 5 on the sign-off surface (reviewer pass, PR #107, F4): a
+  // gated-off section renders as its own state, never as a wall of "—"
+  // rows, which is the confirmed-absent reading the rule forbids.
+  it("contributes no rows for a gated-off section, and says so instead", () => {
+    const record = initAgenda();
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(isReviewRowGatedOff(availability, record, ONE_EACH)).toBe(true);
+    expect(reviewFieldRows(record, availability, ONE_EACH)).toEqual([]);
+    expect(fieldIdsForReviewRow(availability, ONE_EACH, TOPICS, record)).toEqual([]);
+  });
+
+  it("renders the section normally once its gate opens", () => {
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(isReviewRowGatedOff(availability, record, ONE_EACH)).toBe(false);
+    expect(reviewFieldRows(record, availability, ONE_EACH).length).toBeGreaterThan(0);
+  });
+
+  // F3: the trap this closes. Editing a gated card reopened its fields,
+  // which cleared the very evidence isDeviceReport() reads.
+  it("never reopens a gated-off section's fields, so an edit cannot foreclose it", () => {
+    const record = initAgenda();
+    const availability = reviewRows(ONE_EACH).find((r) => r.id === "product-availability")!;
+    expect(reopenReviewRow(record, availability, ONE_EACH)).toEqual(record);
+  });
+
+  it("renders an answered-false checkbox as No, distinct from never asked", () => {
+    const HOSPITAL = "Page1.SecA_Patient.Hospital";
+    const LIFE = "Page1.SecA_Patient.LifeThreaten";
+    const record = applyAction(initAgenda(), HOSPITAL, { type: "answer" }, "false");
+    const rows = rowsFor(record, "outcome");
+    expect(rows.find((r) => r.fieldId === HOSPITAL)?.text).toBe("No");
+    // A box nobody has answered still reads as blank, not "No".
+    expect(rows.find((r) => r.fieldId === LIFE)?.text).toBeNull();
   });
 
   it("renders fixed-choice fields the deleted review component filtered out (#69)", () => {
@@ -247,7 +275,7 @@ describe("reviewFieldRows", () => {
     let record = applyAction(initAgenda(), AGE_VALUE, { type: "answer" }, "42");
     record = applyAction(record, AGE_VALUE, { type: "reopen" });
     const composed = rowsFor(record, "patient-basics").find((r) => r.fieldId === AGE_VALUE);
-    expect(composed).toEqual({ fieldId: AGE_VALUE, label: "Age", text: "42", muted: false, retained: true });
+    expect(composed).toEqual({ fieldId: AGE_VALUE, label: "age", text: "42", muted: false, retained: true });
   });
 
   it("drops a field from the card only when a composition actually spoke for its value", () => {
@@ -300,24 +328,76 @@ describe("reviewFieldRows", () => {
     expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1Dose")?.text).toBe("875");
     expect(rows.find((r) => r.fieldId === "Page4.Prod1.Prod1DoseUnit")).toEqual({
       fieldId: "Page4.Prod1.Prod1DoseUnit",
-      label: "Dose or Amount: Unit",
+      label: "dose unit",
       text: "Unknown",
       muted: true,
       retained: false,
     });
   });
 
-  it("labels a rendered composition with the form's group caption, not the anchor's leaf name", () => {
+  // A composition that speaks for more than one fact takes an authored
+  // caption; one that only folds in its own fact's unit keeps the anchor's
+  // display name.
+  it("labels a multi-fact composition with a caption naming everything under it", () => {
     let record = applyAction(initAgenda(), PROD_NAME, { type: "answer" }, "amoxicillin");
     record = applyAction(record, PROD_STRENGTH, { type: "answer" }, "875");
     const identity = rowsFor(record, "suspect-product-1").find((r) => r.fieldId === PROD_NAME);
     expect(identity?.text).toBe("amoxicillin 875");
-    expect(identity?.label).toBe("Name, Strength, Manufacturer/Compounder");
+    expect(identity?.label).toBe("product name, strength, and manufacturer");
+
+    let dosed = applyAction(initAgenda(), "Page4.Prod1.Prod1Dose", { type: "answer" }, "1 tablet");
+    dosed = applyAction(dosed, "Page4.Prod1.Prod1Freq", { type: "answer" }, "BID");
+    const dose = rowsFor(dosed, "suspect-product-1").find((r) => r.fieldId === "Page4.Prod1.Prod1Dose");
+    expect(dose?.text).toBe("1 tablet BID");
+    expect(dose?.label).toBe("dose and frequency");
   });
 
-  it("leaves a composition label alone when the form gives it no group caption", () => {
+  // Rule 3 as amended (#101): a companion is visible on its anchor's
+  // Review row either way, and becomes a LISTED gap once the anchor is
+  // answered. The bare weight is the case the rule was authored for, so
+  // both halves are asserted on it.
+  it("shows an open derive companion on Review, and lists it once its anchor is answered", () => {
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.WeightValue", { type: "answer" }, "80");
+    const rows = rowsFor(record, "patient-basics");
+    expect(rows.find((r) => r.fieldId === "Page1.SecA_Patient.WeightValue")?.text).toBe("80");
+    for (const unit of ["Page1.SecA_Patient.WeightLB", "Page1.SecA_Patient.WeightKG"]) {
+      expect(rows.map((r) => r.fieldId), unit).toContain(unit);
+      expect(openFieldEntries(record, ONE_EACH).map((e) => e.fieldId), unit).toContain(unit);
+    }
+  });
+
+  it("shows an unanchored companion on Review while listing it nowhere", () => {
+    // No age given, so the four age-unit checkboxes are noise in the
+    // dialog and still legible on the card.
+    const record = initAgenda();
+    const rows = rowsFor(record, "patient-basics").map((r) => r.fieldId);
+    const listed = openFieldEntries(record, ONE_EACH).map((e) => e.fieldId);
+    for (const unit of ["Page1.SecA_Patient.AgeYears", "Page1.SecA_Patient.AgeDays"]) {
+      expect(rows, unit).toContain(unit);
+      expect(listed, unit).not.toContain(unit);
+    }
+  });
+
+  it("keeps the anchor's own name where the composition folds in only that fact's unit", () => {
     let record = applyAction(initAgenda(), AGE_VALUE, { type: "answer" }, "42");
     record = applyAction(record, AGE_YEARS, { type: "answer" }, "true");
-    expect(rowsFor(record, "patient-basics").find((r) => r.fieldId === AGE_VALUE)?.label).toBe("Age");
+    const age = rowsFor(record, "patient-basics").find((r) => r.fieldId === AGE_VALUE);
+    expect(age?.text).toBe("42 yr");
+    expect(age?.label).toBe("age");
+  });
+
+  it("labels every row from the authored names — no manifest label reaches a card", () => {
+    let record = applyAction(initAgenda(), AGE_VALUE, { type: "answer" }, "42");
+    record = applyAction(record, AGE_YEARS, { type: "answer" }, "true");
+    const rows = rowsFor(record, "patient-basics");
+    expect(rows.find((r) => r.fieldId === AGE_VALUE)?.label).toBe("age");
+    const labels = new Set(FORM_3500_FIELDS.map((f) => f.label));
+    for (const row of rows) {
+      // Either the field's own authored name or a composition's authored
+      // caption — never a manifest label, which is the whole of rule 6.
+      expect(labels.has(row.label), row.label).toBe(false);
+      expect(row.label, row.fieldId).not.toMatch(/Page\d|Prod\d\.|Sec[A-G]_/);
+    }
+    expect(rows.find((r) => r.fieldId === AGE_VALUE)?.label).toBe(displayName(AGE_VALUE));
   });
 });

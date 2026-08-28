@@ -1,0 +1,29 @@
+[screenshot] 01-start.png
+[surface] start — Report an adverse event
+[screenshot] 02-C4-read-back.png
+
+[surface] read-back — panel:
+What I’d write from this — 2 valuesevent descriptionthe needle failed to deployread from “the needle failed to deploy”device brand nameEpiPenread from “EpiPen”
+[screenshot] 03-C4-turn-01.png
+[screenshot] 04-C4-turn-02.png
+[screenshot] 05-C4-turn-03.png
+[screenshot] 06-C4-turn-04.png
+[screenshot] 07-C4-turn-05.png
+[screenshot] 08-C4-turn-06.png
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[transcript] C4: 80 rendered turns and asks; 28 talker turns expected from the pure walk; 0 unaccounted for (1 is the handoff turn, which Review replaces — #118)
+[screenshot] 09-C4-review.png
+[screenshot] 10-C4-review-paper-facsimile.png
+[screenshot] 11-C4-open-fields.png
+
+[surface] open-fields:
+105 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.patient identifieryou didn't have itAnswerageyou didn't have itAnswerdate of birthyou didn't have itAnswersex: maleyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Nativ
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 12-C4-ready.png
+
+[surface] ready:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields3 written · 105 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againDownload your session dataThe record is what the form holds. The whole session adds the conversation behind it — useful if something went wrong and someone needs to look. Both are built here and stay in this browser.Download the record (JSON)Download the whole session (JSON)wilson stores nothing on its own servers — this download is your copy.
+[download] C4-record.json
+[download] C4-session-bundle.json
+[pdf] C4-form-3500.pdf (1152823 bytes, via scripts/fill-3500.py from the exported record)

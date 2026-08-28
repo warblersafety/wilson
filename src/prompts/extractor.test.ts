@@ -4,10 +4,12 @@ import type { TalkTurn } from "../lib/talk";
 import type { NextStep, Topic } from "../lib/topics";
 import {
   EXTRACTION_RESPONSE_SCHEMA,
+  EXTRACTOR_SYSTEM,
   buildExtractionUserContent,
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "./extractor";
+import { syntheticTopic } from "../lib/synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], label: string): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label, type, required: false };
@@ -18,23 +20,27 @@ const FIELD_B = field("b", "date", "Field B");
 const FIELD_C = field("c", "enum", "Field C");
 const FIELDS = [FIELD_A, FIELD_B, FIELD_C];
 
-const TOPIC: Topic = {
+const TOPIC: Topic = syntheticTopic({
   id: "t1",
   section: "A",
   label: "Topic 1",
   fieldIds: ["a", "b"],
   repeatGroup: null,
   repeatInstance: null,
-};
+});
 
 const TRANSCRIPT: TalkTurn[] = [
   { role: "talker", text: "Tell me about the patient." },
   { role: "clinician", text: "42 years old, born on 3/15." },
 ];
 
-describe("buildExtractionUserContent", () => {
+// The frozen pre-widening baseline (see extractor.ts's own note): kept
+// under test because scripts/cost-widened-turn.ts prices the widened
+// sweep against it and needs it to keep working, not because anything
+// ships it. The live per-turn prompt is buildFollowUpUserContent below.
+describe("buildExtractionUserContent — the frozen cost baseline", () => {
   it("for a topic step, lists only the step's open fields and excludes fields outside it", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a", "b"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a", "b"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toContain("a (text): Field A");
     expect(content).toContain("b (date): Field B");
@@ -42,14 +48,14 @@ describe("buildExtractionUserContent", () => {
   });
 
   it("for a topic step, includes the numbered transcript with clinician/talker roles labeled", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toContain("[0] TALKER: Tell me about the patient.");
     expect(content).toContain("[1] CLINICIAN: 42 years old, born on 3/15.");
   });
 
   it("for a topic step, tells the model this is not a repeat-group question", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildExtractionUserContent(step, FIELDS, TRANSCRIPT);
     expect(content).toMatch(/not a repeat-group question/i);
   });
@@ -116,6 +122,43 @@ describe("EXTRACTION_RESPONSE_SCHEMA", () => {
 // against), the system prompt itself now carries the FULL field manifest
 // — design.md's cost posture: "the cached prefix carries the full
 // manifest and option lists, invariant across the session."
+describe("the live per-turn prompt's derive rules (ask-copy.md rule 3)", () => {
+  it("tells the model to propose a unit only from the clinician's own words", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toContain("Companion fields");
+    expect(system).toMatch(/never from what seems medically likely/i);
+  });
+
+  it("tells the model to leave a bare number's unit alone", () => {
+    // The deterministic half owns the bare-age default and the
+    // no-default-for-weight rule (src/lib/derive.ts); the prompt must not
+    // invite the model to guess either.
+    expect(buildFollowUpExtractorSystem(FIELDS)).toMatch(/bare number with no unit/i);
+  });
+
+  it("tells the model not to propose a group's negatives unless they were spoken", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toMatch(/a deterministic step completes it/i);
+    expect(system).toMatch(/only where the clinician said so explicitly/i);
+  });
+
+  // Rule 7's text-ask negative, which nothing implemented until now: the
+  // PDF filler prints an unanswered text field as "Unknown", so a "no
+  // relevant history" recorded as unknown states the opposite of what the
+  // clinician said, on an FDA-bound form (reviewer pass, PR #107, F7).
+  it("tells the model a stated 'none' is the literal value None, never unknown", () => {
+    const system = buildFollowUpExtractorSystem(FIELDS);
+    expect(system).toContain('"None" is an answer, not a blank');
+    expect(system).toMatch(/prints an unanswered text field as "Unknown"/);
+    expect(system).toMatch(/Reserve "unknown" for a clinician who does not have the information/);
+  });
+
+  it("leaves the frozen baseline untouched — it is a measurement, not a prompt", () => {
+    expect(EXTRACTOR_SYSTEM).not.toContain("Companion fields");
+    expect(EXTRACTOR_SYSTEM).toContain("never propose for an enum or checkbox field");
+  });
+});
+
 describe("buildFollowUpExtractorSystem", () => {
   const FIELDS: FormFieldSpec[] = [
     { id: "a", section: "A", pdfFieldName: "f.a[0]", label: "Field A", type: "text", required: false },
@@ -146,8 +189,8 @@ describe("buildFollowUpExtractorSystem", () => {
 
   it("marks a repeat-instance-2+ field distinctly from instance 1", () => {
     const topics: Topic[] = [
-      { id: "g1", section: "D", label: "g1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 },
-      { id: "g2", section: "D", label: "g2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 },
+      syntheticTopic({ id: "g1", section: "D", label: "g1", fieldIds: ["p1"], repeatGroup: "suspect-product", repeatInstance: 1 }),
+      syntheticTopic({ id: "g2", section: "D", label: "g2", fieldIds: ["p2"], repeatGroup: "suspect-product", repeatInstance: 2 }),
     ];
     const system = buildFollowUpExtractorSystem(
       [
@@ -182,27 +225,27 @@ describe("buildFollowUpUserContent", () => {
     { id: "a", section: "A", pdfFieldName: "f.a[0]", label: "Field A", type: "text", required: false },
     { id: "b", section: "A", pdfFieldName: "f.b[0]", label: "Field B", type: "date", required: false },
   ];
-  const TOPIC: Topic = { id: "t1", section: "A", label: "Topic 1", fieldIds: ["a", "b"], repeatGroup: null, repeatInstance: null };
+  const TOPIC: Topic = syntheticTopic({ id: "t1", section: "A", label: "Topic 1", fieldIds: ["a", "b"], repeatGroup: null, repeatInstance: null });
   const TRANSCRIPT: TalkTurn[] = [
     { role: "talker", text: "Tell me about the patient." },
     { role: "clinician", text: "42 years old, born on 3/15." },
   ];
 
   it("for a topic step, includes the numbered transcript", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("[0] TALKER: Tell me about the patient.");
     expect(content).toContain("[1] CLINICIAN: 42 years old, born on 3/15.");
   });
 
   it("for a topic step, instructs the model to cite only the current (last) turn", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content.toLowerCase()).toMatch(/current turn|last turn|latest message/);
   });
 
   it("for a topic step, lists the given open fields by id", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toContain("a");
     expect(content).toContain("b");
@@ -216,7 +259,7 @@ describe("buildFollowUpUserContent", () => {
   // counts as in-ask. Proven here against a step whose fieldIds is wider
   // than what was actually asked.
   it("for a topic step, names only the caller's capped askFieldIds — never the topic step's own (possibly wider) fieldIds", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a", "b"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a", "b"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     // The sentence names exactly "a", full stop — not "a, b" (step's own
     // fieldIds) and not a bare "a" that merely happens to be a substring
@@ -226,7 +269,7 @@ describe("buildFollowUpUserContent", () => {
   });
 
   it("for a topic step, tells the model this is not a repeat-group question", () => {
-    const step: NextStep = { kind: "topic", topic: TOPIC, fieldIds: ["a"] };
+    const step: NextStep = { kind: "topic", topic: TOPIC, ask: TOPIC.asks[0], fieldIds: ["a"] };
     const content = buildFollowUpUserContent(step, ["a"], FIELDS, TRANSCRIPT);
     expect(content).toMatch(/not a repeat-group question/i);
   });

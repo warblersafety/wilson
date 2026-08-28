@@ -22,11 +22,21 @@ import { useState } from "react";
 import { ReportChrome } from "@/components/report-chrome/ReportChrome";
 import { hasOpenFields } from "@/lib/open-fields";
 import type { CuratedRow } from "@/lib/report-chrome";
-import { PDF_COPY, REVIEW_COPY, reopenReviewRow, reviewFieldRows, reviewRows, SIGN_OFF_CTA } from "@/lib/review";
+import {
+  GATED_OFF_REVIEW_COPY,
+  PDF_COPY,
+  REVIEW_COPY,
+  SIGN_OFF_CTA,
+  isReviewRowGatedOff,
+  reopenReviewRow,
+  reviewFieldRows,
+  reviewRows,
+} from "@/lib/review";
 import type { TalkSession } from "@/lib/talk";
 import { FORM_3500_SECTIONS } from "@/lib/form-3500-fields";
 import { OpenFieldsDialog } from "./OpenFieldsDialog";
 import { usePdfExport } from "./use-pdf-export";
+import { SessionDownloads } from "./SessionDownloads";
 
 interface ReviewProps {
   session: TalkSession;
@@ -74,10 +84,23 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
                   {row.section} · {row.label}
                 </h2>
                 <span className="review__card-section">{FORM_3500_SECTIONS[row.section]}</span>
-                <button type="button" className="review__edit" onClick={() => handleEditRow(row)}>
-                  {REVIEW_COPY.editCta}
-                </button>
+                {/* No Edit on a gated-off card: reopening its fields
+                    clears the very evidence the gate reads, which used to
+                    foreclose the section permanently (reviewer pass,
+                    PR #107, F3). Rule 5's add affordance — the thing that
+                    SHOULD live here — is #99's open design question. */}
+                {!isReviewRowGatedOff(row, session.record, session.repeatCounts) && (
+                  <button type="button" className="review__edit" onClick={() => handleEditRow(row)}>
+                    {REVIEW_COPY.editCta}
+                  </button>
+                )}
               </div>
+              {/* ask-copy.md rule 5: gated-off is never confirmed-absent.
+                  A wall of "—" rows on the sign-off surface reads as
+                  exactly that, so the card says what it is instead. */}
+              {isReviewRowGatedOff(row, session.record, session.repeatCounts) && (
+                <p className="review__gated-off">{GATED_OFF_REVIEW_COPY}</p>
+              )}
               <dl className="review__fields">
                 {reviewFieldRows(session.record, row, session.repeatCounts).map((field) => (
                   <div key={field.fieldId} className="review__field">
@@ -134,6 +157,12 @@ export function Review({ session, onEdit, onReady }: ReviewProps) {
             </button>
           </div>
         )}
+
+        {/* AC-2: the same affordance Ready offers, alongside the
+            draft-PDF toggle rather than replacing it. Before sign-off
+            matters as much as after — a session that goes wrong here is
+            one a clinician may never reach Ready with. */}
+        <SessionDownloads session={session} />
 
         {/* One click away, never the layout's lead (design.md) — the
             paper is here for trust, and the legible cards above are what

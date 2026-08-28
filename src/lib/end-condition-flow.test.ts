@@ -19,9 +19,11 @@
 // (scripts/tests/) plus form-3500-fields*.test.ts passing in the same CI
 // run — not re-asserted here.
 import { describe, expect, it } from "vitest";
+import { anchorOf, dispositionOf, isListableGap } from "./ask-inventory";
+import { isTopicGatedOff } from "./gates";
 import { NARRATIVE_EXTRACTION_FIXTURES } from "../../fixtures/narrative-extraction/cases";
 import { initAgenda } from "./agenda";
-import { askDeterministic, MAX_FIELDS_PER_ASK } from "./ask";
+import { askDeterministic } from "./ask";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { resolveNarrativeExtraction } from "./narrative-extract";
 import { openFieldEntries, summarizeOpenFields } from "./open-fields";
@@ -77,15 +79,22 @@ function alternatingDismissals(turnIndex: number): ExtractFn {
     const step = nextStep(session.record, session.repeatCounts);
     if (step.kind !== "topic") return { actions: [] };
     return {
+      // step.fieldIds is exactly what the visible question named — the
+      // ask's own unresolved askFieldIds (topics.ts) — so there is
+      // nothing to cap. Writing past it would resolve fields the
+      // clinician was never asked about (chip-grammar.ts's
+      // dismissableFieldIds() records why that used to be possible).
+      // Alternating by the field's index WITHIN its ask, not by turn
+      // index: turn parity made the whole fixture depend on how many
+      // turns the walk happens to take, so adding rule 5's gates (six
+      // fewer asks) silently flipped which fields ended up `unknown` and
+      // broke an assertion about a state nothing in this test controls.
+      // Per-ask indexing gives every ask's first field `unknown` and the
+      // rest `declined`, whatever the walk's length.
       actions: step.fieldIds
-        // The same cap askDeterministic() phrases into the visible
-        // question — writing past it would resolve fields the clinician
-        // was never asked about (chip-grammar.ts's dismissableFieldIds()
-        // records why).
-        .slice(0, MAX_FIELDS_PER_ASK)
         .map((fieldId, i) => ({
           fieldId,
-          type: (turnIndex + i) % 2 === 0 ? ("mark_unknown" as const) : ("decline" as const),
+          type: i % 2 === 0 ? ("mark_unknown" as const) : ("decline" as const),
         })),
     };
   };
@@ -173,9 +182,23 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
     const entries = openFieldEntries(done.record, done.repeatCounts);
     const openIds = entries.map((e) => e.fieldId);
     expect(entries.length).toBeGreaterThan(0);
-    // Every entry is an `unknown` — at "done" there is no reachable
-    // `unasked` field left, which is what "done" means.
-    expect(new Set(entries.map((e) => e.reasonKind))).toEqual(new Set(["unknown"]));
+    // At "done" every ASK field is resolved — that is what done means —
+    // so an `unknown` entry is a fact the clinician was asked for and
+    // didn't have. A `not-asked` entry is a derive companion whose anchor
+    // this run answered (ask-copy.md rule 3) — never an auto or
+    // write-target field, and never a companion with nothing answered
+    // behind it.
+    for (const entry of entries) {
+      const disposition = dispositionOf(entry.fieldId);
+      expect(["ask", "derive"], entry.fieldId).toContain(disposition);
+      if (disposition === "derive") {
+        const anchorId = anchorOf(entry.fieldId);
+        expect(anchorId, `${entry.fieldId} is listed with no anchor`).toBeDefined();
+        expect(done.record[anchorId!].state, entry.fieldId).toBe("answered");
+      }
+      if (entry.reasonKind === "unknown") expect(done.record[entry.fieldId].state).toBe("unknown");
+    }
+    expect(entries.some((e) => e.reasonKind === "unknown")).toBe(true);
     // The record-wide-unknowns branch that motivates open-fields.ts: a
     // CONFIRMED second medication's unknown field must be listed, even
     // though the follow-up sweep's own instance-1 scoping would hide it.
@@ -207,8 +230,20 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
         t.repeatInstance === null ||
         t.repeatInstance <= (done.repeatCounts[t.repeatGroup!] ?? 1),
     )
+      // ...and minus rule 5's gated-off topics, which are out of the
+      // report entirely for this case: an antibiotic rash is no device,
+      // no product problem, and no OTC/compounded/cannabinoid/cosmetic
+      // type, so Section E, availability and purchase are not gaps —
+      // they are not part of this report.
+      .filter((t) => !isTopicGatedOff(t.id, done.record))
       .flatMap((t) => t.fieldIds)
-      .filter((id) => done.record[id].state === "unknown" || done.record[id].state === "unasked");
+      .filter((id) => done.record[id].state === "unknown" || done.record[id].state === "unasked")
+      // ...minus the fields ask-copy.md's dispositions say are not gaps at
+      // all: ReportDate (auto, stamped at export), the lab rows past LD-1's
+      // own anchor (write-targets — "an empty row 4 is never a phantom gap
+      // in open-fields or the counts"), and the date of death, whose ask
+      // does not apply with no death recorded.
+      .filter((id) => isListableGap(id, done.record));
     expect(openIds).toEqual(expectedOpenIds);
     // The nudge never gates.
     const summary = summarizeOpenFields(done.record, done.repeatCounts);

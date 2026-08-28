@@ -8,7 +8,7 @@
 // read-back.ts are: provable under vitest's node environment, with the
 // component a thin wrapper.
 import { type AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   AGE_UNIT_LABELS,
   displayFor,
@@ -20,6 +20,9 @@ import {
 } from "./form-3500-facsimile";
 import { curatedRows, type CuratedRow } from "./report-chrome";
 import { reopenTopic, TOPICS, type RepeatCounts, type Topic } from "./topics";
+import { displayNameFor } from "./display-names";
+import { formatReportDate, REPORT_DATE_FIELD_ID } from "./report-date";
+import { isTopicGatedOff } from "./gates";
 
 export interface ReviewFieldDisplay {
   text: string | null;
@@ -40,10 +43,29 @@ export interface ReviewFieldDisplay {
 // wipes"), and until now nothing user-facing read it back (PR #64,
 // finding 7), so a clinician who reopened a topic saw a blanked field
 // reading as never-answered.
-export function fieldDisplay(record: AgendaRecord, fieldId: string): ReviewFieldDisplay {
+export function fieldDisplay(record: AgendaRecord, fieldId: string, today: Date = new Date()): ReviewFieldDisplay {
   const entry = Object.hasOwn(record, fieldId) ? record[fieldId] : undefined;
   if (entry?.state === "unasked" && entry.value) {
     return { text: entry.value, muted: false, retained: true };
+  }
+  // Rule 4's auto field: Review shows the date the export will stamp,
+  // rather than a blank that reads as a gap in a field nobody is ever
+  // asked. Not written to the record here — the stamp belongs at export,
+  // so a draft resumed tomorrow carries tomorrow's date.
+  if (fieldId === REPORT_DATE_FIELD_ID && entry?.value === undefined) {
+    return { text: formatReportDate(today), muted: false, retained: false };
+  }
+  // An ANSWERED-false checkbox reads "No" here, where displayFor() —
+  // which speaks for the PDF, and on the PDF an unchecked box is simply
+  // unchecked — renders it blank, indistinguishable from never having
+  // been asked (reviewer pass, PR #106, F2). Rule 7's group completion
+  // writes those falses in bulk, six at a time on OC-1, so leaving them
+  // invisible would put a machine-written negative on the record with
+  // nothing on the surface the clinician signs off from to show it. The
+  // facsimile keeps rendering the form's own way; only Review, whose job
+  // is verification, says it out loud.
+  if (entry?.state === "answered" && entry.value === "false" && fieldById(fieldId)?.type === "checkbox") {
+    return { text: "No", muted: false, retained: false };
   }
   const rendered = displayFor(record, fieldId);
   return { text: rendered.text, muted: rendered.muted, retained: false };
@@ -80,21 +102,52 @@ export function reviewRows(repeatCounts: RepeatCounts, topics: Topic[] = TOPICS)
 // always asked unconditionally". Without this, the concomitant-meds card
 // would render thirty rows for a clinician who confirmed one medication,
 // twenty-seven of them permanently blank slots that don't exist.
-function reachableTopicsOfRow(row: CuratedRow, repeatCounts: RepeatCounts, topics: Topic[]): Topic[] {
+function reachableTopicsOfRow(
+  row: CuratedRow,
+  repeatCounts: RepeatCounts,
+  topics: Topic[],
+  record?: AgendaRecord,
+): Topic[] {
   const byId = new Map(topics.map((t) => [t.id, t]));
   return row.topicIds
     .map((id) => byId.get(id))
     .filter((t): t is Topic => t !== undefined)
-    .filter((t) => t.repeatGroup === null || t.repeatInstance === null || t.repeatInstance <= (repeatCounts[t.repeatGroup] ?? 1));
+    .filter((t) => t.repeatGroup === null || t.repeatInstance === null || t.repeatInstance <= (repeatCounts[t.repeatGroup] ?? 1))
+    // ask-copy.md rule 5, when a record is available to judge against: a
+    // gated-off topic contributes no rows. Rendering its fields as a wall
+    // of "—" is precisely the confirmed-absent reading rule 5 forbids,
+    // and on the surface the clinician signs off from (reviewer pass,
+    // PR #107, F4). It also removed a trap: an Edit on a gated section's
+    // card reopened its fields, which cleared the very evidence the gate
+    // reads, permanently foreclosing the section (F3).
+    .filter((t) => record === undefined || !isTopicGatedOff(t.id, record));
 }
 
 export function fieldIdsForReviewRow(
   row: CuratedRow,
   repeatCounts: RepeatCounts,
   topics: Topic[] = TOPICS,
+  record?: AgendaRecord,
 ): string[] {
-  return reachableTopicsOfRow(row, repeatCounts, topics).flatMap((t) => t.fieldIds);
+  return reachableTopicsOfRow(row, repeatCounts, topics, record).flatMap((t) => t.fieldIds);
 }
+
+// Whether a Review card is out of the report entirely — every topic
+// behind it gated off. Such a card renders its one-line state instead of
+// its fields; rule 5's "add affordance" that would bring it back is
+// warblersafety/wilson#99's open design question, so today it comes back
+// by the clinician mentioning it, not by clicking.
+export function isReviewRowGatedOff(
+  row: CuratedRow,
+  record: AgendaRecord,
+  repeatCounts: RepeatCounts,
+  topics: Topic[] = TOPICS,
+): boolean {
+  const reachable = reachableTopicsOfRow(row, repeatCounts, topics);
+  return reachable.length > 0 && reachable.every((t) => isTopicGatedOff(t.id, record));
+}
+
+export const GATED_OFF_REVIEW_COPY = "Not part of this report.";
 
 // Review's per-card Edit — "every topic's Edit reopening it through the
 // existing reopen path", at card granularity. A thin reduce over the
@@ -111,7 +164,7 @@ export function reopenReviewRow(
   topics: Topic[] = TOPICS,
   fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): AgendaRecord {
-  return reachableTopicsOfRow(row, repeatCounts, topics).reduce(
+  return reachableTopicsOfRow(row, repeatCounts, topics, record).reduce(
     (rec, topic) => reopenTopic(rec, topic, fields),
     record,
   );
@@ -150,11 +203,16 @@ export const REVIEW_COPY = {
 // `failure` follows chip-grammar.ts's friendlyFailureMessage convention:
 // one honest line, never the caught error's own message, since
 // PdfExportError's two cases (transport, server) ask nothing different of
-// the clinician.
+// the clinician. It used to name "your connection" as the cause; Issue
+// #128 (AC-2) removed that clause — a non-ok response (a 404 under `next
+// dev`, since api/generate-pdf.py is a Vercel function that doesn't run
+// locally; a 500 on staging/prod) is not a connectivity problem, and this
+// one message covers both PdfExportError cases, so it asserts only what's
+// true of both: generation didn't work, try again.
 export const PDF_COPY = {
   generating: "Generating the PDF…",
   retryCta: "Try again",
-  failure: "Something went wrong generating the PDF. Check your connection and try again.",
+  failure: "Something went wrong generating the PDF. Try again.",
 } as const;
 
 // --- the cards' rendered rows -------------------------------------------
@@ -183,6 +241,15 @@ interface ComposedRow {
   // their own so the card doesn't show both "Age | 42 yr" and a bare
   // "Age: Year(s) | Yes" beneath it.
   absorbs: string[];
+  // An authored caption for a composition that speaks for more than one
+  // FACT, so the row's label names everything under it (reviewer pass,
+  // PR #98, finding 2). Absent where the anchor's own display name
+  // already covers the row: age and weight absorb only their unit
+  // checkbox, which is part of the same fact. Present where it doesn't —
+  // labelling "amoxicillin-clavulanate 875 MG — Teva" as "product name"
+  // understates the row on the very surface where a clinician verifies
+  // field mapping before signing off.
+  label?: string;
 }
 
 const COMPOSED_ROWS = new Map<string, ComposedRow>([
@@ -205,6 +272,7 @@ const COMPOSED_ROWS = new Map<string, ComposedRow>([
     {
       render: doseWithUnitAndFrequency,
       absorbs: ["Page4.Prod1.Prod1DoseUnit", "Page4.Prod1.Prod1Freq"],
+      label: "dose and frequency",
     },
   ],
   [
@@ -212,6 +280,7 @@ const COMPOSED_ROWS = new Map<string, ComposedRow>([
     {
       render: productIdentity,
       absorbs: ["Page4.Prod1.Prod1Strength", "Page4.Prod1.Prod1StrengthUnit", "Page4.Prod1.Prod1ManuComp"],
+      label: "product name, strength, and manufacturer",
     },
   ],
 ]);
@@ -221,46 +290,22 @@ export interface ReviewFieldRow extends ReviewFieldDisplay {
   label: string;
 }
 
-// The manifest's labels are hierarchical ("Suspect Product #1: Name,
-// Strength, Manufacturer/Compounder: Lot #"). Inside a card already headed
-// "Suspect product #1", that first segment is pure repetition — so exactly
-// one leading segment is dropped, and only when it repeats the card's own
-// label. Never more than one: dropping every segment but the last would
-// collapse "Is therapy/usage still on-going?: Yes" and "Event Abated after
-// use Stopped or Dose Reduced?: Yes" into two rows both labelled "Yes" in
-// the same card. Every other section's labels are already short and are
-// left exactly as the form words them.
-export function shortFieldLabel(label: string, rowLabel: string): string {
-  const separator = label.indexOf(": ");
-  if (separator === -1) return label;
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (normalize(label.slice(0, separator)) !== normalize(rowLabel)) return label;
-  const rest = label.slice(separator + 2).trim();
-  return rest.length > 0 ? rest : label;
-}
-
-// A composition's label is the form's own GROUP caption, not the anchor
-// field's leaf name: the row shows several fields' values, so labelling it
-// "…: Product Name" would name one of three. Mechanical — drop the last
-// segment of the (already card-scoped) label — never hand-authored, and
-// the same choice form-3500-facsimile.ts's productIdentity() records for
-// the facsimile's own row.
-function composedLabel(label: string): string {
-  const lastSeparator = label.lastIndexOf(": ");
-  if (lastSeparator === -1) return label;
-  const caption = label.slice(0, lastSeparator).trim();
-  return caption.length > 0 ? caption : label;
-}
+// A row's label is its field's authored display name (ask-copy.md rule
+// 6). Two label-shaping helpers used to live here: one dropped a manifest
+// label's leading segment when it repeated the card's own heading, the
+// other dropped a composed row's last segment to leave the form's group
+// caption. Both derived clinician-facing text from manifest labels, which
+// is exactly what rule 6 removes: "Raw manifest labels and PDF ids never
+// render." A composed row (dose + unit + frequency) takes its anchor
+// field's name, since the anchor is the fact the caption speaks for.
 
 export function reviewFieldRows(
   record: AgendaRecord,
   row: CuratedRow,
   repeatCounts: RepeatCounts,
   topics: Topic[] = TOPICS,
-  fields: FormFieldSpec[] = FORM_3500_FIELDS,
 ): ReviewFieldRow[] {
-  const fieldsById = new Map(fields.map((f) => [f.id, f]));
-  const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics);
+  const fieldIds = fieldIdsForReviewRow(row, repeatCounts, topics, record);
   const present = new Set(fieldIds);
 
   // Absorption is decided per anchor, against the record — never from the
@@ -290,7 +335,7 @@ export function reviewFieldRows(
     // would silently drop the reminder this unit adds.
     if (anchor.retained || anchor.muted || anchor.text === null) continue;
     const { text, muted } = composed.render(record);
-    const label = composedLabel(shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label));
+    const label = composed.label ?? displayNameFor(fieldId);
     composedRows.set(fieldId, { fieldId, label, text, muted, retained: false });
     for (const absorbedId of composed.absorbs) {
       if (present.has(absorbedId) && record[absorbedId]?.state === "answered") absorbed.add(absorbedId);
@@ -305,7 +350,7 @@ export function reviewFieldRows(
       rows.push(composedRow);
       continue;
     }
-    const label = shortFieldLabel(fieldsById.get(fieldId)?.label ?? fieldId, row.label);
+    const label = displayNameFor(fieldId);
     rows.push({ fieldId, label, ...fieldDisplay(record, fieldId) });
   }
   return rows;

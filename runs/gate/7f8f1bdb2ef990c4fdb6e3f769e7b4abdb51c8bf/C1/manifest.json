@@ -1,0 +1,48 @@
+{
+  "case": "C1",
+  "title": "reference case",
+  "spec": "the amoxicillin narrative from the design mockups, dictated once, follow-ups answered plainly",
+  "evidences": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "devSha": "7f8f1bdb2ef990c4fdb6e3f769e7b4abdb51c8bf",
+  "treeClean": true,
+  "surfacesDeclared": [
+    "start",
+    "read-back",
+    "follow-ups",
+    "review",
+    "review-paper-facsimile",
+    "open-fields",
+    "ready",
+    "report-chrome"
+  ],
+  "surfacesReached": [
+    "follow-ups",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "surfacesByWalk": {
+    "C1": [
+      "follow-ups",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ]
+  },
+  "screenshots": 15,
+  "failures": [],
+  "modelFidelity": "Fake model. Copy, layout and screen fidelity are model-independent and are certified by this run; flow and length are NOT — they hold only as exercised by the scripted extractions."
+}

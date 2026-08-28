@@ -6,10 +6,11 @@
 // rule has a fast, API-free proof.
 import { describe, expect, it } from "vitest";
 import type { AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
-import type { ProposedAction } from "./talk";
+import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { applyProposedActions, type ProposedAction } from "./talk";
 import type { Topic } from "./topics";
-import { classifyFollowUpActions, describeFollowUpSweep } from "./followup-sweep";
+import { classifyFollowUpActions, describeDismissal, describeFollowUpSweep } from "./followup-sweep";
+import { syntheticAsk } from "./synthetic-topic";
 
 function field(id: string, type: FormFieldSpec["type"], label = id): FormFieldSpec {
   return { id, section: "A", pdfFieldName: `f.${id}[0]`, label, type, required: false };
@@ -27,6 +28,7 @@ function topic(
     fieldIds,
     repeatGroup: opts.repeatGroup ?? null,
     repeatInstance: opts.repeatInstance ?? null,
+    asks: [syntheticAsk(id, fieldIds)],
   };
 }
 
@@ -54,7 +56,7 @@ describe("classifyFollowUpActions", () => {
     expect(result.writes).toEqual([{ fieldId: "a", type: "answer", value: "42" }]);
     expect(result.outOfAskWrites).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual([]);
+    expect(result.collisions).toEqual([]);
     expect(result.volunteeredRepeatGroups).toEqual([]);
   });
 
@@ -117,7 +119,7 @@ describe("classifyFollowUpActions", () => {
     expect(result.writes).toEqual([]);
     expect(result.outOfAskWrites).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual(["a"]);
+    expect(result.collisions.map((c) => c.fieldId)).toEqual(["a"]);
   });
 
   it("a collision on an already-resolved field is still a collision, not two correction offers", () => {
@@ -128,7 +130,7 @@ describe("classifyFollowUpActions", () => {
     ];
     const result = classifyFollowUpActions(actions, record, [], TOPICS);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual(["a"]);
+    expect(result.collisions.map((c) => c.fieldId)).toEqual(["a"]);
   });
 
   it("a candidate for a repeat-instance-2+ field writes nothing and records the group as volunteered", () => {
@@ -137,7 +139,7 @@ describe("classifyFollowUpActions", () => {
     const result = classifyFollowUpActions(actions, record, [], TOPICS);
     expect(result.writes).toEqual([]);
     expect(result.correctionOffers).toEqual([]);
-    expect(result.collisionFieldIds).toEqual([]);
+    expect(result.collisions).toEqual([]);
     expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
   });
 
@@ -194,9 +196,45 @@ describe("classifyFollowUpActions", () => {
     expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
   });
 
+  // Reviewer pass on PR #142, finding 2 (SHOULD-FIX): AskForm.tsx's
+  // accept handlers each carried forward only the ONE pending-offer
+  // channel they themselves resolve, silently dropping the other if
+  // both were pending in the same turn — worst case, accepting a
+  // collision chip made a same-turn "Replace date of event" correction
+  // offer vanish while the field stayed answered at the wrong value, a
+  // silent mis-fill the walk never re-asks about. This pins the
+  // classifier fact that fix depends on: the two channels are populated
+  // independently, over different fields, from one turn, with nothing
+  // written for either — so a handler carrying "the channel I didn't
+  // just resolve" forward untouched is always the right thing to do,
+  // never a stale echo of data that's since changed shape.
+  it("populates both channels from one turn: a correction offer for an answered field, a collision for an unasked one", () => {
+    const record = recordOf({ a: { state: "unasked" }, c: { state: "answered", value: "old" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "500 mg" },
+      { fieldId: "a", type: "answer", value: "875 mg" },
+      { fieldId: "c", type: "answer", value: "new" },
+    ];
+    const result = classifyFollowUpActions(actions, record, [], TOPICS);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toEqual([
+      { fieldId: "c", action: { fieldId: "c", type: "answer", value: "new" }, currentState: "answered", currentValue: "old" },
+    ]);
+    expect(result.collisions).toEqual([
+      {
+        fieldId: "a",
+        values: ["500 mg", "875 mg"],
+        actions: [
+          { fieldId: "a", type: "answer", value: "500 mg" },
+          { fieldId: "a", type: "answer", value: "875 mg" },
+        ],
+      },
+    ]);
+  });
+
   it("returns empty result for an empty actions list", () => {
     const result = classifyFollowUpActions([], recordOf({}), [], TOPICS);
-    expect(result).toEqual({ writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [], volunteeredRepeatGroups: [] });
+    expect(result).toEqual({ writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] });
   });
 
   it("throws on a field id missing from the given record — fail loud, not silently skip", () => {
@@ -241,16 +279,268 @@ describe("classifyFollowUpActions", () => {
   });
 });
 
+// docs/ask-copy.md rule 7's amendment item 3 (#126), the orchestrator's
+// resolution of doc-review findings F1+F2: "a grounded later statement
+// conflicting with an ANSWERED exclusive fact is a correction OF THE
+// FACT — one offer, named by the fact's display name... acceptance
+// rewriting the group atomically. Member-level correction offers for
+// one-hot members never exist." Real manifest ids throughout — this is
+// exactly the shape a per-field offer would get wrong: "You said true
+// for sex: female — it's recorded as false. Replace it?" is nonsense on
+// an FDA form, and accepting a per-field offer on SexF against an
+// answered SexM is how a report ends with both sex boxes checked.
+describe("exclusive-fact conflicts become fact-level correction offers, not member-level ones (#126)", () => {
+  const SEX_M = "Page1.SecA_Patient.SexM";
+  const SEX_F = "Page1.SecA_Patient.SexF";
+  const EVAL_YES = "Page3.TestDataTable.EvalYes";
+  const EVAL_NO = "Page3.TestDataTable.EvalNo";
+  const EVAL_RETD = "Page3.TestDataTable.EvalRetd";
+
+  function sexResolvedRecord(): AgendaRecord {
+    return { [SEX_M]: { state: "answered", value: "true" }, [SEX_F]: { state: "answered", value: "false" } };
+  }
+
+  it("a grounded write conflicting with an already-answered exclusive fact produces exactly ONE offer, named by the fact", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toEqual([
+      {
+        fieldId: SEX_F,
+        action: { fieldId: SEX_F, type: "answer", value: "true" },
+        currentState: "answered",
+        currentValue: "false",
+        exclusiveFact: {
+          name: "sex",
+          currentFieldId: SEX_M,
+          // The atomic rewrite: the new member true, every OTHER member
+          // false, in the FACT's own declared field order (SexM, SexF —
+          // ask-inventory.ts's PB-1 fact) — not a member-level write
+          // that could leave both boxes checked.
+          writes: [
+            { fieldId: SEX_M, type: "answer", value: "false" },
+            { fieldId: SEX_F, type: "answer", value: "true" },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("phrases the offer with the amendment's exact fact-granularity sentence, byte for byte", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(describeFollowUpSweep(result)).toBe("You said female for sex — it's recorded as male. Replace it?");
+  });
+
+  it("never produces the nonsense field-level shape for a one-hot member", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    const rendered = describeFollowUpSweep(result);
+    expect(rendered).not.toContain("true for sex");
+    expect(rendered).not.toContain("sex: female");
+    expect(rendered).not.toContain("sex: male");
+  });
+
+  it("works the same for a three-way exclusive group — PA-1's product availability", () => {
+    const record: AgendaRecord = {
+      [EVAL_YES]: { state: "answered", value: "true" },
+      [EVAL_NO]: { state: "answered", value: "false" },
+      [EVAL_RETD]: { state: "answered", value: "false" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: EVAL_RETD, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toHaveLength(1);
+    expect(result.correctionOffers[0].exclusiveFact).toEqual({
+      name: "product availability",
+      currentFieldId: EVAL_YES,
+      writes: [
+        { fieldId: EVAL_YES, type: "answer", value: "false" },
+        { fieldId: EVAL_NO, type: "answer", value: "false" },
+        { fieldId: EVAL_RETD, type: "answer", value: "true" },
+      ],
+    });
+  });
+
+  // PA-1's EvalRetd is the one authored member with no colon in its
+  // display name ("returned to manufacturer", not "product available:
+  // returned") — display-names.ts's exclusiveMemberValue() falls back to
+  // the whole phrase rather than inventing a shorter one. Pinned here
+  // because it is the one case where the derived "value" half of the
+  // sentence is not a bare yes/no/male/female word.
+  it("falls back to the whole display name where a member's phrase has no colon", () => {
+    const record: AgendaRecord = {
+      [EVAL_YES]: { state: "answered", value: "true" },
+      [EVAL_NO]: { state: "answered", value: "false" },
+      [EVAL_RETD]: { state: "answered", value: "false" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: EVAL_RETD, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(describeFollowUpSweep(result)).toBe(
+      "You said returned to manufacturer for product availability — it's recorded as yes. Replace it?",
+    );
+  });
+
+  // Item 2's supersession clause, from the classifier's own side: an
+  // exclusive member currently `unknown`/`declined` is NOT yet
+  // "answered", so a write against it is not a conflict at all — it
+  // must reach `writes` (where derive.ts's completeExclusiveFactWrites
+  // then supersedes the sibling), never a correction offer. A per-field
+  // offer here would ask the clinician to confirm something rule 7
+  // already settled is theirs to state plainly.
+  it("does NOT turn a write against an unknown exclusive sibling into a correction offer — that's supersession, not a conflict", () => {
+    const record: AgendaRecord = { [SEX_M]: { state: "unknown" }, [SEX_F]: { state: "unknown" } };
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  it("...the same for a declined exclusive fact", () => {
+    const record: AgendaRecord = { [SEX_M]: { state: "declined" }, [SEX_F]: { state: "declined" } };
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  // Re-stating the value already on record is not a conflict either —
+  // there is nothing to replace, so this must not render the nonsensical
+  // "it's recorded as male" against a "you said male" of its own.
+  it("re-confirming the already-true member writes straight through, not a self-offer", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  // A "false"-typed proposal (never the extractor's normal shape for a
+  // one-hot member — see src/prompts/extractor.ts's own "propose true
+  // for the box selected" instruction) is out of this amendment's stated
+  // scope ("the named member true") and is left to the ordinary
+  // field-level path, unchanged.
+  it("a false-valued action against an exclusive member is untouched by this branch — the ordinary field-level path applies", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "false" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.correctionOffers).toEqual([
+      {
+        fieldId: SEX_M,
+        action: { fieldId: SEX_M, type: "answer", value: "false" },
+        currentState: "answered",
+        currentValue: "true",
+      },
+    ]);
+  });
+});
+
+// Issue #122 (the round-gate's C3 case): the later-instance exclusion
+// above fired unconditionally, even when the field it excluded was the
+// CURRENT ask's own field — so instance 2's own SP-1 answer ("The second
+// one was metformin.") was deferred as if it were a volunteer, the false
+// "Noted — I'll ask about that..." acknowledgment rendered while
+// standing on that very ask, and Prod2Name was never written. Real
+// manifest ids throughout, matching ask-inventory.ts's SP-1-2 and
+// CM-2-5 askFieldIds — this is deliberately not the synthetic "p2"/"m2"
+// fixture above, since the whole point is to catch drift against the
+// real inventory's askFieldIds shape.
+describe("a later-instance candidate that belongs to the ask on screen (#122)", () => {
+  const SP2_NAME = "Page5.Prod2.Prod2Name";
+  const SP2_STRENGTH = "Page5.Prod2.Prod2Strength";
+  const SP2_MANU = "Page5.Prod2.Prod2ManuComp";
+  // ask-inventory.ts's suspectProduct(2) SP-1-2: askFieldIds is exactly
+  // these three.
+  const SP1_2_ASK_FIELD_IDS = [SP2_NAME, SP2_STRENGTH, SP2_MANU];
+
+  // ask-inventory.ts's concomitantMedication(5) CM-2-5: askFieldIds is
+  // exactly this one field.
+  const CM5 = "Page6.SecF_Other.Table1.Row5.Prod5";
+
+  it("C3: 'The second one was metformin.' writes Prod2Name when SP-1-2 is the ask on screen", () => {
+    const record: AgendaRecord = {
+      [SP2_NAME]: { state: "unasked" },
+      [SP2_STRENGTH]: { state: "unasked" },
+      [SP2_MANU]: { state: "unasked" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, SP1_2_ASK_FIELD_IDS);
+    expect(result.writes).toEqual([{ fieldId: SP2_NAME, type: "answer", value: "metformin" }]);
+    expect(result.outOfAskWrites).toEqual([]);
+    expect(result.correctionOffers).toEqual([]);
+    expect(result.collisions).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual([]);
+  });
+
+  it("the SAME message volunteered at an unrelated ask still defers, with no write", () => {
+    const record: AgendaRecord = { [SP2_NAME]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    // "Page2.SecB_Adverse.DescEvent" (event description) names none of
+    // Prod2's fields — a genuinely unrelated ask.
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(result.writes).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
+  });
+
+  it("the same rule for the concomitant group's CM-2-{n} asks: in-ask writes", () => {
+    const record: AgendaRecord = { [CM5]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: CM5, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, [CM5]);
+    expect(result.writes).toEqual([{ fieldId: CM5, type: "answer", value: "metformin" }]);
+    expect(result.outOfAskWrites).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual([]);
+  });
+
+  it("...and the concomitant group's CM-2-{n} field still defers when genuinely out-of-ask", () => {
+    const record: AgendaRecord = { [CM5]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: CM5, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(result.writes).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual(["concomitant-medication"]);
+  });
+
+  // AC-2: the false acknowledgment ("Noted — I'll ask about that once we
+  // get to additional suspect product.") must be structurally impossible
+  // to render while that very ask is on screen — proven end to end
+  // through describeFollowUpSweep(), not just against
+  // volunteeredRepeatGroups directly, since the acknowledgment is what a
+  // clinician actually reads.
+  it("AC-2: the deferral acknowledgment cannot render for a field the current ask owns", () => {
+    const record: AgendaRecord = {
+      [SP2_NAME]: { state: "unasked" },
+      [SP2_STRENGTH]: { state: "unasked" },
+      [SP2_MANU]: { state: "unasked" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, SP1_2_ASK_FIELD_IDS);
+    expect(describeFollowUpSweep(result)).not.toContain("I'll ask about that once we get to");
+  });
+
+  // The other direction, so the check above isn't vacuously true because
+  // the acknowledgment never renders at all: genuinely out-of-ask still
+  // produces it, byte for byte.
+  it("...but still renders the deferral acknowledgment for the genuinely out-of-ask case", () => {
+    const record: AgendaRecord = { [SP2_NAME]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(describeFollowUpSweep(result)).toBe(
+      "Noted — I'll ask about that once we get to additional suspect product.",
+    );
+  });
+});
+
 describe("describeFollowUpSweep", () => {
-  const FIELDS = [
-    field("a", "text", "Therapy Stop Date"),
-    field("b", "text", "Lot Number"),
-    field("c", "text", "Description"),
-  ];
+  // Real manifest ids, not the synthetic "a"/"b"/"c" these tests used to
+  // carry: the acknowledgment names a field by its AUTHORED display name
+  // (ask-copy.md rule 6), so only a real field has one at all. The labels
+  // these fixtures used to fake ("Lot Number") were exactly the manifest
+  // text the old fieldPhrase() derived a phrase from.
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate"; // "therapy stop date"
+  const LOT = "Page4.Prod1.Prod1LotNum"; // "lot number"
+  const DESC = "Page2.SecB_Adverse.DescEvent"; // "event description"
+  const FIELDS = [fieldById(STOP_DATE)!, fieldById(LOT)!, fieldById(DESC)!];
 
   it("returns an empty string when there is nothing to announce", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: [], volunteeredRepeatGroups: [] },
+      { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] },
       FIELDS,
     );
     expect(result).toBe("");
@@ -259,10 +549,10 @@ describe("describeFollowUpSweep", () => {
   it("names the field and value for an out-of-ask write — no invisible write", () => {
     const result = describeFollowUpSweep(
       {
-        writes: [{ fieldId: "b", type: "answer", value: "8834" }],
-        outOfAskWrites: [{ fieldId: "b", type: "answer", value: "8834" }],
+        writes: [{ fieldId: LOT, type: "answer", value: "8834" }],
+        outOfAskWrites: [{ fieldId: LOT, type: "answer", value: "8834" }],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -275,22 +565,22 @@ describe("describeFollowUpSweep", () => {
     const result = describeFollowUpSweep(
       {
         writes: [
-          { fieldId: "b", type: "answer", value: "8834" },
-          { fieldId: "c", type: "answer", value: "rash" },
+          { fieldId: LOT, type: "answer", value: "8834" },
+          { fieldId: DESC, type: "answer", value: "rash" },
         ],
         outOfAskWrites: [
-          { fieldId: "b", type: "answer", value: "8834" },
-          { fieldId: "c", type: "answer", value: "rash" },
+          { fieldId: LOT, type: "answer", value: "8834" },
+          { fieldId: DESC, type: "answer", value: "rash" },
         ],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
     );
     expect(result).toContain("lot number");
     expect(result).toContain("8834");
-    expect(result).toContain("description");
+    expect(result).toContain("event description");
     expect(result).toContain("rash");
   });
 
@@ -301,13 +591,13 @@ describe("describeFollowUpSweep", () => {
         outOfAskWrites: [],
         correctionOffers: [
           {
-            fieldId: "a",
-            action: { fieldId: "a", type: "answer", value: "8/20" },
+            fieldId: STOP_DATE,
+            action: { fieldId: STOP_DATE, type: "answer", value: "8/20" },
             currentState: "answered",
             currentValue: "8/19",
           },
         ],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -325,13 +615,13 @@ describe("describeFollowUpSweep", () => {
         outOfAskWrites: [],
         correctionOffers: [
           {
-            fieldId: "a",
-            action: { fieldId: "a", type: "answer", value: "8/20" },
+            fieldId: STOP_DATE,
+            action: { fieldId: STOP_DATE, type: "answer", value: "8/20" },
             currentState: "unknown",
             currentValue: undefined,
           },
         ],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FIELDS,
@@ -342,7 +632,22 @@ describe("describeFollowUpSweep", () => {
 
   it("phrases a collision as a clarifying question naming the field", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisionFieldIds: ["a"], volunteeredRepeatGroups: [] },
+      {
+        writes: [],
+        outOfAskWrites: [],
+        correctionOffers: [],
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+            ],
+          },
+        ],
+        volunteeredRepeatGroups: [],
+      },
       FIELDS,
     );
     expect(result).toContain("therapy stop date");
@@ -355,7 +660,7 @@ describe("describeFollowUpSweep", () => {
         writes: [],
         outOfAskWrites: [],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: ["suspect-product"],
       },
       FIELDS,
@@ -366,19 +671,28 @@ describe("describeFollowUpSweep", () => {
   it("joins several simultaneous outcomes into one string, all present", () => {
     const result = describeFollowUpSweep(
       {
-        writes: [{ fieldId: "b", type: "answer", value: "8834" }],
-        outOfAskWrites: [{ fieldId: "b", type: "answer", value: "8834" }],
+        writes: [{ fieldId: LOT, type: "answer", value: "8834" }],
+        outOfAskWrites: [{ fieldId: LOT, type: "answer", value: "8834" }],
         correctionOffers: [
-          { fieldId: "a", action: { fieldId: "a", type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
+          { fieldId: STOP_DATE, action: { fieldId: STOP_DATE, type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
         ],
-        collisionFieldIds: ["c"],
+        collisions: [
+          {
+            fieldId: DESC,
+            values: ["rash", "hives"],
+            actions: [
+              { fieldId: DESC, type: "answer", value: "rash" },
+              { fieldId: DESC, type: "answer", value: "hives" },
+            ],
+          },
+        ],
         volunteeredRepeatGroups: ["concomitant-medication"],
       },
       FIELDS,
     );
     expect(result).toContain("8834");
     expect(result).toContain("8/20");
-    expect(result).toContain("description");
+    expect(result).toContain("event description");
     expect(result.toLowerCase()).toContain("concomitant medication");
   });
 
@@ -389,11 +703,177 @@ describe("describeFollowUpSweep", () => {
         writes: [{ fieldId: realField.id, type: "answer", value: "8834" }],
         outOfAskWrites: [{ fieldId: realField.id, type: "answer", value: "8834" }],
         correctionOffers: [],
-        collisionFieldIds: [],
+        collisions: [],
         volunteeredRepeatGroups: [],
       },
       FORM_3500_FIELDS,
     );
     expect(result).not.toMatch(/Page\d+\./);
+  });
+});
+
+// Issues #109 and #110. docs/ask-copy.md rule 8 authors these sentences
+// verbatim; before this unit the build rendered two of them differently
+// and the third not at all. `toBe`, not `toContain`, deliberately: rule
+// 1's whole premise is that the contract IS the copy, and a containment
+// assertion is exactly what let "Also noted: age — 58." pass for
+// "Also noted — age: 58." for as long as it did.
+describe("rule 8's Patterns, rendered byte-for-byte", () => {
+  const LOT = "Page4.Prod1.Prod1LotNum"; // "lot number"
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate"; // "therapy stop date"
+  const FIELDS = [fieldById(LOT)!, fieldById(STOP_DATE)!];
+
+  const empty = { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] };
+
+  it("out-of-ask write: `Also noted — {name}: {value}.`", () => {
+    const write = { fieldId: LOT, type: "answer" as const, value: "8834" };
+    const result = describeFollowUpSweep({ ...empty, writes: [write], outOfAskWrites: [write] }, FIELDS);
+    expect(result).toBe("Also noted — lot number: 8834.");
+  });
+
+  it("collision: `I heard two values for {name}: {a} and {b} — which should I write?`", () => {
+    const result = describeFollowUpSweep(
+      {
+        ...empty,
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+            ],
+          },
+        ],
+      },
+      FIELDS,
+    );
+    expect(result).toBe("I heard two values for therapy stop date: 8/19 and 8/20 — which should I write?");
+  });
+
+  it("dismiss tap: `Marked {name} as not on hand.` / `Marked {name} as declined.`", () => {
+    expect(describeDismissal(["age"], "mark_unknown")).toBe("Marked age as not on hand.");
+    expect(describeDismissal(["age"], "decline")).toBe("Marked age as declined.");
+  });
+});
+
+describe("the collision reply quotes the values that collided (#109)", () => {
+  const STOP_DATE = "Page4.Prod1.Prod1TherapyStopDate";
+  const FIELDS = [fieldById(STOP_DATE)!];
+
+  it("the classifier keeps every colliding candidate's value, in turn order", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "8/19" },
+      { fieldId: "a", type: "answer", value: "8/20" },
+    ];
+    const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "8/20"], actions }]);
+  });
+
+  it("describes a mark_unknown/decline candidate the same way the correction offer does", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "8/19" },
+      { fieldId: "a", type: "mark_unknown" },
+    ];
+    const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "unknown"], actions }]);
+  });
+
+  // Issue #124: a collision-choice chip writes through applyProposedActions
+  // — the SAME path any other answer takes (talk.ts) — so `actions` must
+  // carry the real candidate objects, not just their rendered strings.
+  it("carries each colliding candidate's own action, not just its rendered value", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const first: ProposedAction = { fieldId: "a", type: "answer", value: "500 mg" };
+    const second: ProposedAction = { fieldId: "a", type: "answer", value: "875 mg" };
+    const result = classifyFollowUpActions([first, second], record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["500 mg", "875 mg"], actions: [first, second] }]);
+    // Applying the SECOND candidate's own action is what a "875 mg" tap
+    // does — proven against applyProposedActions() directly in talk.test.ts
+    // (Issue #124 AC-4); this pins the data shape that write depends on.
+    expect(result.collisions[0].actions[1]).toBe(second);
+  });
+
+  // Issue #124 AC-4: C3's exact same-turn contradiction ("It was 500 mg —
+  // no, 875 mg.", round-gate.md/fixtures/gate/cases.ts) end to end —
+  // classification through the real write path, over the REAL manifest
+  // field id (not a synthetic "a"), with no model involved. Choosing the
+  // SECOND candidate is what tapping the "875 mg" chip does (AskForm.tsx's
+  // handleAcceptCollision, added by this unit): apply that one action
+  // through applyProposedActions(), the same write path every other
+  // answer takes (talk.ts).
+  it("AC-4: choosing 875 mg writes Prod1Strength — the real field the C3 collision is over", () => {
+    const PROD1_STRENGTH = "Page4.Prod1.Prod1Strength";
+    // Reviewer pass on PR #142, finding 5 (NIT): this test used to key
+    // its own hand-built record off this string literal and never
+    // checked it against the manifest — it would have passed just the
+    // same with a bogus id. Resolving it here first makes the test prove
+    // its own load-bearing half: the field this AC claims to be "the
+    // real field the C3 collision is over" actually exists.
+    expect(fieldById(PROD1_STRENGTH)).toBeDefined();
+    const record: AgendaRecord = { [PROD1_STRENGTH]: { state: "unasked" } };
+    const actions: ProposedAction[] = [
+      { fieldId: PROD1_STRENGTH, type: "answer", value: "500 mg" },
+      { fieldId: PROD1_STRENGTH, type: "answer", value: "875 mg" },
+    ];
+    const result = classifyFollowUpActions(actions, record, [PROD1_STRENGTH]);
+    // The turn writes neither — the collision, not a write, is the outcome.
+    expect(result.writes).toEqual([]);
+    const [collision] = result.collisions;
+    expect(collision.fieldId).toBe(PROD1_STRENGTH);
+    expect(collision.values).toEqual(["500 mg", "875 mg"]);
+
+    const chosen = collision.actions[1]; // the "875 mg" chip
+    const written = applyProposedActions(record, [chosen]);
+    expect(written[PROD1_STRENGTH]).toEqual({ state: "answered", value: "875 mg" });
+
+    // Ignoring it (never applying an action for this field) leaves the
+    // field exactly as open as it started — AC-2's second half.
+    expect(record[PROD1_STRENGTH]).toEqual({ state: "unasked" });
+  });
+
+  // Rule 8 authors the two-value sentence only. Three proposals for one
+  // field is reachable (nothing in validateCandidates() caps or dedupes
+  // per field), so the build has to say something true about it: the
+  // count is derived rather than asserted, following open-fields.ts's
+  // openFieldsHeading() — "derived from the count, never hardcoded".
+  // Filed as a contract gap; see the comment on collisionSentence().
+  it("quotes all of them, and does not claim `two`, when three collided", () => {
+    const result = describeFollowUpSweep(
+      { writes: [], outOfAskWrites: [], correctionOffers: [], volunteeredRepeatGroups: [],
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20", "8/21"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/21" },
+            ],
+          },
+        ] },
+      FIELDS,
+    );
+    expect(result).toBe("I heard 3 values for therapy stop date: 8/19, 8/20, and 8/21 — which should I write?");
+  });
+});
+
+describe("describeDismissal (#110)", () => {
+  // The facts a tap covers, never its fields: one tap on RA-2 writes five
+  // fields and names two facts. Rule 9 already made this call for the
+  // re-ask frames — "enumerating its fields is the recite-the-field-list
+  // failure this whole contract exists to remove" — and a dismiss
+  // acknowledgment reciting ten device fields would be that same defect
+  // in a new sentence.
+  it("names several facts through rule 9's own join", () => {
+    expect(describeDismissal(["other reports", "identity-withholding choice"], "mark_unknown")).toBe(
+      "Marked other reports and identity-withholding choice as not on hand.",
+    );
+  });
+
+  it("refuses to compose an acknowledgment for nothing", () => {
+    expect(() => describeDismissal([], "mark_unknown")).toThrow(/at least one/);
   });
 });

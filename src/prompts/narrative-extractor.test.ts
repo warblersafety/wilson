@@ -117,3 +117,10 @@ describe("NARRATIVE_EXTRACTION_RESPONSE_SCHEMA", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("rule 7's text-ask negative", () => {
+  it("tells the narrative pass a stated 'none' is the literal value None, never unknown", () => {
+    expect(NARRATIVE_EXTRACTOR_SYSTEM).toContain('"None" is an answer, not a blank');
+    expect(NARRATIVE_EXTRACTOR_SYSTEM).toMatch(/prints an unanswered text field as "Unknown"/);
+  });
+});

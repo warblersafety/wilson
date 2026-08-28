@@ -32,6 +32,17 @@ export const REPEAT_GROUPS = Array.from(
 // conversation), not the specific point-release lucy happened to name.
 export const EXTRACTOR_MODEL = "claude-sonnet-5";
 
+// **Not a live prompt: a frozen measurement baseline.** This is the
+// narrow, ask-scoped per-turn prompt from before Issue #44 widened the
+// sweep. Nothing in src has sent it since; the only caller is
+// scripts/cost-widened-turn.ts, which needs it byte-for-byte unchanged to
+// price the widening against its own pre-widening baseline (design.md's
+// cost posture, and the measurement #71 still owes). ask-copy.md's
+// "Consequences for the machinery" item 3 supersedes its "never propose
+// for an enum or checkbox field" instruction — superseded in the LIVE
+// prompt (FOLLOWUP_EXTRACTOR_INSTRUCTIONS below, which now carries the
+// derive rules), not by editing a string whose whole value is that it has
+// not changed. Do not wire this to anything.
 export const EXTRACTOR_SYSTEM = `You are the extraction component of wilson, a clinician-facing tool for reporting adverse drug events to the FDA (Form 3500). Your only job: read a conversation transcript between a clinician and an intake assistant, and propose structured field values that are directly grounded in what the CLINICIAN said in their latest message.
 
 You never converse. You never decide what to ask next. You only propose candidates with supporting evidence, and a deterministic validator decides what is actually written to the record. Candidates that fail the validator are discarded, so propose only what you can ground.
@@ -114,6 +125,11 @@ function renderOpenFields(fields: FormFieldSpec[]): string {
 // this array is what the model is told to cite, and it's the same array
 // the caller must later pass to validateCandidates()/validateRepeatCandidate()
 // so quote indices line up (see src/lib/extract.ts).
+// The frozen baseline's user-content builder — same standing as
+// EXTRACTOR_SYSTEM above, and the same single caller. The extraction
+// eval's dry check used to build its content here, which meant it
+// validated every fixture against a prompt no live run had sent in weeks;
+// it now builds what production builds (scripts/eval-extraction.ts).
 export function buildExtractionUserContent(
   step: NextStep,
   fields: FormFieldSpec[],
@@ -177,6 +193,18 @@ For each field you address, decide in this order:
 
 One message can ground several field candidates at once — sweep broadly, not just the first field the message seems to answer.
 
+## "None" is an answer, not a blank
+
+Three asks take prose or a table rather than a value: the relevant medical history, the relevant tests or labs, and anything else FDA should know. When the clinician clearly says there is nothing — "no relevant history", "none", "nothing else" — propose kind "value" with the literal string "None" for that ask's own field, NOT kind "unknown". The exported form prints an unanswered text field as "Unknown", which would tell FDA the opposite of what the clinician said. Reserve "unknown" for a clinician who does not have the information, which is a different thing from one who says there is none.
+
+## Companion fields — one fact, several boxes
+
+Form 3500 keeps some single facts in several fields at once. When the clinician states the fact, propose every field it fills, each grounded on the same quote:
+
+- **Units stated in the words.** "875 mg" fills the strength AND its unit enum; "1 tablet twice daily" fills the dose, its unit, and the frequency; "six months of therapy" fills the duration and its duration-unit enum. Propose a unit ONLY from what the clinician actually said — never from what seems medically likely. A bare number with no unit: propose the number alone and leave the unit open.
+- **"Other" companions.** Frequency and route are enums. If the clinician's stated value matches one of the legal options, use it. If it matches none of them ("every other Tuesday"), propose the enum's "Other" option where one exists AND propose the free-text Other-companion field with the clinician's own words.
+- **One-hot and multi-select groups.** Propose "true" for each box the clinician's answer selects. You do NOT need to propose "false" for the rest of a group whose question was just asked — a deterministic step completes it. Propose "false" only where the clinician said so explicitly ("no, it never came back", "none of those").
+
 ## Repeat-group decisions
 
 Some turns ask a yes/no-shaped question about whether another instance of a repeating group exists. When the transcript's last TALKER turn is asking exactly that, and the clinician's latest message answers it, propose a repeatDecision — but you may ALSO propose ordinary field candidates from the very same message, if the clinician volunteered more than a yes/no.
@@ -229,14 +257,17 @@ export function buildFollowUpExtractorSystem(
 // set belongs in the suffix, "never carved out of the prefix" — this
 // function never touches buildFollowUpExtractorSystem()'s output.
 //
-// `askFieldIds` names what this turn's own ask actually phrased — the
-// caller's job to compute (src/lib/extract.ts's `askFieldIds`, sliced to
-// MAX_FIELDS_PER_ASK), not this function's: re-slicing step.fieldIds in
-// here would risk drifting from the SAME cap classifyFollowUpActions()
-// uses to decide in-ask vs. out-of-ask (extract.ts is the one place that
-// must agree with itself). Using the raw, uncapped step.fieldIds instead
-// used to tell the model this turn asked about fields the clinician was
-// never actually shown a question about (reviewer pass on PR #64).
+// `askFieldIds` names what this turn's own ask actually phrased. The
+// caller computes it (src/lib/extract.ts) and passes the same value to
+// classifyFollowUpActions(), so the model's idea of what was asked and
+// the in-ask/out-of-ask decision cannot drift — extract.ts is the one
+// place that must agree with itself. There is no slicing any more: with
+// authored asks, a topic step's fieldIds IS the ask's own unresolved
+// field set. The cap this docblock used to describe existed because
+// nextStep() once returned every unresolved field of a topic while the
+// template phrased only three, which told the model the turn had asked
+// about fields the clinician was never shown (reviewer pass on PR #64);
+// that gap is closed at the source now.
 export function buildFollowUpUserContent(
   step: NextStep,
   askFieldIds: string[],

@@ -6,11 +6,13 @@
 // multi-slot group's "yes" reveals a deterministic "how many in total?"
 // count follow-through rather than writing a lossy guess. Writes
 // setRepeatCount directly — no free-text detour — and, like every other
-// chip write in this unit, appends a "question — answer" transcript turn
-// so the visible history has no gaps. stepForSession's appendReply: true
-// then also appends the recomputed NEXT question as its own talker turn
-// (direct-step.ts's file header) — otherwise a typed answer to that next
-// question would show up with nothing above it in the transcript.
+// chip write in this unit, appends an answer-only transcript turn (Issue
+// #123: just the chip's own words, never the question — the talker turn
+// asking it is already the previous entry) so the visible history has no
+// gaps. stepForSession's appendReply: true then also appends the
+// recomputed NEXT question as its own talker turn (direct-step.ts's file
+// header) — otherwise a typed answer to that next question would show up
+// with nothing above it in the transcript.
 import { useState } from "react";
 import { Chip } from "@/components/Chip";
 import { friendlyFailureMessage, repeatDecisionOptions, widgetTurnText } from "@/lib/chip-grammar";
@@ -47,7 +49,7 @@ export function RepeatDecision({
         repeatCounts: setRepeatCount(session.repeatCounts, repeatGroup, count),
         transcript: [
           ...session.transcript,
-          { role: "clinician", text: widgetTurnText(reply, answerLabel), source: "widget" },
+          { role: "clinician", text: widgetTurnText(answerLabel), source: "widget" },
         ],
       };
       setError(null);

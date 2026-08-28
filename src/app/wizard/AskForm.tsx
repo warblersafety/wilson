@@ -16,16 +16,18 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { submitTurn } from "@/app/actions";
 import { Chip } from "@/components/Chip";
-import { fieldPhrase } from "@/lib/ask";
+import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
+  DISMISS_CHIPS,
+  dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
+  remainingCollisions,
   remainingCorrectionOffers,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import type { CorrectionOffer } from "@/lib/followup-sweep";
-import { fieldById } from "@/lib/form-3500-fields";
+import type { CorrectionOffer, FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -39,6 +41,11 @@ interface AskFormProps {
   // stale) response lands.
   onPendingChange?: (pending: boolean) => void;
 }
+
+// Rendered from chip-grammar.ts's map rather than typed here: the gate
+// driver clicks these by visible text, and a rename that only touched
+// this file used to leave every check green (doc-review on #96).
+const [UNKNOWN_LABEL, DECLINE_LABEL] = Object.keys(DISMISS_CHIPS) as ["I don't have that", "Rather not say"];
 
 export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps) {
   const [message, setMessage] = useState("");
@@ -92,10 +99,34 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         record: applyActionToFields(current.session.record, fieldIds, { type: action }),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(current.reply, answerLabel), source: "widget" },
+          // Just the chip's own words (Issue #123) — the question it
+          // answers is already on screen as the preceding talker turn, so
+          // quoting it again here would make the clinician's turn a
+          // recitation rather than an answer.
+          { role: "clinician", text: widgetTurnText(answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(await stepForSession(nextSession, { appendReply: true }));
+      const nextStepResult = await stepForSession(nextSession, {
+        appendReply: true,
+        // ask-copy.md rule 8 (#110). Named from the same step the
+        // `fieldIds` above came from, so the sentence names exactly the
+        // facts this tap resolved.
+        replyPrefix: dismissAcknowledgment(current.nextStep, action),
+      });
+      onSubmitted({
+        ...nextStepResult,
+        // Reviewer pass on PR #142, finding 2: stepForSession()'s fresh
+        // TalkStep carries neither pending-offer channel of its own — a
+        // dismiss tap writes only the CURRENT ask's own fieldIds, never
+        // a correctionOffer's or collision's field (those always name
+        // OTHER fields this turn's sweep found extra evidence for), so
+        // both channels are exactly as pending after the tap as they
+        // were before it and must be carried forward untouched, the same
+        // way handleAcceptCorrection/handleAcceptCollision below carry
+        // forward whichever channel they did NOT just resolve.
+        correctionOffers: current.correctionOffers,
+        collisions: current.collisions,
+      });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
@@ -124,20 +155,95 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const field = fieldById(offer.fieldId);
-      const label = field ? fieldPhrase(field) : offer.fieldId;
       const nextSession: TalkSession = {
         ...current.session,
-        record: applyProposedActions(current.session.record, [offer.action]),
+        // ask-copy.md rule 7's amendment (#126): an exclusive-fact offer
+        // carries the FULL atomic rewrite in `exclusiveFact.writes` (the
+        // new member true, every sibling false, one operation) — never
+        // `[offer.action]` alone, which would write only the named
+        // member and leave the group's prior "true" sibling standing,
+        // exactly the both-boxes-checked defect this offer shape exists
+        // to prevent. An ordinary field-level offer carries no
+        // `exclusiveFact` and applies `offer.action` alone, unchanged.
+        record: applyProposedActions(current.session.record, offer.exclusiveFact?.writes ?? [offer.action]),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(`Replace ${label}?`, "Yes, replace it"), source: "widget" },
+          // Issue #123: no synthetic "Replace <field>? —" question
+          // prefix — the chip's own label already names the field
+          // (JSX below), and the offer itself is stated in full by the
+          // preceding talker turn (current.reply).
+          { role: "clinician", text: widgetTurnText("Yes, replace it"), source: "widget" },
         ],
       };
       const nextStepResult = await stepForSession(nextSession, { appendReply: true });
       onSubmitted({
         ...nextStepResult,
         correctionOffers: remainingCorrectionOffers(current.correctionOffers, offer.fieldId),
+        // Reviewer pass on PR #142, finding 2: a same-turn collision
+        // names a DIFFERENT field than the offer just accepted
+        // (classifyFollowUpActions() puts each field in at most one of
+        // the two channels), so it is untouched by this accept and must
+        // be carried forward as-is — without this, accepting a
+        // correction offer used to silently drop every pending collision
+        // chip, even though none of them was acted on.
+        collisions: current.collisions,
+      });
+    } catch (err) {
+      setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
+    } finally {
+      setIsDismissing(false);
+      onPendingChange?.(false);
+    }
+  }
+
+  // One-tap collision resolution (Issue #124 AC-1/AC-2), the same shape as
+  // handleAcceptCorrection above: a deterministic write through the
+  // normal path (applyProposedActions), recorded in the transcript, one
+  // tap. `index` selects which of `collision.values`/`collision.actions`
+  // was tapped — chip labels ARE the values themselves (mirroring
+  // Read-back's own collision radios and the correction-offer chip's
+  // field label), so the tap already tells us which one without asking
+  // the clinician to disambiguate a second time. remainingCollisions()
+  // carries the turn's other, still-unresolved collisions forward,
+  // mirroring remainingCorrectionOffers() just above and for the same
+  // reason (reviewer pass on PR #64): stepForSession()'s fresh step has
+  // none of its own.
+  async function handleAcceptCollision(collision: FieldCollision, index: number) {
+    setError(null);
+    setIsDismissing(true);
+    onPendingChange?.(true);
+    try {
+      const nextSession: TalkSession = {
+        ...current.session,
+        record: applyProposedActions(current.session.record, [collision.actions[index]]),
+        transcript: [
+          ...current.session.transcript,
+          // Issue #123 (dev merged in after this handler was first
+          // written, during the reviewer-pass follow-up on PR #142): no
+          // collisionSentence() prefix — rule 8's own line is already on
+          // screen as part of current.reply (describeFollowUpSweep()
+          // puts every pending collision's sentence there), so quoting
+          // it again into the clinician's own tap would be the same
+          // recitation #123 removed from handleDismiss/
+          // handleAcceptCorrection above. The tapped value is the whole
+          // answer.
+          { role: "clinician", text: widgetTurnText(collision.values[index]), source: "widget" },
+        ],
+      };
+      const nextStepResult = await stepForSession(nextSession, { appendReply: true });
+      onSubmitted({
+        ...nextStepResult,
+        collisions: remainingCollisions(current.collisions, collision.fieldId),
+        // Reviewer pass on PR #142, finding 2 (SHOULD-FIX, the worst-case
+        // direction): without this, accepting a collision chip silently
+        // dropped every pending correction-offer chip too — e.g. the
+        // "Replace date of event" chip vanishing while EventDate stayed
+        // `answered` at the wrong value, which the walk then never
+        // re-asks about (it isn't `unasked`). A same-turn correction
+        // offer names a different field than the collision just
+        // resolved, so it carries forward untouched, mirroring
+        // handleAcceptCorrection above.
+        correctionOffers: current.correctionOffers,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
@@ -153,8 +259,11 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       {current.correctionOffers && current.correctionOffers.length > 0 && (
         <div className="ask-form__corrections" role="group" aria-label="Correction offers">
           {current.correctionOffers.map((offer) => {
-            const field = fieldById(offer.fieldId);
-            const label = field ? fieldPhrase(field) : offer.fieldId;
+            // ask-copy.md rule 7's amendment (#126): an exclusive-fact
+            // offer is named by the FACT ("Replace sex"), never the
+            // member ("Replace sex: female") — member-level naming is
+            // exactly the shape item 3 abolishes for one-hot members.
+            const label = offer.exclusiveFact?.name ?? displayNameFor(offer.fieldId);
             return (
               <Chip
                 key={offer.fieldId}
@@ -164,6 +273,27 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
               />
             );
           })}
+        </div>
+      )}
+      {current.collisions && current.collisions.length > 0 && (
+        <div className="ask-form__collisions">
+          {current.collisions.map((collision) => (
+            <div
+              key={collision.fieldId}
+              className="ask-form__collision-group"
+              role="group"
+              aria-label={`Choose a value for ${displayNameFor(collision.fieldId)}`}
+            >
+              {collision.values.map((value, index) => (
+                <Chip
+                  key={index}
+                  label={value}
+                  disabled={busy}
+                  onClick={() => void handleAcceptCollision(collision, index)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       )}
       <textarea
@@ -183,14 +313,14 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           {isPending ? "Sending…" : "Send"}
         </button>
         <Chip
-          label="I don't have that"
+          label={UNKNOWN_LABEL}
           disabled={busy}
-          onClick={() => void handleDismiss("mark_unknown", "I don't have that")}
+          onClick={() => void handleDismiss("mark_unknown", UNKNOWN_LABEL)}
         />
         <Chip
-          label="Rather not say"
+          label={DECLINE_LABEL}
           disabled={busy}
-          onClick={() => void handleDismiss("decline", "Rather not say")}
+          onClick={() => void handleDismiss("decline", DECLINE_LABEL)}
         />
       </div>
       {error && (

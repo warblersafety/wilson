@@ -1,0 +1,1027 @@
+{
+  "bundleVersion": 1,
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-08-28T04:46:21.241Z",
+  "transcript": [
+    {
+      "role": "clinician",
+      "text": "58-year-old man on amoxicillin and metformin developed a rash on the 20th. He also takes lisinopril, atorvastatin and metformin. ALT was 402."
+    },
+    {
+      "role": "talker",
+      "text": "Got it. Still need: patient identifier and sex."
+    },
+    {
+      "role": "clinician",
+      "text": "Got it. Still need: patient identifier and sex. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked patient identifier and sex as not on hand. What's the patient's weight — and date of birth, if you record it?"
+    },
+    {
+      "role": "clinician",
+      "text": "What's the patient's weight — and date of birth, if you record it? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked weight and date of birth as not on hand. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine."
+    },
+    {
+      "role": "clinician",
+      "text": "For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked race or ethnicity as not on hand. When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?"
+    },
+    {
+      "role": "clinician",
+      "text": "The rash was on the 20th. ALT came back at 402, by the way."
+    },
+    {
+      "role": "talker",
+      "text": "Also noted — test 1: ALT 402. And the report type?"
+    },
+    {
+      "role": "clinician",
+      "text": "And the report type? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?"
+    },
+    {
+      "role": "clinician",
+      "text": "How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?"
+    },
+    {
+      "role": "clinician",
+      "text": "Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked relevant history as not on hand. Anything else FDA should know?"
+    },
+    {
+      "role": "clinician",
+      "text": "Actually the rash was the 19th, not the 20th."
+    },
+    {
+      "role": "talker",
+      "text": "You said 2026-08-19 for date of event — it's recorded as 2026-08-20. Replace it? Anything else FDA should know?"
+    },
+    {
+      "role": "clinician",
+      "text": "Anything else FDA should know? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked additional comments as not on hand. Got it. Still need: strength and manufacturer/compounder."
+    },
+    {
+      "role": "clinician",
+      "text": "It was 500 mg — no, 875 mg."
+    },
+    {
+      "role": "talker",
+      "text": "I heard two values for strength: 500 mg and 875 mg — which should I write? Got it. Still need: strength and manufacturer/compounder."
+    },
+    {
+      "role": "clinician",
+      "text": "Got it. Still need: strength and manufacturer/compounder. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked strength and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand."
+    },
+    {
+      "role": "clinician",
+      "text": "Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?"
+    },
+    {
+      "role": "clinician",
+      "text": "How was it taken — dose, how often, and by what route? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?"
+    },
+    {
+      "role": "clinician",
+      "text": "When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?"
+    },
+    {
+      "role": "clinician",
+      "text": "What was it prescribed or used for? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known."
+    },
+    {
+      "role": "clinician",
+      "text": "Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?"
+    },
+    {
+      "role": "clinician",
+      "text": "After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?"
+    },
+    {
+      "role": "clinician",
+      "text": "Was it given again — and if so, did the event come back? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked response after restarting as not on hand. Was there another suspect product?"
+    },
+    {
+      "role": "clinician",
+      "text": "Was there another suspect product? — Yes",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "What's the second suspect product — name, strength, and manufacturer or compounder, if known?"
+    },
+    {
+      "role": "clinician",
+      "text": "The second one was metformin."
+    },
+    {
+      "role": "talker",
+      "text": "Noted — I'll ask about that once we get to additional suspect product. What's the second suspect product — name, strength, and manufacturer or compounder, if known?"
+    },
+    {
+      "role": "clinician",
+      "text": "What's the second suspect product — name, strength, and manufacturer or compounder, if known? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product #2 product name, product #2 strength, and product #2 manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand."
+    },
+    {
+      "role": "clinician",
+      "text": "Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product #2 lot number and product #2 NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?"
+    },
+    {
+      "role": "clinician",
+      "text": "How was it taken — dose, how often, and by what route? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product #2 dose, product #2 frequency, and product #2 route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?"
+    },
+    {
+      "role": "clinician",
+      "text": "When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product #2 therapy start date, product #2 therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?"
+    },
+    {
+      "role": "clinician",
+      "text": "What was it prescribed or used for? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product #2 diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known."
+    },
+    {
+      "role": "clinician",
+      "text": "Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked product type and product #2 expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?"
+    },
+    {
+      "role": "clinician",
+      "text": "After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?"
+    },
+    {
+      "role": "clinician",
+      "text": "Was it given again — and if so, did the event come back? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked response after restarting as not on hand. Is the patient on other medications? Name them, with rough start and stop dates if you have them."
+    },
+    {
+      "role": "clinician",
+      "text": "Lisinopril, started years ago."
+    },
+    {
+      "role": "talker",
+      "text": "Is there another medication to add?"
+    },
+    {
+      "role": "clinician",
+      "text": "Is there another medication to add? — Yes, 3 in total",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "What's the second medication — its name, and rough start and stop dates?"
+    },
+    {
+      "role": "clinician",
+      "text": "What's the second medication — its name, and rough start and stop dates? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked other medication 2 as not on hand. What's the third medication — its name, and rough start and stop dates?"
+    },
+    {
+      "role": "clinician",
+      "text": "What's the third medication — its name, and rough start and stop dates? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked other medication 3 as not on hand. Your contact details for the report — name, address, phone, and email?"
+    },
+    {
+      "role": "clinician",
+      "text": "Your contact details for the report — name, address, phone, and email? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked the rest of your contact details as not on hand. Are you reporting as a health professional, and what's your occupation?"
+    },
+    {
+      "role": "clinician",
+      "text": "Are you reporting as a health professional, and what's your occupation? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked health-professional status and occupation as not on hand. Two housekeeping items — have you also reported this to the manufacturer, a user facility, a distributor, or a packer? And should FDA withhold your identity from the manufacturer?"
+    },
+    {
+      "role": "clinician",
+      "text": "Two housekeeping items — have you also reported this to the manufacturer, a user facility, a distributor, or a packer? And should FDA withhold your identity from the manufacturer? — I don't have that",
+      "source": "widget"
+    },
+    {
+      "role": "talker",
+      "text": "Marked other reports and identity-withholding choice as not on hand. That's everything I need to ask. Review the report before you sign off."
+    }
+  ],
+  "record": {
+    "Page1.SecA_Patient.PatientIdentifier": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.AgeValue": {
+      "state": "answered",
+      "value": "58"
+    },
+    "Page1.SecA_Patient.AgeYears": {
+      "state": "answered",
+      "value": "true"
+    },
+    "Page1.SecA_Patient.AgeMonths": {
+      "state": "answered",
+      "value": "false"
+    },
+    "Page1.SecA_Patient.AgeWeeks": {
+      "state": "answered",
+      "value": "false"
+    },
+    "Page1.SecA_Patient.AgeDays": {
+      "state": "answered",
+      "value": "false"
+    },
+    "Page1.SecA_Patient.DateBirth": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.SexM": {
+      "state": "answered",
+      "value": "true"
+    },
+    "Page1.SecA_Patient.SexF": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.WeightValue": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.WeightLB": {
+      "state": "unasked"
+    },
+    "Page1.SecA_Patient.WeightKG": {
+      "state": "unasked"
+    },
+    "Page1.SecA_Patient.RaceAmInd": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RaceAsian": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RaceBlack": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.EthnicLatino": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RaceMiddleEastern": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RacePacific": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RaceWhite": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RepAdverse": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.RepError": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.Defects": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.DiffManu": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.Death": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.DeathDate": {
+      "state": "unasked"
+    },
+    "Page1.SecA_Patient.Hospital": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.LifeThreaten": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.Disability": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.ReqdInter": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.Congenital": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.OtherEvents": {
+      "state": "unknown"
+    },
+    "Page1.SecA_Patient.EventDate": {
+      "state": "answered",
+      "value": "2026-08-20"
+    },
+    "Page1.SecA_Patient.ReportDate": {
+      "state": "answered",
+      "value": "2026-08-27"
+    },
+    "Page2.SecB_Adverse.DescEvent": {
+      "state": "answered",
+      "value": "rash"
+    },
+    "Page3.Sec6Data.OtherHistory": {
+      "state": "unknown"
+    },
+    "Page3.TestDataTable.Row1.TestData1": {
+      "state": "answered",
+      "value": "ALT 402"
+    },
+    "Page3.TestDataTable.Row1.TLowRange1": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row1.THighRange1": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row1.TDate1": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row2.TestData2": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row2.TLowRange2": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row2.THighRange2": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row2.TDate2": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row3.TestData3": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row3.TLowRange3": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row3.THighRange3": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row4.TestData4": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row4.TLowRange4": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row4.THighRange4": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row5.TestData5": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row5.TLowRange5": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row5.THighRange5": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row6.TestData6": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row6.TLowRange6": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row6.THighRange6": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row7.TestData7": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row7.TLowRange7": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TestData8": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TLowRange8": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.THighRange8": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate8": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.THighRange7": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate3": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate4": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate5": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate6": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.Row8.TDate7": {
+      "state": "unasked"
+    },
+    "Page3.AdditionalComments": {
+      "state": "unknown"
+    },
+    "Page3.TestDataTable.Row7.PicYes": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.ReturnDate": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.EvalRetd": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.EvalNo": {
+      "state": "unasked"
+    },
+    "Page3.TestDataTable.EvalYes": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Name": {
+      "state": "answered",
+      "value": "amoxicillin"
+    },
+    "Page4.Prod1.Prod1Strength": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1StrengthUnit": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1NDC_ID": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1ManuComp": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1LotNum": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1Dose": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1DoseUnit": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Freq": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1FreqOther": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Route": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1RouteOther": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1TherapyStartDate": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1TherapyStopDate": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1TherapyReduceDate": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1TherapyDuration": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1TherapyDurUnit": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1TherapyOngoingYes": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1TherapyOngoingNo": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1Diagnosis": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1Compounded": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1CosmProf": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1ExpDate": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1AbatedYes": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1AbatedNo": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1AbatedNA": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1ReappearYes": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1ReappearNo": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1ReappearNA": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1PlaceName": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Address": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Country": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1City": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1State": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.ZipCode": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Website": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1PurchaseDate": {
+      "state": "unasked"
+    },
+    "Page4.Prod1.Prod1Brand": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1Generic": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1OTC": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1PdtOther": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1Cannabi": {
+      "state": "unknown"
+    },
+    "Page4.Prod1.Prod1CosRetail": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Name": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Strength": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2StrengthUnit": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2NDC_ID": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2ManuComp": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2LotNum": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Dose": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2DoseUnit": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2Freq": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2FreqOther": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2Route": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2RouteOther": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2TherapyStartDate": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2TherapyStopDate": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2TherapyReduceDate": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2TherapyDuration": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2TherapyDurUnit": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2TherapyOngoingYes": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2TherapyOngoingNo": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Diagnosis": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Compounded": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.pdt2CosmProf": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2ExpDate": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2AbatedYes": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2AbatedNo": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2AbatedNA": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2ReappearYes": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2ReappearNo": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2ReappearNA": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2PlaceName": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2Address": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Pdt2Country": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Pdt2City": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Pdt2State": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.ZipCode": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Pdt2Website": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Pdt2PurchaseDate": {
+      "state": "unasked"
+    },
+    "Page5.Prod2.Prod2Brand": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2Generic": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Prod2OTC": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Pdt2PdtOther": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Pdt2Cannabi": {
+      "state": "unknown"
+    },
+    "Page5.Prod2.Pdt2CosRetail": {
+      "state": "unknown"
+    },
+    "Page6.SecE_Device.BrandName": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.CommName": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.Procode": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ManuName": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ModelNum": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.LotNum": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.CatNum": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ExpDate": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.SerialNum": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.UDInum": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.HealthPro": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.PatientCons": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.OperatorOther": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ImplantDate": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ExplantDate": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ReuseYes": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ReuseNo": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ReprocInfo": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ServicedYes": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ServicedNo": {
+      "state": "unasked"
+    },
+    "Page6.SecE_Device.ServiceUnk": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row1.Prod1": {
+      "state": "answered",
+      "value": "lisinopril"
+    },
+    "Page6.SecF_Other.Table1.Row1.Start1": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row1.End1": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row2.Prod2": {
+      "state": "unknown"
+    },
+    "Page6.SecF_Other.Table1.Row2.Start2": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row2.End2": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row3.Prod3": {
+      "state": "unknown"
+    },
+    "Page6.SecF_Other.Table1.Row3.Start3": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row3.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row4.Prod4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row4.Start4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row4.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row5.Prod5": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row5.Start5": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row5.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row6.Prod6": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row6.Start6": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row6.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row7.Prod7": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row7.Start7": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row7.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row8.Prod8": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row8.Start8": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row8.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row9.Prod9": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row9.Start9": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row9.Cell4": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row10.Prod10": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row10.Start10": {
+      "state": "unasked"
+    },
+    "Page6.SecF_Other.Table1.Row10.Cell4": {
+      "state": "unasked"
+    },
+    "Page7.SecG_Reporter.LastName": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.FirstName": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.Address": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.City": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.State": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.ZipCode": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.Country": {
+      "state": "unasked"
+    },
+    "Page7.SecG_Reporter.PhoneNum": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.Email": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.ProYes": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.ProNo": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.Occupation": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.ManuComp": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.UserFac": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.DistImp": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.IdentityNo": {
+      "state": "unknown"
+    },
+    "Page7.SecG_Reporter.Packer": {
+      "state": "unknown"
+    }
+  },
+  "repeatCounts": {
+    "suspect-product": 2,
+    "concomitant-medication": 3
+  },
+  "volunteeredRepeats": {
+    "suspect-product": true
+  }
+}
