@@ -1,0 +1,80 @@
+--- transcript panel, in order ---
+Patient had a reaction. I would rather not go into detail beyond what you ask for.
+Who is the patient — an identifier like an MRN or initials, their age, and sex?
+MRN 51-7788.
+Got it. Still need: age and sex.
+Got it. Still need: age and sex. — Rather not say
+Marked age and sex as declined. What's the patient's weight — and date of birth, if you record it?
+What's the patient's weight — and date of birth, if you record it? — Rather not say
+Marked weight and date of birth as declined. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — Rather not say
+Marked race or ethnicity as declined. Describe what happened — the event, product problem, or medication error, in your own words.
+Hives after the first dose.
+When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+2026-07-30.
+And the report type?
+And the report type? — I don't have that
+Marked report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that
+Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use? — Rather not say
+Marked relevant history as declined. Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date. — Rather not say
+Marked relevant tests or labs as declined. Anything else FDA should know?
+Anything else FDA should know? — I don't have that
+Marked additional comments as not on hand. What's the suspect product — name, strength, and manufacturer or compounder, if known?
+Cephalexin.
+Got it. Still need: strength and manufacturer/compounder.
+Got it. Still need: strength and manufacturer/compounder. — I don't have that
+Marked strength and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand.
+Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that
+Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?
+How was it taken — dose, how often, and by what route? — I don't have that
+Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that
+Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
+What was it prescribed or used for? — Rather not say
+Marked diagnosis for use as declined. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that
+Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that
+Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?
+Was it given again — and if so, did the event come back? — I don't have that
+Marked response after restarting as not on hand. Was there another suspect product?
+Was there another suspect product? — No
+Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+Is the patient on other medications? Name them, with rough start and stop dates if you have them. — I don't have that
+Marked other medications as not on hand. Is there another medication to add?
+Is there another medication to add? — No
+Your contact details for the report — name, address, phone, and email?
+Your contact details for the report — name, address, phone, and email? — Rather not say
+Marked the rest of your contact details as declined. Are you reporting as a health professional, and what's your occupation?
+Are you reporting as a health professional, and what's your occupation? — Rather not say
+
+--- asks rendered in the composer bubble ---
+Who is the patient — an identifier like an MRN or initials, their age, and sex?
+Got it. Still need: age and sex.
+Marked age and sex as declined. What's the patient's weight — and date of birth, if you record it?
+Marked weight and date of birth as declined. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+Marked race or ethnicity as declined. Describe what happened — the event, product problem, or medication error, in your own words.
+When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+And the report type?
+Marked report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+Marked relevant history as declined. Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+Marked relevant tests or labs as declined. Anything else FDA should know?
+Marked additional comments as not on hand. What's the suspect product — name, strength, and manufacturer or compounder, if known?
+Got it. Still need: strength and manufacturer/compounder.
+Marked strength and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand.
+Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?
+Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
+Marked diagnosis for use as declined. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?
+Marked response after restarting as not on hand. Was there another suspect product?
+Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+Marked other medications as not on hand. Is there another medication to add?
+Your contact details for the report — name, address, phone, and email?
+Marked the rest of your contact details as declined. Are you reporting as a health professional, and what's your occupation?
+Marked health-professional status and occupation as declined. Two housekeeping items — have you also reported this to the manufacturer, a user facility, a distributor, or a packer? And should FDA withhold your identity from the manufacturer?

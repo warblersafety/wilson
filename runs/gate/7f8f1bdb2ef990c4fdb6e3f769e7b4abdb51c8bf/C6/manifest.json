@@ -1,0 +1,56 @@
+{
+  "case": "C6",
+  "title": "second run",
+  "spec": "complete C2 to Ready, start C3 via Ready's \"Start over\", in the same browser state. Pass bar while #93 is undecided: no C2 data bleeds into C3 and no dishonest claims; the known mid-interview-resume gap (#93) is *reported* in the verdict as standing intake, never verdict-bearing, until its design lands.",
+  "evidences": [
+    1,
+    8
+  ],
+  "devSha": "7f8f1bdb2ef990c4fdb6e3f769e7b4abdb51c8bf",
+  "treeClean": true,
+  "surfacesDeclared": [
+    "start",
+    "read-back",
+    "follow-ups",
+    "review",
+    "review-paper-facsimile",
+    "open-fields",
+    "ready",
+    "report-chrome"
+  ],
+  "surfacesReached": [
+    "follow-ups",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "surfacesByWalk": {
+    "C6": [
+      "follow-ups",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ],
+    "C3": [
+      "follow-ups",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ]
+  },
+  "screenshots": 30,
+  "failures": [],
+  "modelFidelity": "Fake model. Copy, layout and screen fidelity are model-independent and are certified by this run; flow and length are NOT — they hold only as exercised by the scripted extractions."
+}

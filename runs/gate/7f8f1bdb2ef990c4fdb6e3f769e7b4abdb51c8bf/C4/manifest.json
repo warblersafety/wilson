@@ -1,0 +1,53 @@
+{
+  "case": "C4",
+  "title": "device involved",
+  "spec": "an EpiPen-class combination product — the Section E gate must open and its asks must run",
+  "evidences": [
+    1,
+    2,
+    4
+  ],
+  "devSha": "7f8f1bdb2ef990c4fdb6e3f769e7b4abdb51c8bf",
+  "treeClean": true,
+  "surfacesDeclared": [
+    "start",
+    "read-back",
+    "follow-ups",
+    "review",
+    "review-paper-facsimile",
+    "open-fields",
+    "ready",
+    "report-chrome",
+    "gate-opened-device",
+    "gate-opened-product-handling"
+  ],
+  "surfacesReached": [
+    "follow-ups",
+    "gate-opened-device",
+    "gate-opened-product-handling",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "surfacesByWalk": {
+    "C4": [
+      "follow-ups",
+      "gate-opened-device",
+      "gate-opened-product-handling",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ]
+  },
+  "screenshots": 12,
+  "failures": [],
+  "modelFidelity": "Fake model. Copy, layout and screen fidelity are model-independent and are certified by this run; flow and length are NOT — they hold only as exercised by the scripted extractions."
+}

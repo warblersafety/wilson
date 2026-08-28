@@ -1,0 +1,30 @@
+[screenshot] 01-start.png
+[surface] start — Report an adverse event
+[screenshot] 02-C5-read-back.png
+
+[surface] read-back — panel:
+What I’d write from thisNothing to fill in yet — you can still continue.
+[screenshot] 03-C5-turn-01.png
+[screenshot] 04-C5-turn-02.png
+[screenshot] 05-C5-turn-03.png
+[screenshot] 06-C5-turn-04.png
+[screenshot] 07-C5-turn-05.png
+[screenshot] 08-C5-turn-06.png
+[screenshot] 09-C5-turn-12.png
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[transcript] C5: 77 rendered turns and asks; 27 talker turns expected from the pure walk; 0 unaccounted for (1 is the handoff turn, which Review replaces — #118)
+[screenshot] 10-C5-review.png
+[screenshot] 11-C5-review-paper-facsimile.png
+[screenshot] 12-C5-open-fields.png
+
+[surface] open-fields:
+40 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.report type: adverse eventyou didn't have itAnswerreport type: medication erroryou didn't have itAnswerreport type: product problemyou didn't have itAnswerreport type: different-manufacturer problemyou didn't have itAnsweroutcome: deathyou didn't have itAnsweroutcome: hospitalizationyou didn't have itAnsweroutcome: life-threateningyou didn't have itAnsweroutcome: disability or permanent damageyou didn't have itAnsweroutcome: required interventionyou didn't have itAnsweroutcome: congenital anomalyyou didn't have itAnsweroutcome: oth
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 13-C5-ready.png
+
+[surface] ready:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields5 written · 40 unknown · 31 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againDownload your session dataThe record is what the form holds. The whole session adds the conversation behind it — useful if something went wrong and someone needs to look. Both are built here and stay in this browser.Download the record (JSON)Download the whole session (JSON)wilson stores nothing on its own servers — this download is your copy.
+[download] C5-record.json
+[download] C5-session-bundle.json
+[pdf] C5-form-3500.pdf (1146500 bytes, via scripts/fill-3500.py from the exported record)

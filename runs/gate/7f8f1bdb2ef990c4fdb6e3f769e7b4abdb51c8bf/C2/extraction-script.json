@@ -1,0 +1,44 @@
+{
+  "caseId": "C2",
+  "narratives": [
+    {
+      "narrative": "patient developed nagging cough while on lisinopril. reported yesterday, cough is non-serious but ongoing",
+      "candidates": [
+        {
+          "fieldId": "Page2.SecB_Adverse.DescEvent",
+          "kind": "value",
+          "value": "nagging cough",
+          "quote": "nagging cough"
+        },
+        {
+          "fieldId": "Page4.Prod1.Prod1Name",
+          "kind": "value",
+          "value": "lisinopril",
+          "quote": "lisinopril"
+        }
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "message": "no relevant history",
+      "candidates": [
+        {
+          "fieldId": "Page3.Sec6Data.OtherHistory",
+          "kind": "unknown",
+          "quote": "no relevant history"
+        }
+      ]
+    },
+    {
+      "message": "nothing else to add",
+      "candidates": [
+        {
+          "fieldId": "Page3.AdditionalComments",
+          "kind": "unknown",
+          "quote": "nothing else to add"
+        }
+      ]
+    }
+  ]
+}

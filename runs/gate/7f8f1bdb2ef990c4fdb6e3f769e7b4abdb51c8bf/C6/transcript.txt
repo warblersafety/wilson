@@ -1,0 +1,66 @@
+[screenshot] 01-start.png
+[surface] start — Report an adverse event
+[screenshot] 02-C6-read-back.png
+
+[surface] read-back — panel:
+What I’d write from this — 2 valuesevent descriptionnagging coughread from “nagging cough”product namelisinoprilread from “lisinopril”
+[screenshot] 03-C6-turn-01.png
+[screenshot] 04-C6-turn-02.png
+[screenshot] 05-C6-turn-03.png
+[screenshot] 06-C6-turn-04.png
+[screenshot] 07-C6-turn-05.png
+[screenshot] 08-C6-turn-06.png
+[screenshot] 09-C6-turn-08.png
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[transcript] C6: 65 rendered turns and asks; 23 talker turns expected from the pure walk; 0 unaccounted for (1 is the handoff turn, which Review replaces — #118)
+[screenshot] 10-C6-review.png
+[screenshot] 11-C6-review-paper-facsimile.png
+[screenshot] 12-C6-open-fields.png
+
+[surface] open-fields:
+73 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.patient identifieryou didn't have itAnswerageyou didn't have itAnswerdate of birthyou didn't have itAnswersex: maleyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Native
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 13-C6-ready.png
+
+[surface] ready:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields3 written · 73 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againDownload your session dataThe record is what the form holds. The whole session adds the conversation behind it — useful if something went wrong and someone needs to look. Both are built here and stay in this browser.Download the record (JSON)Download the whole session (JSON)wilson stores nothing on its own servers — this download is your copy.
+[download] C6-record.json
+[download] C6-session-bundle.json
+[pdf] C6-form-3500.pdf (1146121 bytes, via scripts/fill-3500.py from the exported record)
+
+### Start over → C3 (same browser state)
+[screenshot] 14-start-over-confirm.png
+[screenshot] 15-start-over-landed.png
+[start-over] fields carrying data from the previous run: 0
+[screenshot] 16-C3-read-back.png
+
+[surface] read-back — panel:
+What I’d write from this — 4 valuesage58read from “58-year-old”sex: maleYesread from “58-year-old man”event descriptionrashread from “developed a rash”product nameamoxicillinread from “amoxicillin”
+[screenshot] 17-C3-turn-01.png
+[screenshot] 18-C3-turn-02.png
+[screenshot] 19-C3-turn-03.png
+[screenshot] 20-C3-turn-04.png
+[screenshot] 21-C3-turn-05.png
+[screenshot] 22-C3-turn-06.png
+[screenshot] 23-C3-turn-08.png
+[screenshot] 24-C3-turn-10.png
+[screenshot] 25-C3-turn-20.png
+[screenshot] 26-C3-turn-29.png
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+
+[transcript] C3: 103 rendered turns and asks; 36 talker turns expected from the pure walk; 0 unaccounted for (1 is the handoff turn, which Review replaces — #118)
+[screenshot] 27-C3-review.png
+[screenshot] 28-C3-review-paper-facsimile.png
+[screenshot] 29-C3-open-fields.png
+
+[surface] open-fields:
+101 fields are still open.Form FDA 3500 accepts a partial report, and the FDA would rather have this one than nothing. Fill any of them now, or finish as it stands.patient identifieryou didn't have itAnswerdate of birthyou didn't have itAnswersex: femaleyou didn't have itAnswerweightyou didn't have itAnswerrace/ethnicity: American Indian or Alaska Nativeyou didn't have itAnswerrace/ethnicity: Asianyou didn't have itAnswerrace/ethnicity: Black or African Americanyou didn't have itAnswerrace/ethnicity: Hispanic or Latinoyou didn't have itAnswerrace/ethnicity: Middle Eastern or North Africanyou didn't have itAnswerrace/ethnicity: Native Hawaiian or Pacific Islanderyou didn't have itAnswerrace/e
+[console error] Failed to load resource: the server responded with a status of 404 (Not Found)
+[screenshot] 30-C3-ready.png
+
+[surface] ready:
+✓Report ready.Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.FormFDA 3500 · voluntary reportFields12 written · 99 unknown · 0 declinedDownload the PDFReport anotherSomething went wrong generating the PDF. Check your connection and try again.Try againDownload your session dataThe record is what the form holds. The whole session adds the conversation behind it — useful if something went wrong and someone needs to look. Both are built here and stay in this browser.Download the record (JSON)Download the whole session (JSON)wilson stores nothing on its own servers — this download is your copy.
+[download] C3-record.json
+[download] C3-session-bundle.json
+[pdf] C3-form-3500.pdf (1153188 bytes, via scripts/fill-3500.py from the exported record)
