@@ -20,7 +20,13 @@
 //
 // No model call anywhere, same as before: asking a clear question doesn't
 // need interpretation the way parsing a loose answer does.
-import { unresolvedAskFieldIds, unresolvedFactNames, type AuthoredAsk } from "./ask-inventory";
+import {
+  heldFieldNames,
+  resolvedFactNames,
+  unresolvedAskFieldIds,
+  unresolvedFactNames,
+  type AuthoredAsk,
+} from "./ask-inventory";
 import { joinNames } from "./display-names";
 import type { AgendaRecord } from "./agenda";
 import type { NextStep, RepeatGroup } from "./topics";
@@ -50,7 +56,10 @@ export const REPEAT_GROUP_LABELS: Record<RepeatGroup, string> = {
 // Rule 9. An ask whose answer left some of its facts open is re-asked
 // through one of these frames, composed from display names — never by
 // repeating the primary ask, so the no-consecutive-duplicates check holds
-// across the pair.
+// across the pair. Correct ONLY once the ask has already been voiced
+// this report (askCopy() below is what enforces that precondition) —
+// used bare, this is the frame gate run #1 caught rendering as a topic's
+// first utterance (entry 1).
 export function reAskFrame(names: string[]): string {
   if (names.length === 0) {
     throw new Error("reAskFrame: a re-ask must name at least one still-open fact");
@@ -59,17 +68,50 @@ export function reAskFrame(names: string[]): string {
   return `Got it. Still need: ${joinNames(names)}.`;
 }
 
-// The question for an ask, given the record as it stands. Untouched asks
-// get their authored copy; a partially answered one gets rule 9's frame
-// over exactly the facts still open. Pure — exported so the UX-floor
-// checks (#91) can enumerate every topic and both repeat instances
-// without driving a session.
-export function askCopy(ask: AuthoredAsk, record: AgendaRecord): string {
+// Rule 9's arrival frame, added 2026-08-28 (#125): a topic can reach its
+// turn already partially resolved — narrative extraction confirmed at
+// Read-back, or facts volunteered out-of-ask under rule 8 — and this is
+// what renders the FIRST time that happens, instead of reAskFrame()
+// standing in for an ask the clinician never saw. "I've got {resolved
+// names}. Still need: {open names}." for an ordinary ask; the three
+// bulk-mapped facts (RC-1, DV-1, SP-9) cannot split their one fact into
+// resolved/open names, so their ask half is the authored `arrivalAsk`
+// line instead, prefixed by the individual HELD field names — never
+// rendered bare, since the prefix is what gives "the rest" its referent.
+export function arrivalFrame(ask: AuthoredAsk, record: AgendaRecord): string {
+  const bulkFact = ask.facts?.find((fact) => fact.arrivalAsk !== undefined);
+  if (bulkFact !== undefined) {
+    return `I've got ${joinNames(heldFieldNames(ask, record))}. ${bulkFact.arrivalAsk}`;
+  }
+  const resolved = resolvedFactNames(ask, record);
+  const open = unresolvedFactNames(ask, record);
+  return `I've got ${joinNames(resolved)}. Still need: ${joinNames(open)}.`;
+}
+
+// The question for an ask, given the record as it stands and whether the
+// ask has already been voiced this report. Rule 9, by arrival state:
+//
+// - All facts open (nothing resolved) — the primary authored copy,
+//   always, voiced or not.
+// - Some resolved, some open, and never voiced this report — the
+//   arrival frame: this IS what voices it (the caller is responsible for
+//   recording that — see talk.ts's voiceStep()).
+// - Some resolved, some open, and already voiced — the ordinary re-ask
+//   frame, exactly as before this amendment.
+// - Nothing left open — askCopy() has nothing to compose; the walk must
+//   never call this for a fully resolved ask (nextStep() already skips
+//   it), so this stays a throw rather than a silent empty string.
+//
+// Pure — exported so the UX-floor checks (#91) can enumerate every
+// topic, both repeat instances, and both voicing states without driving
+// a session.
+export function askCopy(ask: AuthoredAsk, record: AgendaRecord, voicedThisReport: boolean): string {
   const unresolved = unresolvedAskFieldIds(ask, record);
   if (unresolved.length === 0) {
     throw new Error(`askCopy: ${ask.id} has nothing left to ask`);
   }
   if (unresolved.length === ask.askFieldIds.length) return ask.copy;
+  if (!voicedThisReport) return arrivalFrame(ask, record);
   // Facts, not fields (rule 2): a half-answered PB-1 asks "And the sex?",
   // never "Still need: sex: male and sex: female."
   return reAskFrame(unresolvedFactNames(ask, record));
@@ -84,5 +126,5 @@ export const askDeterministic: AskFn = async (step: NextStep, session) => {
     // here needs to clear it.
     return session.volunteeredRepeats?.[step.repeatGroup] ? `${VOLUNTEERED_REPEAT_HINT}${base}` : base;
   }
-  return askCopy(step.ask, session.record);
+  return askCopy(step.ask, session.record, session.voicedAsks?.[step.ask.id] === true);
 };

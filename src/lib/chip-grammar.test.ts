@@ -271,4 +271,32 @@ describe("dismissAcknowledgment", () => {
       dismissAcknowledgment({ kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 }, "mark_unknown"),
     ).toBeUndefined();
   });
+
+  // Rule 9's arrival frame (#125): "Dismiss chips on an arrival frame
+  // cover exactly its open side — the named still-need facts, or the
+  // bulk remainder — never facts already on the record: the same
+  // scoping this rule gives re-asks." dismissableFieldIds() and
+  // dismissAcknowledgment() both take their fieldIds from step.fieldIds
+  // — nextStep()'s own unresolved slice — which is computed identically
+  // regardless of which COPY (primary/arrival/re-ask) askDeterministic
+  // composes for the same step; this pins that no code path exists for
+  // "which frame is showing" to leak into which fields a chip can touch.
+  it("scopes a dismiss on an arrival-eligible step to exactly its open side, never the held fields", () => {
+    // PatientIdentifier resolved (as narrative extraction would from an
+    // MRN mentioned up front) — PB-1 arrives with one fact already held,
+    // two still open, on what would be its first (arrival) voicing.
+    const pb1 = TOPICS.find((t) => t.id === "patient-basics")!.asks.find((a) => a.id === "PB-1")!;
+    const record = {
+      ...initAgenda(),
+      [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" },
+    };
+    const step = nextStep(record, initRepeatCounts());
+    expect(step.kind).toBe("topic");
+    const fieldIds = dismissableFieldIds(step);
+    // The held fact (patient identifier) is untouched by the chip.
+    expect(fieldIds).not.toContain(pb1.askFieldIds[0]);
+    // Exactly the still-open facts — age and sex — nothing more.
+    expect(fieldIds).toEqual(pb1.askFieldIds.slice(1));
+    expect(dismissAcknowledgment(step, "mark_unknown")).toBe("Marked age and sex as not on hand.");
+  });
 });

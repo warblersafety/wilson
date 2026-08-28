@@ -40,7 +40,7 @@
 //   widgetTurnText's format is frozen AC and unchanged by this.
 import { askDeterministic } from "@/lib/ask";
 import { nextStep } from "@/lib/topics";
-import type { TalkSession, TalkStep } from "@/lib/talk";
+import { voiceStep, type TalkSession, type TalkStep } from "@/lib/talk";
 
 export interface StepForSessionOptions {
   // See the file header above. Default false: no talker turn appended.
@@ -68,8 +68,24 @@ export async function stepForSession(
   // it — see TalkStep.question for why a chip tap needs the unprefixed
   // form.
   const reply = options.replyPrefix ? `${options.replyPrefix} ${question}` : question;
-  const resultSession: TalkSession = options.appendReply
-    ? { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] }
-    : session;
+  // voiceStep() (talk.ts), same as respond()'s own tail, but ONLY on the
+  // appendReply:true path — a real chip write (RepeatDecision's commit,
+  // AskForm's dismiss/correction-offer-accept), the direct-write
+  // equivalent of a conversational turn. The appendReply:false path
+  // (reload-hydration, the review-stage reopen) must stay exactly as
+  // pure as it already was: this function's own "hydration safety"
+  // contract (direct-step.test.ts) requires the false branch return the
+  // SAME session reference, not an equal copy, so voiceStep() — which
+  // always allocates when it marks something — cannot run unconditionally
+  // here the way it does in talk.ts's respond(). This also happens to be
+  // the right behavior, not just the reference-safe one: a reload must
+  // re-render the exact question that was already on screen, and a step
+  // recomputed from a session where nothing has changed yet (nothing
+  // marked here) does exactly that, idempotently, on every reload.
+  let resultSession: TalkSession = session;
+  if (options.appendReply) {
+    const voiced = voiceStep(session, step);
+    resultSession = { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] };
+  }
   return { session: resultSession, reply, question, nextStep: step };
 }
