@@ -203,11 +203,16 @@ export const REVIEW_COPY = {
 // `failure` follows chip-grammar.ts's friendlyFailureMessage convention:
 // one honest line, never the caught error's own message, since
 // PdfExportError's two cases (transport, server) ask nothing different of
-// the clinician.
+// the clinician. It used to name "your connection" as the cause; Issue
+// #128 (AC-2) removed that clause — a non-ok response (a 404 under `next
+// dev`, since api/generate-pdf.py is a Vercel function that doesn't run
+// locally; a 500 on staging/prod) is not a connectivity problem, and this
+// one message covers both PdfExportError cases, so it asserts only what's
+// true of both: generation didn't work, try again.
 export const PDF_COPY = {
   generating: "Generating the PDF…",
   retryCta: "Try again",
-  failure: "Something went wrong generating the PDF. Check your connection and try again.",
+  failure: "Something went wrong generating the PDF. Try again.",
 } as const;
 
 // --- the cards' rendered rows -------------------------------------------
