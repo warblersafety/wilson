@@ -279,6 +279,160 @@ describe("classifyFollowUpActions", () => {
   });
 });
 
+// docs/ask-copy.md rule 7's amendment item 3 (#126), the orchestrator's
+// resolution of doc-review findings F1+F2: "a grounded later statement
+// conflicting with an ANSWERED exclusive fact is a correction OF THE
+// FACT — one offer, named by the fact's display name... acceptance
+// rewriting the group atomically. Member-level correction offers for
+// one-hot members never exist." Real manifest ids throughout — this is
+// exactly the shape a per-field offer would get wrong: "You said true
+// for sex: female — it's recorded as false. Replace it?" is nonsense on
+// an FDA form, and accepting a per-field offer on SexF against an
+// answered SexM is how a report ends with both sex boxes checked.
+describe("exclusive-fact conflicts become fact-level correction offers, not member-level ones (#126)", () => {
+  const SEX_M = "Page1.SecA_Patient.SexM";
+  const SEX_F = "Page1.SecA_Patient.SexF";
+  const EVAL_YES = "Page3.TestDataTable.EvalYes";
+  const EVAL_NO = "Page3.TestDataTable.EvalNo";
+  const EVAL_RETD = "Page3.TestDataTable.EvalRetd";
+
+  function sexResolvedRecord(): AgendaRecord {
+    return { [SEX_M]: { state: "answered", value: "true" }, [SEX_F]: { state: "answered", value: "false" } };
+  }
+
+  it("a grounded write conflicting with an already-answered exclusive fact produces exactly ONE offer, named by the fact", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toEqual([
+      {
+        fieldId: SEX_F,
+        action: { fieldId: SEX_F, type: "answer", value: "true" },
+        currentState: "answered",
+        currentValue: "false",
+        exclusiveFact: {
+          name: "sex",
+          currentFieldId: SEX_M,
+          // The atomic rewrite: the new member true, every OTHER member
+          // false, in the FACT's own declared field order (SexM, SexF —
+          // ask-inventory.ts's PB-1 fact) — not a member-level write
+          // that could leave both boxes checked.
+          writes: [
+            { fieldId: SEX_M, type: "answer", value: "false" },
+            { fieldId: SEX_F, type: "answer", value: "true" },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("phrases the offer with the amendment's exact fact-granularity sentence, byte for byte", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(describeFollowUpSweep(result)).toBe("You said female for sex — it's recorded as male. Replace it?");
+  });
+
+  it("never produces the nonsense field-level shape for a one-hot member", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_F, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    const rendered = describeFollowUpSweep(result);
+    expect(rendered).not.toContain("true for sex");
+    expect(rendered).not.toContain("sex: female");
+    expect(rendered).not.toContain("sex: male");
+  });
+
+  it("works the same for a three-way exclusive group — PA-1's product availability", () => {
+    const record: AgendaRecord = {
+      [EVAL_YES]: { state: "answered", value: "true" },
+      [EVAL_NO]: { state: "answered", value: "false" },
+      [EVAL_RETD]: { state: "answered", value: "false" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: EVAL_RETD, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toHaveLength(1);
+    expect(result.correctionOffers[0].exclusiveFact).toEqual({
+      name: "product availability",
+      currentFieldId: EVAL_YES,
+      writes: [
+        { fieldId: EVAL_YES, type: "answer", value: "false" },
+        { fieldId: EVAL_NO, type: "answer", value: "false" },
+        { fieldId: EVAL_RETD, type: "answer", value: "true" },
+      ],
+    });
+  });
+
+  // PA-1's EvalRetd is the one authored member with no colon in its
+  // display name ("returned to manufacturer", not "product available:
+  // returned") — display-names.ts's exclusiveMemberValue() falls back to
+  // the whole phrase rather than inventing a shorter one. Pinned here
+  // because it is the one case where the derived "value" half of the
+  // sentence is not a bare yes/no/male/female word.
+  it("falls back to the whole display name where a member's phrase has no colon", () => {
+    const record: AgendaRecord = {
+      [EVAL_YES]: { state: "answered", value: "true" },
+      [EVAL_NO]: { state: "answered", value: "false" },
+      [EVAL_RETD]: { state: "answered", value: "false" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: EVAL_RETD, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(describeFollowUpSweep(result)).toBe(
+      "You said returned to manufacturer for product availability — it's recorded as yes. Replace it?",
+    );
+  });
+
+  // Item 2's supersession clause, from the classifier's own side: an
+  // exclusive member currently `unknown`/`declined` is NOT yet
+  // "answered", so a write against it is not a conflict at all — it
+  // must reach `writes` (where derive.ts's completeExclusiveFactWrites
+  // then supersedes the sibling), never a correction offer. A per-field
+  // offer here would ask the clinician to confirm something rule 7
+  // already settled is theirs to state plainly.
+  it("does NOT turn a write against an unknown exclusive sibling into a correction offer — that's supersession, not a conflict", () => {
+    const record: AgendaRecord = { [SEX_M]: { state: "unknown" }, [SEX_F]: { state: "unknown" } };
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  it("...the same for a declined exclusive fact", () => {
+    const record: AgendaRecord = { [SEX_M]: { state: "declined" }, [SEX_F]: { state: "declined" } };
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, record, []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  // Re-stating the value already on record is not a conflict either —
+  // there is nothing to replace, so this must not render the nonsensical
+  // "it's recorded as male" against a "you said male" of its own.
+  it("re-confirming the already-true member writes straight through, not a self-offer", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "true" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.writes).toEqual([{ fieldId: SEX_M, type: "answer", value: "true" }]);
+    expect(result.correctionOffers).toEqual([]);
+  });
+
+  // A "false"-typed proposal (never the extractor's normal shape for a
+  // one-hot member — see src/prompts/extractor.ts's own "propose true
+  // for the box selected" instruction) is out of this amendment's stated
+  // scope ("the named member true") and is left to the ordinary
+  // field-level path, unchanged.
+  it("a false-valued action against an exclusive member is untouched by this branch — the ordinary field-level path applies", () => {
+    const actions: ProposedAction[] = [{ fieldId: SEX_M, type: "answer", value: "false" }];
+    const result = classifyFollowUpActions(actions, sexResolvedRecord(), []);
+    expect(result.correctionOffers).toEqual([
+      {
+        fieldId: SEX_M,
+        action: { fieldId: SEX_M, type: "answer", value: "false" },
+        currentState: "answered",
+        currentValue: "true",
+      },
+    ]);
+  });
+});
+
 // Issue #122 (the round-gate's C3 case): the later-instance exclusion
 // above fired unconditionally, even when the field it excluded was the
 // CURRENT ask's own field — so instance 2's own SP-1 answer ("The second

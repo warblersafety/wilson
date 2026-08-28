@@ -38,7 +38,7 @@ import {
   type RepeatGroup,
   type Topic,
 } from "./topics";
-import { bareAgeDefaultWrites } from "./derive";
+import { bareAgeDefaultWrites, completeExclusiveFactWrites } from "./derive";
 import { filterLabRowOverflow } from "./gates";
 
 export interface NarrativeProposal {
@@ -234,10 +234,29 @@ export function applyNarrativeProposals(
   // ask-copy.md rule 3's bare-age default applies here too: this is a
   // write path, and an age dictated as "61-year-old" must not leave four
   // unit checkboxes open just because it arrived through Read-back
-  // instead of a follow-up turn (reviewer pass, PR #106, F4). Group
-  // completion is deliberately absent — it is bounded by what an ask
-  // voiced, and a narrative voices nothing.
-  const withDerives = [...actions, ...bareAgeDefaultWrites(record, actions)];
+  // instead of a follow-up turn (reviewer pass, PR #106, F4).
+  //
+  // Rule 7's exclusive-fact completion (amended 2026-08-28, #126) ALSO
+  // reaches this path now, and deliberately: entailment carries on the
+  // clinician's own words, not on a list being read, so "58-year-old
+  // man" settles sex at Read-back the same as it would in-ask — before
+  // this amendment the record ended up holding `SexM: answered "true"`
+  // beside `SexF: unknown`, and the walk re-asked sex right after the
+  // clinician had just answered it (gate run #1, C3 — issue #126).
+  // voicesEveryMember completion (OC-1's outcomes, RA-2's recipients)
+  // stays bounded to the ask that was actually on screen — a narrative
+  // voices no ask — so it still never reaches this path; the comment
+  // this replaced ("group completion is deliberately absent... a
+  // narrative voices nothing") was the letter of that OLD, blanket
+  // in-ask-only bound, and is only half true post-#126.
+  // completeExclusiveFactWrites() is the exact same function extract.ts's
+  // follow-up path folds into deriveCompanionWrites — one mechanism, not
+  // a parallel implementation of it.
+  const withDerives = [
+    ...actions,
+    ...bareAgeDefaultWrites(record, actions),
+    ...completeExclusiveFactWrites(record, actions),
+  ];
   return {
     record: applyProposedActions(record, withDerives),
     repeatCounts: repeatDecisions.reduce(

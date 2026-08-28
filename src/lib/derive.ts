@@ -14,21 +14,34 @@
 //
 // 1. **Group completion.** Answering a checkbox group answers the whole
 //    group: the members the clinician named are true, the rest false.
-//    Rule 7's own justification is what bounds this — "every one of them
-//    is voiced above, so no box is ever written false unheard" — and the
-//    bound has two halves, because being on screen is not the same as
-//    being heard:
-//      - the group must belong to the ask that was just on screen, so a
-//        checkbox volunteered out-of-ask completes nothing (its group
-//        completes later, when its own ask voices it); AND
-//      - the fact must declare `exclusive` or `voicesEveryMember`
-//        (ask-inventory.ts). PB-3 asks for "race or ethnicity" without
-//        naming its seven boxes and they are not alternatives, so
-//        answering "White" must not write EthnicLatino false — race and
-//        Hispanic ethnicity are orthogonal on this form.
-//    The negative: an `unknown` or `declined` answer completes nothing.
-//    "I don't know if she was hospitalized" is not an answer to the
-//    outcome question, and must not write six boxes false.
+//    Rule 7's bound takes one form per group kind (amended 2026-08-28,
+//    #126 — being on screen is not the same as being heard, and hearing
+//    is not the only honest ground; entailment is the other):
+//      - `voicesEveryMember` (deriveCompanionWrites' own loop, below):
+//        "every one of them is voiced above, so no box is ever written
+//        false unheard" — the group must belong to the ask that was just
+//        on screen, so a checkbox volunteered out-of-ask completes
+//        nothing (its group completes later, when its own ask voices
+//        it).
+//      - `exclusive` (completeExclusiveFactWrites, below): "none is ever
+//        written false unentailed" — entailment carries on the
+//        clinician's own words, not on a list being read, so completion
+//        applies to any validator-grounded member write the record
+//        accepts, regardless of which ask (if any) is on screen: the
+//        ask's own turn, a rule-8 volunteered write, or a Read-back
+//        confirmation of a narrative proposal.
+//    A checkbox fact declaring NEITHER (PB-3's race/ethnicity, SP-6's
+//    product type) never completes at all: PB-3 asks for "race or
+//    ethnicity" without naming its seven boxes and they are not
+//    alternatives, so answering "White" must not write EthnicLatino
+//    false — race and Hispanic ethnicity are orthogonal on this form.
+//    The negative, unchanged for both completing kinds: an `unknown` or
+//    `declined` answer completes nothing. "I don't know if she was
+//    hospitalized" is not an answer to the outcome question, and must
+//    not write six boxes false. (An exclusive fact's own atomic write
+//    DOES supersede a prior `unknown`/`declined` SIBLING state — see
+//    completeExclusiveFactWrites' own comment — a different thing from a
+//    trigger that is itself unknown/declined completing nothing.)
 //
 // 2. **The bare-age default.** Rule 3's one recorded exception to
 //    stated-only units: "a bare age defaults to years (unqualified
@@ -60,7 +73,7 @@
 //    cardiac issues" must NOT match; it carries real content the
 //    literal word "None" would erase.
 import type { AgendaRecord } from "./agenda";
-import { AUTHORED_ASKS, factCompletesFromOne } from "./ask-inventory";
+import { AUTHORED_ASKS, exclusiveFactContaining, type AskFact } from "./ask-inventory";
 import { normalize } from "./extraction-validator";
 import { isResolved } from "./field-state";
 import { fieldById } from "./form-3500-fields";
@@ -101,17 +114,18 @@ export function deriveCompanionWrites(
 ): ProposedAction[] {
   const derived: ProposedAction[] = [];
 
-  // 1. Group completion, scoped to the ask that was actually voiced.
+  // 1. voicesEveryMember group completion, scoped to the ask that was
+  // actually voiced — UNCHANGED by #126 (ask-copy.md rule 7's own
+  // bound-by-group-kind split): hearing the list is what makes the
+  // unnamed members' "false" honest, so a member arriving any other way
+  // completes nothing here. `exclusive` facts no longer run through this
+  // loop at all — completeExclusiveFactWrites() below is path-agnostic
+  // and handles them, folded into this function's own return so
+  // extract.ts's one call site keeps covering both kinds.
   if (step.kind === "topic") {
     for (const fact of step.ask.facts ?? []) {
       if (!isCheckboxGroup(fact.fieldIds)) continue;
-      // Rule 7's bound, declared per fact: complete only where naming one
-      // member entails the rest (mutually exclusive) or the ask reads
-      // every member out loud. PB-3's race/ethnicity and SP-6's product
-      // type are neither, and completing them would assert an absence
-      // the clinician never stated — on PB-3, wrongly, since Hispanic
-      // ethnicity is orthogonal to race (reviewer pass, PR #106, F1).
-      if (!factCompletesFromOne(fact)) continue;
+      if (fact.voicesEveryMember !== true) continue;
       if (!fact.fieldIds.some((id) => answeredIn(writes, id))) continue;
       for (const fieldId of fact.fieldIds) {
         if (alreadySettled(record, writes, fieldId)) continue;
@@ -120,7 +134,56 @@ export function deriveCompanionWrites(
     }
   }
 
-  return [...derived, ...bareAgeDefaultWrites(record, writes)];
+  return [...derived, ...completeExclusiveFactWrites(record, writes), ...bareAgeDefaultWrites(record, writes)];
+}
+
+// Rule 7's exclusive-fact amendment (#126): "a write to an exclusive
+// group is a write of the whole FACT, atomic — the named member true,
+// every sibling false, one operation derived from one grounded quote."
+// Deliberately NOT scoped to a `step` the way the voicesEveryMember loop
+// above is — the amendment's whole point is that entailment "carries on
+// the clinician's own words, not on a list being read," so this runs the
+// same way for the ask's own turn, a rule-8 volunteered write anywhere in
+// the walk (extract.ts folds this into deriveCompanionWrites' own
+// return, so both paths are covered by one call), and a Read-back
+// confirmation (narrative-extract.ts's applyNarrativeProposals calls
+// this directly, since a narrative has no `step` at all).
+//
+// classifyFollowUpActions (followup-sweep.ts) is what keeps a write
+// CONFLICTING with an already-`answered` exclusive fact from ever
+// reaching `writes` here in the first place — that is item 4's
+// fact-granularity correction offer, a decision this function never has
+// to make: it only ever sees a member entitled to write straight
+// through.
+//
+// Supersession: an `unknown`/`declined` sibling is overwritten `false`
+// the same as an `unasked` one — those record an absence of value, not a
+// stated one, so the sweep's "never silently overwrite a resolved
+// field" invariant (which protects STATED values) does not reach them.
+// The naive port of alreadySettled()'s own isResolved() check would get
+// this backwards (unknown/declined count as "resolved," so it would
+// SKIP them) — which is exactly the shape of this unit's own root-cause
+// bug, just relocated rather than fixed, so this function uses its own,
+// narrower settlement check instead.
+function exclusiveSiblingAlreadySettled(record: AgendaRecord, writes: ProposedAction[], fieldId: string): boolean {
+  return record[fieldId]?.state === "answered" || writes.some((w) => w.fieldId === fieldId);
+}
+
+export function completeExclusiveFactWrites(record: AgendaRecord, writes: ProposedAction[]): ProposedAction[] {
+  const derived: ProposedAction[] = [];
+  const handled = new Set<AskFact>();
+  for (const write of writes) {
+    if (write.type !== "answer" || write.value !== "true") continue;
+    const fact = exclusiveFactContaining(write.fieldId);
+    if (fact === undefined || handled.has(fact)) continue;
+    handled.add(fact);
+    for (const fieldId of fact.fieldIds) {
+      if (fieldId === write.fieldId) continue;
+      if (exclusiveSiblingAlreadySettled(record, writes, fieldId)) continue;
+      derived.push({ fieldId, type: "answer", value: "false" });
+    }
+  }
+  return derived;
 }
 
 // Rule 3's bare-age default, split out because it applies wherever an age
