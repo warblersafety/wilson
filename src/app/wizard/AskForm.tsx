@@ -98,12 +98,11 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         record: applyActionToFields(current.session.record, fieldIds, { type: action }),
         transcript: [
           ...current.session.transcript,
-          // current.question, never current.reply: a tap's own transcript
-          // turn is clinician-role, and current.reply may carry the
-          // PREVIOUS tap's "Marked … as not on hand." acknowledgment —
-          // which would then read as something the clinician said
-          // (reviewer pass, #109/#110).
-          { role: "clinician", text: widgetTurnText(current.question, answerLabel), source: "widget" },
+          // Just the chip's own words (Issue #123) — the question it
+          // answers is already on screen as the preceding talker turn, so
+          // quoting it again here would make the clinician's turn a
+          // recitation rather than an answer.
+          { role: "clinician", text: widgetTurnText(answerLabel), source: "widget" },
         ],
       };
       onSubmitted(
@@ -143,13 +142,16 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const label = displayNameFor(offer.fieldId);
       const nextSession: TalkSession = {
         ...current.session,
         record: applyProposedActions(current.session.record, [offer.action]),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(`Replace ${label}?`, "Yes, replace it"), source: "widget" },
+          // Issue #123: no synthetic "Replace <field>? —" question
+          // prefix — the chip's own label already names the field
+          // (JSX below), and the offer itself is stated in full by the
+          // preceding talker turn (current.reply).
+          { role: "clinician", text: widgetTurnText("Yes, replace it"), source: "widget" },
         ],
       };
       const nextStepResult = await stepForSession(nextSession, { appendReply: true });

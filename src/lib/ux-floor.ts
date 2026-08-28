@@ -44,7 +44,7 @@ import { GATED_OFF_RAIL_MARK } from "./report-chrome";
 import { GATED_OFF_REVIEW_COPY, PDF_COPY, REVIEW_COPY, SIGN_OFF_CTA } from "./review";
 import { START_COPY } from "./start-surface";
 import { SESSION_EXPORT_COPY } from "./session-export";
-import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep } from "./talk";
+import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep, type TalkTurn } from "./talk";
 import { initRepeatCounts, nextStep, setRepeatCount, TOPICS, type NextStep, type RepeatGroup } from "./topics";
 import { dismissAcknowledgment, widgetTurnText } from "./chip-grammar";
 
@@ -590,10 +590,12 @@ export async function scriptedSteps(): Promise<TalkStep[]> {
   for (let guard = 0; guard < 200; guard += 1) {
     steps.push(step);
     if (step.nextStep.kind === "done") return steps;
-    // step.question, not step.reply — the same thing AskForm quotes into
-    // a tap's clinician turn. Driving the composed reply here would make
-    // the floor's walk diverge from the surface it is meant to model.
-    step = await processTurn(step.session, widgetTurnText(step.question, "I don't have that"), {
+    // widgetTurnText("I don't have that"), never step.question or
+    // step.reply — the same thing AskForm quotes into a tap's clinician
+    // turn (Issue #123: just the chip's own words). Driving anything else
+    // here would make the floor's walk diverge from the surface it is
+    // meant to model.
+    step = await processTurn(step.session, widgetTurnText("I don't have that"), {
       ask: askDeterministic,
       extract: dismissWhatWasAsked,
     });
@@ -633,6 +635,45 @@ export function frameDuplicateViolations(frames: RenderedFrame[]): UxFloorViolat
         detail: `renders twice in the same frame (turn ${index})`,
       });
     }
+  }
+  return out;
+}
+
+// --- the transcript check --------------------------------------------
+
+// Issue #123: the defect class frameDuplicateViolations() above cannot
+// see. That check compares a frame's strings for EQUALITY, and a chip
+// tap's clinician turn was never equal to the talker turn it answered —
+// chip-grammar.ts's widgetTurnText() used to compose it as
+// `${question} — ${answerLabel}`, a SUPERSTRING of the question, not a
+// second copy of it. "Contains", the same reading manifestLabelViolations()
+// above takes: the defect was the clinician's turn being the talker's
+// turn plus a suffix, never the two turns being byte-identical, so an
+// equality check was never going to find it.
+//
+// Checked over the real session transcript (TalkTurn[], role and all),
+// not over a RenderedFrame: the relationship this states is between two
+// SEQUENTIAL turns, which a frame — one on-screen moment, no role, no
+// ordering contract beyond render order — does not carry. Every
+// clinician turn is checked against whatever turn immediately precedes
+// it; skipped (not violated) when that turn is missing, itself a
+// clinician turn (two clinician turns never happen back to back today,
+// but nothing here should assume it), or empty (an empty talker turn is
+// vacuously "contained" by everything, which would flag turns that never
+// echoed anything).
+export function clinicianEchoViolations(turns: TalkTurn[]): UxFloorViolation[] {
+  const out: UxFloorViolation[] = [];
+  for (const [index, turn] of turns.entries()) {
+    if (turn.role !== "clinician") continue;
+    const previous = turns[index - 1];
+    if (!previous || previous.role !== "talker" || previous.text.length === 0) continue;
+    if (!turn.text.includes(previous.text)) continue;
+    out.push({
+      check: "clinician-echo",
+      source: `turn:${index}`,
+      text: turn.text,
+      detail: `echoes its preceding talker turn verbatim: ${JSON.stringify(previous.text)}`,
+    });
   }
   return out;
 }

@@ -95,7 +95,7 @@ describe("visibleTranscriptTurns", () => {
         ...opening.session.transcript,
         {
           role: "clinician" as const,
-          text: widgetTurnText(opening.reply, "I don't have that"),
+          text: widgetTurnText("I don't have that"),
           source: "widget" as const,
         },
       ],

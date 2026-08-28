@@ -16,6 +16,7 @@
 // belt-and-braces version — the class stated as data, so the check is
 // provable without a walk.
 import type { RenderedFrame, RenderedString, WalkTurn } from "../../src/lib/ux-floor";
+import type { TalkTurn } from "../../src/lib/talk";
 
 // v1.1's OC-1: seven outcome checkboxes, each question built from its own
 // manifest label. The label is spliced into a sentence, which is why the
@@ -107,6 +108,18 @@ export const DOUBLE_BUBBLE_FRAMES: RenderedFrame[] = [
     { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK },
     { source: "current-ask", text: DOUBLE_BUBBLE_ASK },
   ],
+];
+
+// Issue #123: a chip tap's own clinician turn used to splice the WHOLE
+// preceding question into itself — chip-grammar.ts's widgetTurnText()'s
+// old two-argument form, `${question} — ${answerLabel}`. Not a
+// hypothetical: this is the real shape of every dismiss-chip turn on
+// dev 7f8f1bd (runs/gate/7f8f1bdb.../C3/09-C3-turn-08.png), where the
+// clinician's own bubble read as the question read back to itself.
+// docs/mockups/screen-04.png shows a short, answer-only bubble instead.
+export const ECHOED_ASK_TRANSCRIPT: TalkTurn[] = [
+  { role: "talker", text: DOUBLE_BUBBLE_ASK },
+  { role: "clinician", text: `${DOUBLE_BUBBLE_ASK} — I don't have that`, source: "widget" },
 ];
 
 // The adjacency the CM-2-{n} amendment depends on, broken exactly the way
