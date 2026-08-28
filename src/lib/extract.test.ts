@@ -349,6 +349,19 @@ describe("createExtractFn", () => {
       const result = await extract(sessionWith(), "42, or was it 45");
       expect(result.actions).toEqual([]);
       expect(result.replyPrefix?.toLowerCase()).toContain("which");
+      // Issue #124: the pending-state channel a collision-choice chip
+      // reads (AskForm.tsx) — carries each candidate's own writable
+      // action, not just its rendered value.
+      expect(result.collisions).toEqual([
+        {
+          fieldId: "a",
+          values: ["42", "45"],
+          actions: [
+            { fieldId: "a", type: "answer", value: "42" },
+            { fieldId: "a", type: "answer", value: "45" },
+          ],
+        },
+      ]);
     });
 
     it("flags a field as out-of-ask when the ask never named it — no invisible write", async () => {

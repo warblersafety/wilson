@@ -244,6 +244,9 @@ export function createExtractFnFrom(
       repeatDecision,
       replyPrefix: replyPrefix.length > 0 ? replyPrefix : undefined,
       correctionOffers: classified.correctionOffers.length > 0 ? classified.correctionOffers : undefined,
+      // Issue #124: the pending-state channel talk.ts's respond() reads
+      // to suppress the ask's own next question — see its own comment.
+      collisions: classified.collisions.length > 0 ? classified.collisions : undefined,
       volunteeredRepeatGroups: classified.volunteeredRepeatGroups.length > 0 ? classified.volunteeredRepeatGroups : undefined,
     };
   };
