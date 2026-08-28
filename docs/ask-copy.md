@@ -169,18 +169,45 @@ design conversation first.
    unnamed six `unasked` — re-asks the same question forever and shows
    six phantom gaps at Review. The bound is this rule's own reasoning,
    stated at OC-1: *every one of them is voiced above, so no box is ever
-   written false unheard.* So completion applies only to a group whose
-   own ask was the one on screen; a checkbox volunteered out-of-ask
-   completes nothing, and its group completes later, when its ask voices
-   it. An `unknown` or `declined` completes nothing either — "I don't
+   written false unheard.* Which writes can trigger a completion is
+   scoped per group kind below (amended 2026-08-28, #126); a
+   volunteered member that does not qualify completes nothing, its
+   group completing later when its ask voices it. An `unknown` or
+   `declined` completes nothing either — "I don't
    know if she was hospitalised" is not an answer to the question. This
    is mechanical and lives in `src/lib/derive.ts`, not in the extractor
    prompt: a rule this consequential should not vary run to run.
-   **The bound has a second half, added after review:** being on screen
-   is not the same as being heard. Completion applies only where naming
-   one member entails the rest (mutually exclusive alternatives — sex,
-   ongoing, abated, reappeared) or where the ask's copy reads every
-   member out loud (OC-1's seven outcomes, RA-2's four recipients).
+   **The bound's two halves, by group kind (amended 2026-08-28,
+   #126):** being on screen is not the same as being heard — and
+   hearing is not the only honest ground; entailment is the other.
+   - **Where the ask's copy reads every member out loud**
+     (`voicesEveryMember` in `src/lib/ask-inventory.ts`: OC-1's
+     seven outcomes, RA-2's four recipients), completion applies
+     only to a group whose own ask was the one on screen — hearing
+     the list is what makes the unnamed members' `"false"` honest,
+     so a member arriving any other way completes nothing until the
+     ask voices it. Unchanged.
+   - **Where naming one member entails the rest** (`exclusive` in
+     the inventory — the one-hot alternatives: sex, therapy
+     ongoing, health professional, the Abated and Reappear trios,
+     and their kin; the per-fact declaration is authoritative), the
+     entailment carries on the clinician's own words, not on a list
+     being read: "58-year-old man" settles the sex question
+     wherever it is said. Completion applies to any
+     validator-grounded member write the record accepts — the ask's
+     own turn, a Read-back confirmation of a narrative proposal, or
+     a rule-8 volunteered write (announced and correctable, as rule
+     8 provides; the completion, derived from that write, follows
+     any correction of it). A Read-back
+     confirmation is the clinician answering, not machinery
+     guessing — proposals being confirmable before anything writes
+     is the whole reason Read-back exists — so the "unheard"
+     reasoning does not reach it. Before this amendment the in-ask
+     bound applied blanket: a narrative-confirmed `SexM` completed
+     nothing, the record held a male patient with `SexF: unknown`,
+     the open-fields dialog read "sex: female — you didn't have
+     it", and the walk re-asked a fact Read-back had just confirmed
+     (gate run #1, C3 — entries 2 and 5).
    A multi-select whose options the ask does not enumerate completes
    nothing: PB-3 asks for "race or ethnicity" without naming its seven
    boxes, and they are not alternatives — Hispanic ethnicity is
