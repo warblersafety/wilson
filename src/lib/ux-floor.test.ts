@@ -12,12 +12,14 @@ import { describe, expect, it } from "vitest";
 import {
   ASK_COUNT_CEILING,
   askCountViolations,
+  clinicianEchoViolations,
   consecutiveDuplicateViolations,
   fieldIdShapedViolations,
   manifestLabelViolations,
   optionCodeViolations,
   renderedCopyInventory,
   repeatInstanceAdjacencyViolations,
+  scriptedSteps,
   scriptedWalk,
   GATE_STATE_SEEDS,
   REPEAT_COUNT_CHOICES,
@@ -27,6 +29,7 @@ import {
 import { AUTHORED_ASKS, unresolvedFactNames } from "./ask-inventory";
 import { applyAction, initAgenda } from "./agenda";
 import {
+  ECHOED_ASK_TRANSCRIPT,
   FIELD_ID_INVENTORY,
   MANIFEST_LABEL_INVENTORY,
   OPTION_CODE_INVENTORY,
@@ -335,5 +338,33 @@ describe("every gate state, not just the reference path", () => {
     const device = scriptedWalk(GATE_STATE_SEEDS[2][1]()).filter((turn) => turn.kind === "ask");
     expect(device.length).toBeGreaterThan(ASK_COUNT_CEILING);
     expect(askCountViolations(scriptedWalk())).toEqual([]);
+  });
+});
+
+// Issue #123: a chip tap's clinician turn used to carry the ENTIRE
+// preceding question, verbatim, with the chip's own words appended —
+// frameDuplicateViolations() above is silent on this class by
+// construction (it checks EQUALITY within one frame; the echo is a
+// SUPERSTRING of the talker turn, spread across two sequential turns,
+// never equal to anything in its own frame). scriptedSteps() drives the
+// real Talker loop dismissing every ask, so its final transcript is the
+// same shape a real all-chips session leaves behind.
+describe("no clinician turn echoes its preceding talker turn verbatim", () => {
+  it("holds across a full scripted walk of dismiss taps", async () => {
+    const steps = await scriptedSteps();
+    const transcript = steps[steps.length - 1].session.transcript;
+    // Sanity on the fixture itself: a walk with no clinician turns would
+    // pass this check by having nothing to check.
+    expect(transcript.filter((turn) => turn.role === "clinician").length).toBeGreaterThan(15);
+    expect(clinicianEchoViolations(transcript)).toEqual([]);
+  });
+
+  // The real pre-#123 shape: chip-grammar.ts's widgetTurnText() composed
+  // `${question} — ${answerLabel}`, so the clinician's own turn always
+  // contained the talker turn right before it.
+  it("goes red on the composition that shipped on dev 7f8f1bd", () => {
+    const found = clinicianEchoViolations(ECHOED_ASK_TRANSCRIPT);
+    expect(found).toHaveLength(1);
+    expect(found[0].detail).toContain("echoes its preceding talker turn verbatim");
   });
 });

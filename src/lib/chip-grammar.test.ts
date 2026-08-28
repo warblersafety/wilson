@@ -57,10 +57,12 @@ describe("repeatDecisionOptions", () => {
 });
 
 describe("widgetTurnText", () => {
-  it("formats a chip-driven answer as question — answerLabel, never fabricated prose", () => {
-    expect(widgetTurnText("Was there another concomitant medication?", "Yes, 5 in total")).toBe(
-      "Was there another concomitant medication? — Yes, 5 in total",
-    );
+  // Issue #123: no question folded in — the talker turn asking it is
+  // already the preceding entry in the transcript, both bubbles on
+  // screen at once, so the clinician's own turn is just the chip's words.
+  it("renders exactly the chip's own label, never the question it answers", () => {
+    expect(widgetTurnText("Yes, 5 in total")).toBe("Yes, 5 in total");
+    expect(widgetTurnText("I don't have that")).toBe("I don't have that");
   });
 });
 

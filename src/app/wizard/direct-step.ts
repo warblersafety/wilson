@@ -24,20 +24,21 @@
 // - true: appends the recomputed reply as its own talker turn to the
 //   session this returns. A chip write (RepeatDecision's commit,
 //   AskForm's dismiss/correction-offer-accept) already appends its OWN
-//   clinician-side "question — answer" turn (widgetTurnText,
-//   chip-grammar.ts) to the session it passes in — but that turn quotes
-//   the PREVIOUS question, not the new one this call's nextStep()
-//   produces. Without also appending the new question, it exists only in
-//   the returned TalkStep.reply (shown in the widget above the
-//   composer), never in session.transcript — so if the clinician's next
-//   action is a typed answer (submitTurn appends only the clinician's
-//   own message, never the question it answers), the transcript shows
-//   that answer with no question above it (reviewer pass on PR #64).
-//   Accepted tradeoff: if the SAME question is instead answered by
-//   another chip tap, it now appears twice in the transcript — once bare
-//   (this turn's talker turn), once folded into that tap's own
-//   "question — answer" line — mild duplication, not a gap;
-//   widgetTurnText's format is frozen AC and unchanged by this.
+//   clinician-side, answer-only turn (widgetTurnText, chip-grammar.ts) to
+//   the session it passes in — but that turn answers the PREVIOUS
+//   question, not the new one this call's nextStep() produces. Without
+//   also appending the new question, it exists only in the returned
+//   TalkStep.reply (shown in the widget above the composer), never in
+//   session.transcript — so if the clinician's next action is a typed
+//   answer (submitTurn appends only the clinician's own message, never
+//   the question it answers), the transcript shows that answer with no
+//   question above it (reviewer pass on PR #64). Before Issue #123, this
+//   also had an accepted tradeoff — a SAME question instead answered by
+//   another chip tap appeared twice, once bare (this turn's talker
+//   turn) and once folded into that tap's own "question — answer" line;
+//   #123 removed the question from a chip tap's own turn entirely, so
+//   that tradeoff no longer applies — there is nothing left for the two
+//   turns to duplicate.
 import { askDeterministic } from "@/lib/ask";
 import { nextStep } from "@/lib/topics";
 import type { TalkSession, TalkStep } from "@/lib/talk";
