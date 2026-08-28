@@ -106,6 +106,19 @@ class TestRenderValueText:
         with pytest.raises(fill.FillError):
             fill.render_value(text_field(), {"state": "answered", "value": "   "})
 
+    def test_text_ask_negative_writes_the_literal_none_not_the_unknown_sentinel(self, fill):
+        # docs/ask-copy.md rule 7's text-ask negative (Issue #121): MH-1/
+        # LD-1/AC-1's own machinery forces a clear "none"/"nothing" to
+        # answered/"None" rather than mark_unknown — pinned here so the
+        # word "None" (also Python's null spelling) never grows special
+        # casing that would collide it with the unknown state and print
+        # the sentinel instead. Mirrors TestRenderValueCheckbox's
+        # answered-false/no-sentinel proof for rule 7's other half
+        # (group negatives).
+        rendered = fill.render_value(text_field(), {"state": "answered", "value": "None"})
+        assert rendered == ("text", "None")
+        assert rendered[1] != fill.UNKNOWN_SENTINEL
+
 
 class TestRenderValueCheckbox:
     def test_answered_with_missing_value_is_rejected(self, fill):
@@ -243,6 +256,20 @@ class TestFillEndToEnd:
         doc = doc_with([("form.c[0]", "CheckBox")])
         fill.fill({"c": {"state": "answered", "value": "false"}}, doc, manifest=manifest)
         assert widget_on(doc, "form.c[0]").field_value == "Off"
+
+    def test_writes_text_ask_negative_as_none_on_the_matching_widget(self, fill, doc_with, widget_on):
+        # AC-3 (Issue #121): "a stated text-ask negative exports a PDF
+        # printing neither 'Unknown' nor any other sentinel" — the
+        # end-to-end mirror of consequence 7's existing group-negative
+        # check (test_writes_off_for_answered_false_checkbox above),
+        # over MH-1's real field id rather than a synthetic one.
+        field_id = "Page3.Sec6Data.OtherHistory"
+        manifest = [text_field(field_id)]
+        doc = doc_with([(f"form.{field_id}[0]", "Text")])
+        fill.fill({field_id: {"state": "answered", "value": "None"}}, doc, manifest=manifest)
+        value = widget_on(doc, f"form.{field_id}[0]").field_value
+        assert value == "None"
+        assert value != fill.UNKNOWN_SENTINEL
 
     def test_unasked_field_widget_is_never_touched(self, fill, doc_with, widget_on):
         manifest = [text_field("a")]

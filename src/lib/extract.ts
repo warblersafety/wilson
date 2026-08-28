@@ -21,7 +21,7 @@ import {
   buildFollowUpExtractorSystem,
   buildFollowUpUserContent,
 } from "../prompts/extractor";
-import { deriveCompanionWrites } from "./derive";
+import { deriveCompanionWrites, textAskNegativeWrite } from "./derive";
 import { filterLabRowOverflow } from "./gates";
 import {
   ALL_FIELD_TYPES,
@@ -195,6 +195,22 @@ export function createExtractFnFrom(
     const classified = classifyFollowUpActions(inBounds, session.record, askFieldIds, topics);
     const replyPrefix = describeFollowUpSweep(classified, fields);
 
+    // docs/ask-copy.md rule 7's text-ask negative (Issue #121): MH-1/
+    // LD-1/AC-1's own field, forced to answered "None" whenever the
+    // clinician's raw message for THIS turn is a clear negative —
+    // computed from `message` itself, never from what the extractor
+    // proposed, because "regardless of the kind proposed" includes
+    // "proposed nothing at all". Overrides (never adds alongside)
+    // whatever `classified.writes` holds for the same field this turn —
+    // a mark_unknown, a stray value, or nothing — so the extractor's
+    // conclusion for that ONE field is never consulted. Every other
+    // field this turn wrote passes through untouched (rule 7:
+    // "Companions and further rows stay untouched").
+    const textAskNegative = textAskNegativeWrite(step, message);
+    const writes = textAskNegative
+      ? [...classified.writes.filter((write) => write.fieldId !== textAskNegative.fieldId), textAskNegative]
+      : classified.writes;
+
     // ask-copy.md rule 3's mechanical derives, applied to what the turn
     // actually wrote (src/lib/derive.ts): the rest of a checkbox group
     // the clinician just answered, and the bare-age default. Deliberately
@@ -202,7 +218,7 @@ export function createExtractFnFrom(
     // is not a separate thing the clinician told us, it is the same fact
     // written where the form keeps it, so "Also noted — age unit: years"
     // would be reporting our own arithmetic back at them.
-    const derived = deriveCompanionWrites(step, session.record, classified.writes);
+    const derived = deriveCompanionWrites(step, session.record, writes);
 
     // Only ever considered when the step actually open right now is a
     // repeat-decision — never on an ordinary topic turn. Without this
@@ -224,7 +240,7 @@ export function createExtractFnFrom(
     }
 
     return {
-      actions: [...classified.writes, ...derived],
+      actions: [...writes, ...derived],
       repeatDecision,
       replyPrefix: replyPrefix.length > 0 ? replyPrefix : undefined,
       correctionOffers: classified.correctionOffers.length > 0 ? classified.correctionOffers : undefined,

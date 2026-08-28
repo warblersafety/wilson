@@ -9,7 +9,7 @@
 // What is mechanical stays mechanical and lives here, where a test can
 // pin it and no model call can vary it turn to turn.
 //
-// Two rules, and both have a negative that matters as much as the
+// Three rules, and each has a negative that matters as much as the
 // positive:
 //
 // 1. **Group completion.** Answering a checkbox group answers the whole
@@ -36,8 +36,32 @@
 //    The negative, also rule 3's, and the reason weight is NOT here: "A
 //    bare weight gets NO default — lb/kg is genuinely ambiguous — the
 //    value writes and the unit stays open."
+//
+// 3. **The text-ask negative (Issue #121).** Rule 7's other half — group
+//    completion above is the checkbox half of the SAME rule. MH-1, LD-1,
+//    and AC-1 are the only three asks it covers, decided once here
+//    rather than per model run: a clear "none"/"nothing" answer to one
+//    of them forces its OWN field to answered/"None", never
+//    mark_unknown, regardless of what the extractor concluded —
+//    because scripts/fill-3500.py's render_value() prints an unknown
+//    text field as "Unknown", stating the opposite of what the
+//    clinician said on an FDA-bound form. The gate's C2 case is the
+//    proof this was a real defect, not a hypothetical one: "no relevant
+//    history" and "nothing else to add" both landed as
+//    `{state:"unknown"}` and exported "Unknown".
+//    The negative: ignorance is not a negative. "I don't have that
+//    information" / "I don't know" / "not sure" must still resolve
+//    `unknown` — rule 7 treats the two as different statements, and
+//    conflating them would make wilson assert an absence the clinician
+//    never stated. The bound is conservative on purpose: full-string
+//    match only, after the SAME normalization extraction-validator.ts's
+//    own grounding check uses (NFKC, case-fold, punctuation-stripped) —
+//    never a substring or a fuzzy match. "no relevant history of
+//    cardiac issues" must NOT match; it carries real content the
+//    literal word "None" would erase.
 import type { AgendaRecord } from "./agenda";
-import { factCompletesFromOne } from "./ask-inventory";
+import { AUTHORED_ASKS, factCompletesFromOne } from "./ask-inventory";
+import { normalize } from "./extraction-validator";
 import { isResolved } from "./field-state";
 import { fieldById } from "./form-3500-fields";
 import type { ProposedAction } from "./talk";
@@ -119,4 +143,56 @@ export function bareAgeDefaultWrites(record: AgendaRecord, writes: ProposedActio
       (unit): ProposedAction => ({ fieldId: unit, type: "answer", value: "false" }),
     ),
   ];
+}
+
+// Rule 7's text-ask negative (see the header comment's rule 3 above):
+// the three asks it covers, and nothing else — bounded and stated once,
+// per Issue #121's AC-2, rather than re-decided per model run.
+const TEXT_ASK_NEGATIVE_ASK_IDS: readonly string[] = ["MH-1", "LD-1", "AC-1"];
+
+// Conservative on purpose (see the header comment): full-string members
+// only. Ignorance ("I don't know", "not sure", "I don't have that/it")
+// is deliberately absent — rule 7 says a mark_unknown on genuine
+// ignorance must still resolve `unknown`, a different statement from
+// "none".
+const CLEAR_TEXT_NEGATIVES = new Set([
+  "none",
+  "no",
+  "nothing",
+  "no relevant history",
+  "nothing else",
+  "nothing else to add",
+  "nothing to add",
+]);
+
+// Exported for direct testing of the boundary itself, and for any future
+// caller (e.g. a narrative-path normalization) that needs the identical
+// bound this turn-level check uses.
+export function isClearTextAskNegative(text: string): boolean {
+  return CLEAR_TEXT_NEGATIVES.has(normalize(text));
+}
+
+// `null` outside the three bounded asks, or when the ask's own field is
+// somehow absent from the inventory (defensive; every ask here always
+// has exactly one askFieldIds entry) — never thrown, since this runs on
+// every turn regardless of which ask is on screen.
+function textAskNegativeFieldId(askId: string): string | null {
+  if (!TEXT_ASK_NEGATIVE_ASK_IDS.includes(askId)) return null;
+  const ask = AUTHORED_ASKS.find((a) => a.id === askId);
+  return ask?.askFieldIds[0] ?? null;
+}
+
+// The primary mechanism (AC-1): called with the RAW clinician message
+// for the turn that was just on screen — never with what the extractor
+// proposed from it, because "regardless of the kind the extractor
+// proposed" includes "proposed nothing at all". extract.ts calls this
+// itself, outside the extractor's own candidate flow, and its result
+// (when non-null) OVERRIDES whatever that turn separately wrote for the
+// same field — a wrong kind, a stray value, or nothing.
+export function textAskNegativeWrite(step: NextStep, message: string): ProposedAction | null {
+  if (step.kind !== "topic") return null;
+  const fieldId = textAskNegativeFieldId(step.ask.id);
+  if (!fieldId) return null;
+  if (!isClearTextAskNegative(message)) return null;
+  return { fieldId, type: "answer", value: "None" };
 }
