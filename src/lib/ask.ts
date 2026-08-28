@@ -78,12 +78,38 @@ export function reAskFrame(names: string[]): string {
 // resolved/open names, so their ask half is the authored `arrivalAsk`
 // line instead, prefixed by the individual HELD field names — never
 // rendered bare, since the prefix is what gives "the rest" its referent.
+//
+// Called only through askCopy() below in production, which never invokes
+// this on a fully-open ask (its own primary-copy branch handles that) —
+// but this stays self-defending rather than trusting the caller (reviewer
+// pass, PR #136, finding 8): a direct call on a fully-open record throws
+// its own named error, matching reAskFrame()'s precondition check above,
+// instead of dying inside joinNames() with a message that names no ask
+// and no reason.
+//
+// A second, non-obvious empty case (reviewer pass, PR #136, finding 2's
+// fix surfaced this — not anticipated by the review itself): a field can
+// be individually resolved without completing any FACT at all, when that
+// fact requires every member before it settles (`voicesEveryMember` or
+// `exclusive` — WH-2's "report type" is exactly this). askCopy()'s own
+// gate is field-level ("is anything resolved"), so it happily enters
+// here with resolvedFactNames() coming back empty — genuinely reachable,
+// not synthetic: ask.test.ts's scripted-walk suite hits it by seeding
+// one report-type checkbox before the walk starts, the same shape a real
+// narrative ("the device malfunctioned") would leave from extraction.
+// There is nothing truthful to report holding yet, so this renders
+// exactly what a never-arrived ask renders: the primary copy — never a
+// broken "I've got . Still need: ..." sentence.
 export function arrivalFrame(ask: AuthoredAsk, record: AgendaRecord): string {
+  if (unresolvedAskFieldIds(ask, record).length === ask.askFieldIds.length) {
+    throw new Error(`arrivalFrame: ${ask.id} is fully open — there is nothing resolved to frame as an arrival`);
+  }
   const bulkFact = ask.facts?.find((fact) => fact.arrivalAsk !== undefined);
   if (bulkFact !== undefined) {
     return `I've got ${joinNames(heldFieldNames(ask, record))}. ${bulkFact.arrivalAsk}`;
   }
   const resolved = resolvedFactNames(ask, record);
+  if (resolved.length === 0) return ask.copy;
   const open = unresolvedFactNames(ask, record);
   return `I've got ${joinNames(resolved)}. Still need: ${joinNames(open)}.`;
 }

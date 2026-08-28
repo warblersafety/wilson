@@ -78,11 +78,16 @@ export async function stepForSession(
   // contract (direct-step.test.ts) requires the false branch return the
   // SAME session reference, not an equal copy, so voiceStep() — which
   // always allocates when it marks something — cannot run unconditionally
-  // here the way it does in talk.ts's respond(). This also happens to be
-  // the right behavior, not just the reference-safe one: a reload must
-  // re-render the exact question that was already on screen, and a step
-  // recomputed from a session where nothing has changed yet (nothing
-  // marked here) does exactly that, idempotently, on every reload.
+  // here the way it does in talk.ts's respond(). That reference-safety
+  // claim is the load-bearing one. The idempotence claim that used to sit
+  // here is not true in general: not marking AGAIN in this call does not
+  // mean the session already reads as unvoiced — the mark may already be
+  // set, from the very turn that rendered the question now on screen —
+  // and askDeterministic (ask.ts:129) reads voicedAsks on every path,
+  // hydration included. For a partial-arrival ask that means a reload can
+  // recompute the ordinary re-ask frame against a stored transcript whose
+  // trailing turn is the arrival frame: two different strings, both
+  // rendered (#148; not fixed here).
   let resultSession: TalkSession = session;
   if (options.appendReply) {
     const voiced = voiceStep(session, step);

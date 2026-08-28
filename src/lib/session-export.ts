@@ -51,6 +51,13 @@ export interface SessionBundle {
   record: AgendaRecord;
   repeatCounts: RepeatCounts;
   volunteeredRepeats: Partial<Record<RepeatGroup, true>>;
+  // ask-copy.md rule 9's first-voicing amendment (#125): which authored
+  // asks have had their copy rendered at least once this report — the
+  // one thing on the surface that answers "why did this render the
+  // arrival frame [or the ordinary re-ask frame]?" Normalized the same
+  // way as volunteeredRepeats above, for the same reason (added
+  // reviewer pass, PR #136, finding 7 — the #125 build omitted it).
+  voicedAsks: Partial<Record<string, true>>;
 }
 
 // The record as it LEAVES — states and values both, with rule 4's auto
@@ -93,6 +100,13 @@ export function buildSessionBundle(session: TalkSession, now: Date): SessionBund
     // to tell "no groups were volunteered" from "this bundle predates the
     // field".
     volunteeredRepeats: session.volunteeredRepeats ?? {},
+    // Same normalization as volunteeredRepeats above, and the same
+    // reason: voicedAsks is optional on TalkSession too, and `undefined`
+    // would make JSON.stringify drop the key entirely — leaving a reader
+    // unable to tell "nothing was voiced yet" from "this bundle predates
+    // the field" (reviewer pass, PR #136, finding 7; the #125 build that
+    // added voicedAsks to TalkSession omitted it here entirely).
+    voicedAsks: session.voicedAsks ?? {},
   };
 }
 

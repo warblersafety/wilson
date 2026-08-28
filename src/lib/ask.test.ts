@@ -262,6 +262,20 @@ describe("rule 9's first voicing (#125)", () => {
     expect(arrivalFrame(pb1, record)).toBe("I've got patient identifier. Still need: age and sex.");
   });
 
+  // Reviewer pass, PR #136, finding 2: a fact with one field resolved and
+  // a sibling still open used to be named on both halves of the frame
+  // ("I've got sex. Still need: patient identifier, age, and sex.").
+  it("never names a fact on both halves of the frame, even when a sibling field is still open", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const record = {
+      ...initAgenda(),
+      [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" },
+      [pb1.askFieldIds[2]]: { state: "answered" as const, value: "true" },
+    };
+    expect(arrivalFrame(pb1, record)).toBe("I've got patient identifier. Still need: age and sex.");
+    expect(arrivalFrame(pb1, record)).not.toContain("sex. Still need");
+  });
+
   // The three bulk-mapped facts cannot split into resolved/open fact
   // names (they ARE one fact) — the amendment gives them an authored
   // arrivalAsk line instead, prefixed by the individual HELD field
@@ -273,6 +287,33 @@ describe("rule 9's first voicing (#125)", () => {
     expect(arrivalFrame(dv1, record)).toBe("I've got device brand name. What are the rest of the device details?");
     expect(arrivalFrame(dv1, record)).not.toBe("What are the rest of the device details?");
     expect(arrivalFrame(dv1, record)).not.toContain("And the rest of the device details?");
+  });
+
+  // Reviewer pass, PR #136, finding 8: called directly (bypassing
+  // askCopy's own gating) on an ask nothing has arrived on yet, this used
+  // to die inside joinNames() with a message naming no ask. Matches
+  // reAskFrame's own precondition throw just above it.
+  it("throws a named error, not joinNames' generic one, called directly on a fully-open ask", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    expect(() => arrivalFrame(pb1, initAgenda())).toThrow(/^arrivalFrame: PB-1 is fully open/);
+  });
+
+  it("throws the same named error for a fully-open bulk-mapped ask", () => {
+    const dv1 = AUTHORED_ASKS.find((a) => a.id === "DV-1")!;
+    expect(() => arrivalFrame(dv1, initAgenda())).toThrow(/^arrivalFrame: DV-1 is fully open/);
+  });
+
+  // Discovered fixing finding 2, not anticipated by the review itself:
+  // WH-2's "report type" fact is voicesEveryMember, so it never completes
+  // from one answer — a record with only Defects resolved has SOMETHING
+  // individually resolved (askCopy's gate lets this through) but nothing
+  // wholly resolved (resolvedFactNames is empty). Real, not synthetic:
+  // this is the exact shape "a scripted full walk" below seeds to reopen
+  // the gated asks, and it used to crash arrivalFrame outright.
+  it("falls back to the primary copy when something is individually resolved but no whole fact is", () => {
+    const wh2 = AUTHORED_ASKS.find((a) => a.id === "WH-2")!;
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    expect(arrivalFrame(wh2, record)).toBe(wh2.copy);
   });
 
   it("lists every held field for a bulk ask with more than one answered", () => {

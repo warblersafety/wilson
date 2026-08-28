@@ -817,11 +817,15 @@ export function unresolvedAskFieldIds(ask: AuthoredAsk, record: AgendaRecord): s
 // fact, nothing of it is on the record yet (a fact whose SOME fields are
 // already resolved would have those fields missing from an unresolved-
 // or dismiss-set, since both callers pass exactly the still-open
-// subset). Ignored by every caller but standaloneFactNamesFor.
+// subset). Read by standaloneFactNamesFor to pick between two authored
+// names, and by resolvedFactNames (reviewer pass, PR #136, finding 2) to
+// decide whether to name the fact at all — `pick` may return undefined
+// there, meaning "don't name this fact from this fieldId", which is why
+// a returned name is only pushed when it is not undefined below.
 function factNamesFor(
   ask: AuthoredAsk,
   fieldIds: string[],
-  pick: (fact: AskFact, wholeFactNamed: boolean) => string,
+  pick: (fact: AskFact, wholeFactNamed: boolean) => string | undefined,
 ): string[] {
   const wanted = new Set(fieldIds);
   const factByFieldId = new Map<string, AskFact>();
@@ -832,7 +836,7 @@ function factNamesFor(
     const fact = factByFieldId.get(fieldId);
     const wholeFactNamed = fact === undefined || fact.fieldIds.every((id) => wanted.has(id));
     const name = fact === undefined ? displayName(fieldId) : pick(fact, wholeFactNamed);
-    if (!names.includes(name)) names.push(name);
+    if (name !== undefined && !names.includes(name)) names.push(name);
   }
   return names;
 }
@@ -844,15 +848,22 @@ export function unresolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): str
 }
 
 // The names of the facts an ask HAS resolved, in the ask's own field
-// order — the complement of unresolvedFactNames, added 2026-08-28 (#125)
-// for rule 9's arrival frame ("I've got {resolved names}. Still need:
-// {open names}."). Every askFieldId falls into exactly one of the two
-// functions' output: both partition on the same unresolvedAskFieldIds()
-// set, so a field can never be named by neither or by both.
+// order — added 2026-08-28 (#125) for rule 9's arrival frame ("I've got
+// {resolved names}. Still need: {open names}."). Every askFieldId
+// partitions cleanly against unresolvedAskFieldIds() at the FIELD level,
+// but a multi-field fact (the "sex" one-hot, "outcome", ...) can still
+// straddle the boundary — one field resolved, a sibling still open — and
+// naming it on this side too would have the arrival frame contradict
+// itself in one sentence: "I've got sex. Still need: ... and sex."
+// (reviewer pass, PR #136, finding 2). So this names a fact only when
+// EVERY one of its fields is resolved (`wholeFactNamed`, computed by
+// factNamesFor above) — a straddling fact is left for
+// unresolvedFactNames to name on the still-need side, which is where a
+// partially-resolved fact belongs.
 export function resolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): string[] {
   const unresolved = new Set(unresolvedAskFieldIds(ask, record));
   const resolvedIds = ask.askFieldIds.filter((fieldId) => !unresolved.has(fieldId));
-  return factNamesFor(ask, resolvedIds, (fact) => fact.name);
+  return factNamesFor(ask, resolvedIds, (fact, wholeFactNamed) => (wholeFactNamed ? fact.name : undefined));
 }
 
 // The display names of the fields rule 9's arrival frame has actually

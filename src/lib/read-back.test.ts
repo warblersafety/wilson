@@ -215,6 +215,25 @@ describe("confirmReadBack", () => {
     expect(handoff.session.record.a).toEqual({ state: "unasked" });
   });
 
+  // Reviewer pass, PR #136, finding 7: confirmReadBack hand-built a
+  // 3-field session literal — the same shape as the processTurn bug this
+  // PR (#125) already fixed elsewhere, one field away from mattering here
+  // too. Both volunteeredRepeats and voicedAsks must survive a confirm.
+  it("carries volunteeredRepeats and voicedAsks forward, the same shape as processTurn's own fix", () => {
+    const handoff = handoffWith({ proposals: [], repeatDecisions: [], rejected: [] });
+    const withVoicing: ReadBackHandoff = {
+      ...handoff,
+      session: {
+        ...handoff.session,
+        voicedAsks: { "PB-1": true },
+        volunteeredRepeats: { "suspect-product": true },
+      },
+    };
+    const result = confirmReadBack(withVoicing, []);
+    expect(result.voicedAsks).toEqual({ "PB-1": true });
+    expect(result.volunteeredRepeats).toEqual({ "suspect-product": true });
+  });
+
   it("never applies repeat decisions from the narrative pass, even when the extraction result carries them", () => {
     // Issue #43's amended AC: repeat decisions are out of scope for this
     // surface — Follow-ups' existing loop asks normally regardless of
