@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
+  arrivalFrame,
   askCopy,
   askDeterministic,
   DONE_MESSAGE,
@@ -18,12 +19,19 @@ import {
 import { AUTHORED_ASKS, askApplies, unresolvedFactNames } from "./ask-inventory";
 import { displayName } from "./display-names";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
-import { initTalkSession, type TalkSession } from "./talk";
+import { initTalkSession, voiceStep, type TalkSession } from "./talk";
 import { scriptedWalk } from "./ux-floor";
 import { TOPICS } from "./topics";
 
-function sessionWith(record: AgendaRecord): TalkSession {
-  return { ...initTalkSession(), record };
+// `voicedAskIds` defaults to none — a fresh sessionWith() is what a
+// never-voiced arrival needs; a test exercising the ordinary re-ask
+// frame passes the ask ids that must already read as voiced.
+function sessionWith(record: AgendaRecord, voicedAskIds: string[] = []): TalkSession {
+  return {
+    ...initTalkSession(),
+    record,
+    voicedAsks: Object.fromEntries(voicedAskIds.map((id) => [id, true as const])),
+  };
 }
 
 // Marks every field the given ask waits on as unknown — the "I don't have
@@ -153,7 +161,12 @@ describe("rule 9's re-ask frames", () => {
     }
   });
 
-  it("re-asks each bulk-mapped ask as one authored line, never as its field list", () => {
+  // The "rest of" lines stay RE-ASK-ONLY (voicedThisReport: true): rule
+  // 9's amendment adds a SEPARATE, byte-distinct arrival line for a
+  // bulk-mapped ask's first partial appearance (below) — this frame is
+  // what fires once the ask has already been voiced and is partial
+  // again.
+  it("re-asks each bulk-mapped ask, once voiced, as one authored line, never as its field list", () => {
     const record = initAgenda();
     for (const [askId, expected] of [
       ["RC-1", "And the rest of your contact details?"],
@@ -163,14 +176,14 @@ describe("rule 9's re-ask frames", () => {
     ] as const) {
       const ask = AUTHORED_ASKS.find((a) => a.id === askId)!;
       const partial = { ...record, [ask.askFieldIds[0]]: { state: "answered" as const, value: "x" } };
-      expect(askCopy(ask, partial), askId).toBe(expected);
+      expect(askCopy(ask, partial, true), askId).toBe(expected);
     }
   });
 
   it("leaves every other ask's frames as authored — PB-1 still names its own facts", () => {
     const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
     const partial = { ...initAgenda(), [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" } };
-    expect(askCopy(pb1, partial)).toBe("Got it. Still need: age and sex.");
+    expect(askCopy(pb1, partial, true)).toBe("Got it. Still need: age and sex.");
   });
 
   it("names one still-open fact with the short frame", () => {
@@ -190,13 +203,16 @@ describe("rule 9's re-ask frames", () => {
 
   // The contract's own reason for the frames: "A frame is never
   // byte-equal to the primary ask, so the no-consecutive-duplicates check
-  // holds across the pair."
-  it("re-asks a partly answered ask by naming only what is still open", async () => {
+  // holds across the pair." Voiced explicitly (PB-1 already shown this
+  // report) — this is the re-ask path, not the first-voicing arrival
+  // path below, and #125 makes that precondition load-bearing rather
+  // than implicit.
+  it("re-asks a partly answered, already-voiced ask by naming only what is still open", async () => {
     const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
     const topic = TOPICS.find((t) => t.id === pb1.topicId)!;
     const record = applyAction(initAgenda(), pb1.askFieldIds[0], { type: "answer" }, "MRN 44-1902");
     const step = { kind: "topic" as const, topic, ask: pb1, fieldIds: pb1.askFieldIds.slice(1) };
-    const rendered = await askDeterministic(step, sessionWith(record));
+    const rendered = await askDeterministic(step, sessionWith(record, ["PB-1"]));
     // Facts, not fields: the sex one-hot is one fact, named once.
     expect(rendered).toBe("Got it. Still need: age and sex.");
     expect(rendered).toBe(reAskFrame(unresolvedFactNames(pb1, record)));
@@ -204,15 +220,138 @@ describe("rule 9's re-ask frames", () => {
     expect(rendered).not.toContain(displayName(pb1.askFieldIds[0]));
   });
 
-  it("returns to the primary copy while nothing in the ask is resolved", () => {
+  it("returns to the primary copy while nothing in the ask is resolved, voiced or not", () => {
     const pb2 = AUTHORED_ASKS.find((a) => a.id === "PB-2")!;
-    expect(askCopy(pb2, initAgenda())).toBe(pb2.copy);
+    expect(askCopy(pb2, initAgenda(), false)).toBe(pb2.copy);
+    expect(askCopy(pb2, initAgenda(), true)).toBe(pb2.copy);
   });
 
-  it("refuses to compose copy for an ask with nothing left to ask", () => {
+  it("refuses to compose copy for an ask with nothing left to ask, voiced or not", () => {
     const pb2 = AUTHORED_ASKS.find((a) => a.id === "PB-2")!;
     const record = dismiss(initAgenda(), pb2.askFieldIds);
-    expect(() => askCopy(pb2, record)).toThrow(/nothing left to ask/);
+    expect(() => askCopy(pb2, record, false)).toThrow(/nothing left to ask/);
+    expect(() => askCopy(pb2, record, true)).toThrow(/nothing left to ask/);
+  });
+});
+
+describe("rule 9's first voicing (#125)", () => {
+  // Gate run #1, entry 1: on dev 7f8f1bd, a topic reached already
+  // partially resolved (narrative extraction, or an out-of-ask write)
+  // rendered rule 9's re-ask frame as its FIRST utterance — "And the
+  // rest of the device details?", eight identifiers the clinician never
+  // saw. The arrival frame is what a never-voiced partial renders
+  // instead, and reaching it through askDeterministic (not askCopy
+  // directly) proves the walk's own session shape carries voicedAsks
+  // correctly, not just the pure helper.
+  it("renders the arrival frame, not the bare re-ask frame, on a never-voiced partial", async () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const topic = TOPICS.find((t) => t.id === pb1.topicId)!;
+    // AgeValue resolved (as narrative extraction would from "61-year-old"),
+    // PB-1 never asked before — the exact shape of C1's opening turn.
+    const record = applyAction(initAgenda(), pb1.askFieldIds[1], { type: "answer" }, "61");
+    const step = { kind: "topic" as const, topic, ask: pb1, fieldIds: [pb1.askFieldIds[0], ...pb1.askFieldIds.slice(2)] };
+    const rendered = await askDeterministic(step, sessionWith(record));
+    expect(rendered).toBe("I've got age. Still need: patient identifier and sex.");
+    expect(rendered).toBe(arrivalFrame(pb1, record));
+    expect(rendered).not.toBe(reAskFrame(unresolvedFactNames(pb1, record)));
+  });
+
+  it("composes the arrival frame from resolved and open fact names, general case", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const record = applyAction(initAgenda(), pb1.askFieldIds[0], { type: "answer" }, "MRN 44-1902");
+    expect(arrivalFrame(pb1, record)).toBe("I've got patient identifier. Still need: age and sex.");
+  });
+
+  // Reviewer pass, PR #136, finding 2: a fact with one field resolved and
+  // a sibling still open used to be named on both halves of the frame
+  // ("I've got sex. Still need: patient identifier, age, and sex.").
+  it("never names a fact on both halves of the frame, even when a sibling field is still open", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    const record = {
+      ...initAgenda(),
+      [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" },
+      [pb1.askFieldIds[2]]: { state: "answered" as const, value: "true" },
+    };
+    expect(arrivalFrame(pb1, record)).toBe("I've got patient identifier. Still need: age and sex.");
+    expect(arrivalFrame(pb1, record)).not.toContain("sex. Still need");
+  });
+
+  // The three bulk-mapped facts cannot split into resolved/open fact
+  // names (they ARE one fact) — the amendment gives them an authored
+  // arrivalAsk line instead, prefixed by the individual HELD field
+  // names so "the rest" has a referent. Byte-distinct from the re-ask
+  // "And the rest of..." lines pinned above.
+  it("composes the bulk arrival line, held field names prefixed, never bare", () => {
+    const dv1 = AUTHORED_ASKS.find((a) => a.id === "DV-1")!;
+    const record = applyAction(initAgenda(), dv1.askFieldIds[0], { type: "answer" }, "EpiPen");
+    expect(arrivalFrame(dv1, record)).toBe("I've got device brand name. What are the rest of the device details?");
+    expect(arrivalFrame(dv1, record)).not.toBe("What are the rest of the device details?");
+    expect(arrivalFrame(dv1, record)).not.toContain("And the rest of the device details?");
+  });
+
+  // Reviewer pass, PR #136, finding 8: called directly (bypassing
+  // askCopy's own gating) on an ask nothing has arrived on yet, this used
+  // to die inside joinNames() with a message naming no ask. Matches
+  // reAskFrame's own precondition throw just above it.
+  it("throws a named error, not joinNames' generic one, called directly on a fully-open ask", () => {
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    expect(() => arrivalFrame(pb1, initAgenda())).toThrow(/^arrivalFrame: PB-1 is fully open/);
+  });
+
+  it("throws the same named error for a fully-open bulk-mapped ask", () => {
+    const dv1 = AUTHORED_ASKS.find((a) => a.id === "DV-1")!;
+    expect(() => arrivalFrame(dv1, initAgenda())).toThrow(/^arrivalFrame: DV-1 is fully open/);
+  });
+
+  // Discovered fixing finding 2, not anticipated by the review itself:
+  // WH-2's "report type" fact is voicesEveryMember, so it never completes
+  // from one answer — a record with only Defects resolved has SOMETHING
+  // individually resolved (askCopy's gate lets this through) but nothing
+  // wholly resolved (resolvedFactNames is empty). Real, not synthetic:
+  // this is the exact shape "a scripted full walk" below seeds to reopen
+  // the gated asks, and it used to crash arrivalFrame outright.
+  it("falls back to the primary copy when something is individually resolved but no whole fact is", () => {
+    const wh2 = AUTHORED_ASKS.find((a) => a.id === "WH-2")!;
+    const record = applyAction(initAgenda(), "Page1.SecA_Patient.Defects", { type: "answer" }, "true");
+    expect(arrivalFrame(wh2, record)).toBe(wh2.copy);
+  });
+
+  it("lists every held field for a bulk ask with more than one answered", () => {
+    const rc1 = AUTHORED_ASKS.find((a) => a.id === "RC-1")!;
+    const record = {
+      ...initAgenda(),
+      [rc1.askFieldIds[0]]: { state: "answered" as const, value: "Nguyen" },
+      [rc1.askFieldIds[2]]: { state: "answered" as const, value: "12 Elm St" },
+    };
+    expect(arrivalFrame(rc1, record)).toBe(
+      "I've got your last name and your address. What are the rest of your contact details?",
+    );
+  });
+
+  describe("voiceStep", () => {
+    it("marks a topic step's ask id voiced, additively", () => {
+      const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+      const topic = TOPICS.find((t) => t.id === pb1.topicId)!;
+      const step = { kind: "topic" as const, topic, ask: pb1, fieldIds: pb1.askFieldIds };
+      const before = initTalkSession();
+      expect(before.voicedAsks?.["PB-1"]).toBeUndefined();
+      const after = voiceStep(before, step);
+      expect(after.voicedAsks?.["PB-1"]).toBe(true);
+      // Additive: marking one ask never un-marks another already voiced.
+      const rc1Voiced = { ...after, voicedAsks: { ...after.voicedAsks, "RC-1": true as const } };
+      const pb2 = AUTHORED_ASKS.find((a) => a.id === "PB-2")!;
+      const pb2Step = { kind: "topic" as const, topic, ask: pb2, fieldIds: pb2.askFieldIds };
+      const both = voiceStep(rc1Voiced, pb2Step);
+      expect(both.voicedAsks).toEqual({ "PB-1": true, "RC-1": true, "PB-2": true });
+    });
+
+    it("is a no-op for a repeat-decision or done step — neither is an ask", () => {
+      const session = initTalkSession();
+      expect(voiceStep(session, { kind: "repeat-decision", repeatGroup: "suspect-product", afterInstance: 1 })).toBe(
+        session,
+      );
+      expect(voiceStep(session, { kind: "done" })).toBe(session);
+    });
   });
 });
 

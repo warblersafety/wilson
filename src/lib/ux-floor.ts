@@ -28,15 +28,16 @@ import {
   askCopy,
   askDeterministic,
   DONE_MESSAGE,
+  reAskFrame,
   REPEAT_DECISION_COPY,
   REPEAT_GROUP_LABELS,
   VOLUNTEERED_REPEAT_HINT,
 } from "./ask";
-import { AUTHORED_ASKS, unresolvedAskFieldIds } from "./ask-inventory";
+import { AUTHORED_ASKS, unresolvedAskFieldIds, unresolvedFactNames, type AuthoredAsk } from "./ask-inventory";
 import { displayName } from "./display-names";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { GATED_OFF_RAIL_STATE } from "./gates";
-import { describeFollowUpSweep, type FollowUpSweepResult } from "./followup-sweep";
+import { describeDismissal, describeFollowUpSweep, type FollowUpSweepResult } from "./followup-sweep";
 import { OPEN_FIELD_REASONS, OPEN_FIELDS_COPY, openFieldsHeading } from "./open-fields";
 import { READ_BACK_COPY } from "./read-back";
 import { READY_COPY, START_OVER_CONFIRM_COPY } from "./ready";
@@ -188,6 +189,14 @@ export function renderedCopyInventory(): RenderedString[] {
     // resolved field at a time is where the most facts are still open,
     // and therefore where a frame is longest and most able to leak a
     // field list. The reference path renders none of these.
+    //
+    // Both voicing states, added 2026-08-28 (#125): a partial state is
+    // rendered once never-voiced (the arrival frame — new, and the
+    // longer of the two, since it also carries the held names) and once
+    // already-voiced (the ordinary re-ask frame — the pre-#125
+    // behavior, kept under its original `re-ask:` source so the existing
+    // "renders rule 9's frames" coverage count still holds). Leak checks
+    // below run over the whole inventory, so both get the same scrutiny.
     for (const resolved of ask.askFieldIds) {
       const partial: AgendaRecord = { ...record, [resolved]: { state: "answered", value: "x" } };
       // An ask whose one answer settled every fact it waits on has
@@ -200,7 +209,8 @@ export function renderedCopyInventory(): RenderedString[] {
       // whole unit exists to prevent, so the only thing skipped here is
       // the case that genuinely has no string to render.
       if (unresolvedAskFieldIds(ask, partial).length === 0) continue;
-      out.push({ source: `re-ask:${ask.id}/${resolved}`, text: askCopy(ask, partial) });
+      out.push({ source: `arrival:${ask.id}/${resolved}`, text: askCopy(ask, partial, false) });
+      out.push({ source: `re-ask:${ask.id}/${resolved}`, text: askCopy(ask, partial, true) });
     }
   }
 
@@ -280,6 +290,146 @@ export function renderedCopyInventory(): RenderedString[] {
   out.push({ source: "surface:rail/gated-off", text: GATED_OFF_RAIL_STATE });
   out.push({ source: "surface:rail/gated-mark", text: GATED_OFF_RAIL_MARK });
 
+  return out;
+}
+
+// --- rule 9's first-voicing property (#125) --------------------------------
+
+// Consequence 7's new entry, stated exactly: "for every topic, instance,
+// and gate state, the copy helpers — given declared voicing and
+// resolution state — return the primary copy or the arrival frame for a
+// partial arrival, never a bare re-ask frame or an unprefixed bulk
+// line". This is a property of the pure helpers over DECLARED state, not
+// a walk — gate run #1's own first-utterance property (that the real
+// walk feeds them TRUE voicing state) is explicitly the browser-level
+// gate's job (entries 1 and 2), not this floor's.
+//
+// Enumerated the same way renderedCopyInventory() enumerates partial
+// states: one resolved field at a time, across every authored ask — the
+// ask with the most fields to leave out (DV-1's ten) is exactly the one
+// a hand-picked fixture would have left uncovered.
+//
+// Independently re-derives what the BARE re-ask frame (and, for the
+// three bulk-mapped asks, the bare arrival line) would say, and compares
+// it against `computeAskCopy` — askCopy() (./ask) by default, but
+// injectable the same way scriptedFrames() takes a `render` function
+// (transcript-view.test.ts's double-bubble proof): a test can pass a
+// function that reproduces the PRE-#125 behavior (ignore
+// voicedThisReport, always return the bare frame) and watch this check
+// go red, proving the check fails on the actual shipped defect rather
+// than only ever passing on the real, already-fixed build.
+export function firstVoicingViolations(
+  computeAskCopy: (ask: AuthoredAsk, record: AgendaRecord, voicedThisReport: boolean) => string = askCopy,
+): UxFloorViolation[] {
+  const out: UxFloorViolation[] = [];
+  const record = initAgenda();
+  for (const ask of AUTHORED_ASKS) {
+    const bulkFact = ask.facts?.find((fact) => fact.arrivalAsk !== undefined);
+    for (const resolved of ask.askFieldIds) {
+      const partial: AgendaRecord = { ...record, [resolved]: { state: "answered", value: "x" } };
+      const unresolved = unresolvedAskFieldIds(ask, partial);
+      // Only a genuine partial arrival is at issue: fully open renders
+      // the primary copy regardless of voicing (askCopy()'s first
+      // branch), and fully resolved has nothing left for askCopy() to
+      // compose.
+      if (unresolved.length === 0 || unresolved.length === ask.askFieldIds.length) continue;
+
+      const bareReAsk = reAskFrame(unresolvedFactNames(ask, partial));
+      const neverVoiced = computeAskCopy(ask, partial, false);
+      if (neverVoiced === bareReAsk) {
+        out.push({
+          check: "first-voicing",
+          source: `arrival:${ask.id}/${resolved}`,
+          text: neverVoiced,
+          detail: `${ask.id} renders the bare re-ask frame on a first, never-voiced arrival`,
+        });
+      }
+      if (bulkFact !== undefined && neverVoiced === bulkFact.arrivalAsk) {
+        out.push({
+          check: "first-voicing",
+          source: `arrival:${ask.id}/${resolved}`,
+          text: neverVoiced,
+          detail: `${ask.id} renders its bulk arrival line unprefixed — "the rest" has no referent`,
+        });
+      }
+
+      // Once voiced, rule 9's ordinary re-ask frame is unchanged — this
+      // is the pre-#125 behavior, still required.
+      const alreadyVoiced = computeAskCopy(ask, partial, true);
+      if (alreadyVoiced !== bareReAsk) {
+        out.push({
+          check: "first-voicing",
+          source: `re-ask:${ask.id}/${resolved}`,
+          text: alreadyVoiced,
+          detail: `${ask.id} does not render the ordinary re-ask frame once already voiced`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// Rule 8's record-following bulk-dismiss name (#125): "your contact
+// details" while nothing of the fact is on the record, "the rest of
+// your contact details" once part of it is — whatever path (a partial
+// answer, or a narrative fill) put it there. Checked over the three
+// bulk-mapped asks only; every other fact has no plainStandaloneName, so
+// standaloneFactNamesFor() (ask-inventory.ts) falls through unchanged
+// for it — covered instead by ux-floor.test.ts's existing
+// dismiss-acknowledgment pins, which this check would be redundant with.
+//
+// `computeDismissAck` is injectable the same way firstVoicingViolations()
+// above injects computeAskCopy: dismissAcknowledgment() (chip-grammar.ts)
+// by default, or a function reproducing the pre-#125 behavior (always
+// standaloneName, the fact's OTHER form never consulted) so the check's
+// own failure mode is provable.
+export function bulkDismissNamingViolations(
+  computeDismissAck: (step: NextStep, action: "mark_unknown" | "decline") => string | undefined = dismissAcknowledgment,
+): UxFloorViolation[] {
+  const out: UxFloorViolation[] = [];
+  const record = initAgenda();
+  for (const ask of AUTHORED_ASKS) {
+    const bulkFact = ask.facts?.find((fact) => fact.arrivalAsk !== undefined);
+    if (bulkFact?.plainStandaloneName === undefined || bulkFact.standaloneName === undefined) continue;
+    const topic = TOPICS_BY_ID[ask.topicId];
+
+    // Nothing on the record: the untouched ask, the same state
+    // renderedCopyInventory()'s own dismiss enumeration reaches.
+    const untouched: NextStep = { kind: "topic", topic, ask, fieldIds: ask.askFieldIds };
+    // Part on the record: one field already answered, so the tap
+    // dismisses only the rest.
+    const partialRecord: AgendaRecord = { ...record, [ask.askFieldIds[0]]: { state: "answered", value: "x" } };
+    const partial: NextStep = { kind: "topic", topic, ask, fieldIds: unresolvedAskFieldIds(ask, partialRecord) };
+
+    for (const action of ["mark_unknown", "decline"] as const) {
+      // Exact-form comparison, not substring containment: "the rest of
+      // the purchase details" trivially CONTAINS "the purchase details"
+      // as a substring, so an .includes() check here would flag the
+      // correct "rest of" acknowledgment as if it were the bare plain
+      // one — the false positive this whole check exists to avoid, not
+      // reproduce.
+      const untouchedText = computeDismissAck(untouched, action);
+      const wrongOnUntouched = describeDismissal([bulkFact.standaloneName], action);
+      if (untouchedText === wrongOnUntouched) {
+        out.push({
+          check: "bulk-dismiss-naming",
+          source: `dismiss:${ask.id}/${action}/untouched`,
+          text: untouchedText,
+          detail: `${ask.id} names "${bulkFact.standaloneName}" with nothing of the fact on the record`,
+        });
+      }
+      const partialText = computeDismissAck(partial, action);
+      const wrongOnPartial = describeDismissal([bulkFact.plainStandaloneName], action);
+      if (partialText === wrongOnPartial) {
+        out.push({
+          check: "bulk-dismiss-naming",
+          source: `dismiss:${ask.id}/${action}/partial`,
+          text: partialText,
+          detail: `${ask.id} names "${bulkFact.plainStandaloneName}" though part of the fact is already on the record`,
+        });
+      }
+    }
+  }
   return out;
 }
 
@@ -406,6 +556,16 @@ export function scriptedWalk(
   let record = seed;
   let counts = initRepeatCounts();
   const turns: WalkTurn[] = [];
+  // Rule 9's first-voicing state (#125), tracked the same way talk.ts's
+  // voiceStep() tracks it on a real TalkSession: which ask ids this walk
+  // has already asked about. In practice this walk never asks the SAME
+  // ask twice — dismiss() below resolves every one of step.fieldIds in
+  // one shot, so an ask reached partial (a seed pre-answered one of its
+  // fields, as GATE_STATE_SEEDS below does) is always the walk's ONLY
+  // encounter with it, meaning it is always still-unvoiced going in and
+  // this set is here for correctness under a future change to that
+  // invariant, not because today's walk needs it to stay empty.
+  const voiced = new Set<string>();
   for (let guard = 0; guard < 200; guard += 1) {
     const step = nextStep(record, counts);
     if (step.kind === "done") return turns;
@@ -423,10 +583,11 @@ export function scriptedWalk(
     turns.push({
       kind: "ask",
       id: step.ask.id,
-      text: askCopy(step.ask, record),
+      text: askCopy(step.ask, record, voiced.has(step.ask.id)),
       repeatGroup: step.topic.repeatGroup,
       repeatInstance: step.topic.repeatInstance,
     });
+    voiced.add(step.ask.id);
     record = dismiss(record, step.fieldIds);
   }
   throw new Error("scriptedWalk: the walk never reached done");

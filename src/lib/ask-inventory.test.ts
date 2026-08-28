@@ -12,6 +12,7 @@ import {
   anchorOf,
   dispositionOf,
   isListableGap,
+  resolvedFactNames,
   unresolvedAskFieldIds,
   unresolvedFactNames,
 } from "./ask-inventory";
@@ -153,6 +154,27 @@ describe("the authored ask inventory", () => {
       const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
       const record = applyAction(initAgenda(), pb1.askFieldIds[0], { type: "answer" }, "MRN 1");
       expect(unresolvedFactNames(pb1, record)).toEqual(["age", "sex"]);
+    });
+
+    // Reviewer pass, PR #136, finding 2: resolvedFactNames and
+    // unresolvedFactNames both partition on unresolvedAskFieldIds()'s
+    // FIELD set, not on facts — so a fact with one field resolved and a
+    // sibling still open (SexM answered, SexF not) used to be named on
+    // BOTH sides: "I've got sex. Still need: patient identifier, age,
+    // and sex." A fact counts as resolved only once every one of its
+    // fields is; a half-resolved fact stays still-need-only.
+    it("names a fact as resolved only once every one of its fields is — never on both sides", () => {
+      const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+      const record = {
+        ...initAgenda(),
+        // PatientIdentifier: its own singleton fact, wholly resolved.
+        [pb1.askFieldIds[0]]: { state: "answered" as const, value: "MRN 1" },
+        // SexM only — half of the "sex" one-hot fact; SexF stays unasked.
+        [pb1.askFieldIds[2]]: { state: "answered" as const, value: "true" },
+      };
+      expect(resolvedFactNames(pb1, record)).toEqual(["patient identifier"]);
+      expect(unresolvedFactNames(pb1, record)).toEqual(["age", "sex"]);
+      expect(resolvedFactNames(pb1, record)).not.toContain("sex");
     });
 
     it("names a multi-select checkbox group as one fact", () => {

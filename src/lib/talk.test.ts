@@ -475,6 +475,48 @@ describe("processTurn", () => {
         expect(result.question).toBe(collisionLine);
       });
 
+      // Cross-unit, first met in the dev merge that brought #124's
+      // suppression gate together with #125's voicing: a suppressed
+      // question was COMPUTED but never uttered — `reply` above is the
+      // collision sentence alone. It must not count as the ask's first
+      // voicing. If it did, the next turn would render the re-ask frame
+      // ("Got it. Still need: …") as this topic's first utterance, which
+      // is gate run #1's entry 1 — the defect unit #125 exists to remove.
+      // Neither unit's own suite could have caught this; they were built
+      // on separate branches.
+      it("does not voice a topic ask whose question it suppressed — the clinician never saw it", async () => {
+        const collisionLine = "I heard two values for a: 500 mg and 875 mg — which should I write?";
+        const extract: ExtractFn = async () => ({
+          actions: [],
+          replyPrefix: collisionLine,
+          collisions: [COLLISION],
+        });
+        const session = syntheticSession();
+        const result = await processTurn(session, "500 mg, no, 875 mg", {
+          extract,
+          ask: askStep,
+          topics: TOPICS,
+          fields: FIELDS,
+        });
+        expect(result.nextStep.kind).toBe("topic");
+        expect(result.session.voicedAsks ?? {}).toEqual({});
+      });
+
+      // The positive half, so the assertion above cannot pass vacuously:
+      // the same turn with nothing colliding voices the ask it shows.
+      it("still voices the ask on an ordinary turn — the suppression carve-out is not a blanket off-switch", async () => {
+        const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+        const session = syntheticSession();
+        const result = await processTurn(session, "42", {
+          extract,
+          ask: askStep,
+          topics: TOPICS,
+          fields: FIELDS,
+        });
+        expect(result.nextStep.kind).toBe("topic");
+        expect(Object.keys(result.session.voicedAsks ?? {})).toHaveLength(1);
+      });
+
       // Reviewer pass on PR #142, finding 1 (BLOCKING): the suppression
       // proven above must NOT fire here. `collisions` has exactly one
       // consumer, AskForm.tsx, which renders a collision chip only when

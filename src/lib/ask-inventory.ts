@@ -84,6 +84,25 @@ export interface AskFact {
   // stay open and answerable from the open-fields dialog.
   exclusive?: boolean;
   voicesEveryMember?: boolean;
+  // Rule 8's OTHER standalone form, added 2026-08-28 (#125): the name a
+  // dismiss acknowledgment uses while NOTHING of this fact is on the
+  // record yet — "your contact details", not "the rest of your contact
+  // details", which presumes a "rest" nothing has given a referent to.
+  // Only the three bulk-mapped facts need this split (standaloneName
+  // already covers every other fact, which has no "record so far" to be
+  // honest about); factNamesFor() below picks between the two by
+  // whether every one of the fact's fieldIds is still in the set named.
+  plainStandaloneName?: string;
+  // Rule 9's arrival frame, added 2026-08-28 (#125): for the three
+  // bulk-mapped facts (RC-1, DV-1, SP-9) — whose single fact cannot
+  // split into fact names the way "Still need: {names}." needs — this is
+  // the frame's ask half, rendered ONLY prefixed by "I've got {held
+  // field names}. " (ask.ts's arrivalFrame()), never bare: the prefix is
+  // what gives "the rest" its referent. Byte-distinct from `name`'s own
+  // re-ask line ("And the rest of your contact details?"), which stays
+  // re-ask-only. Absent for every other fact, whose arrival half is
+  // composed from `name` like any other still-open fact.
+  arrivalAsk?: string;
 }
 
 export interface AuthoredAsk {
@@ -482,6 +501,10 @@ function suspectProduct(instance: 1 | 2): AuthoredAsk[] {
         {
           name: "rest of the purchase details",
           standaloneName: "the rest of the purchase details",
+          // Rule 8/9, #125: nothing on the record yet vs. the arrival
+          // frame's own ask half.
+          plainStandaloneName: "the purchase details",
+          arrivalAsk: "What are the rest of the purchase details?",
           fieldIds: [
             p("PlaceName"),
             p("Address"),
@@ -525,6 +548,10 @@ function device(): AuthoredAsk[] {
         {
           name: "rest of the device details",
           standaloneName: "the rest of the device details",
+          // Rule 8/9, #125: nothing on the record yet vs. the arrival
+          // frame's own ask half.
+          plainStandaloneName: "the device details",
+          arrivalAsk: "What are the rest of the device details?",
           fieldIds: [
             d("BrandName"),
             d("CommName"),
@@ -653,6 +680,10 @@ function reporter(): AuthoredAsk[] {
         {
           name: "rest of your contact details",
           standaloneName: "the rest of your contact details",
+          // Rule 8/9, #125: nothing on the record yet vs. the arrival
+          // frame's own ask half.
+          plainStandaloneName: "your contact details",
+          arrivalAsk: "What are the rest of your contact details?",
           fieldIds: [
             g("LastName"),
             g("FirstName"),
@@ -779,7 +810,23 @@ export function unresolvedAskFieldIds(ask: AuthoredAsk, record: AgendaRecord): s
 // nothing else, instead of re-deriving a second set and hoping the two
 // agree (extract.ts records the same lesson about askFieldIds: one value,
 // so they cannot drift apart).
-function factNamesFor(ask: AuthoredAsk, fieldIds: string[], pick: (fact: AskFact) => string): string[] {
+//
+// `pick`'s second argument is whether EVERY one of the fact's own
+// fieldIds is present in `fieldIds` — added 2026-08-28 (#125) for rule
+// 8's record-following dismiss name: when the named set is the whole
+// fact, nothing of it is on the record yet (a fact whose SOME fields are
+// already resolved would have those fields missing from an unresolved-
+// or dismiss-set, since both callers pass exactly the still-open
+// subset). Read by standaloneFactNamesFor to pick between two authored
+// names, and by resolvedFactNames (reviewer pass, PR #136, finding 2) to
+// decide whether to name the fact at all — `pick` may return undefined
+// there, meaning "don't name this fact from this fieldId", which is why
+// a returned name is only pushed when it is not undefined below.
+function factNamesFor(
+  ask: AuthoredAsk,
+  fieldIds: string[],
+  pick: (fact: AskFact, wholeFactNamed: boolean) => string | undefined,
+): string[] {
   const wanted = new Set(fieldIds);
   const factByFieldId = new Map<string, AskFact>();
   for (const fact of ask.facts ?? []) for (const fieldId of fact.fieldIds) factByFieldId.set(fieldId, fact);
@@ -787,8 +834,9 @@ function factNamesFor(ask: AuthoredAsk, fieldIds: string[], pick: (fact: AskFact
   for (const fieldId of ask.askFieldIds) {
     if (!wanted.has(fieldId)) continue;
     const fact = factByFieldId.get(fieldId);
-    const name = fact === undefined ? displayName(fieldId) : pick(fact);
-    if (!names.includes(name)) names.push(name);
+    const wholeFactNamed = fact === undefined || fact.fieldIds.every((id) => wanted.has(id));
+    const name = fact === undefined ? displayName(fieldId) : pick(fact, wholeFactNamed);
+    if (name !== undefined && !names.includes(name)) names.push(name);
   }
   return names;
 }
@@ -799,12 +847,60 @@ export function unresolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): str
   return factNamesFor(ask, unresolvedAskFieldIds(ask, record), (fact) => fact.name);
 }
 
+// The names of the facts an ask HAS resolved, in the ask's own field
+// order — added 2026-08-28 (#125) for rule 9's arrival frame ("I've got
+// {resolved names}. Still need: {open names}."). Every askFieldId
+// partitions cleanly against unresolvedAskFieldIds() at the FIELD level,
+// but a multi-field fact (the "sex" one-hot, "outcome", ...) can still
+// straddle the boundary — one field resolved, a sibling still open — and
+// naming it on this side too would have the arrival frame contradict
+// itself in one sentence: "I've got sex. Still need: ... and sex."
+// (reviewer pass, PR #136, finding 2). So this names a fact only when
+// EVERY one of its fields is resolved (`wholeFactNamed`, computed by
+// factNamesFor above) — a straddling fact is left for
+// unresolvedFactNames to name on the still-need side, which is where a
+// partially-resolved fact belongs.
+export function resolvedFactNames(ask: AuthoredAsk, record: AgendaRecord): string[] {
+  const unresolved = new Set(unresolvedAskFieldIds(ask, record));
+  const resolvedIds = ask.askFieldIds.filter((fieldId) => !unresolved.has(fieldId));
+  return factNamesFor(ask, resolvedIds, (fact, wholeFactNamed) => (wholeFactNamed ? fact.name : undefined));
+}
+
+// The display names of the fields rule 9's arrival frame has actually
+// HELD for a bulk-mapped ask (RC-1, DV-1, SP-9) — added 2026-08-28
+// (#125). Individual field names, not the ask's one fact name: "I've got
+// the rest of your contact details" would say nothing about what is
+// already in, which is why the amendment gives the three bulk facts
+// their own arrivalAsk line instead of reusing `name`. Field order,
+// literal record resolution only — the three bulk facts are plain text
+// fields, never checkboxes, so factResolvesFromOne's settle-without-
+// writing shortcut never applies to them and "resolved" here always
+// means genuinely on the record.
+export function heldFieldNames(ask: AuthoredAsk, record: AgendaRecord): string[] {
+  const unresolved = new Set(unresolvedAskFieldIds(ask, record));
+  return ask.askFieldIds.filter((fieldId) => !unresolved.has(fieldId)).map((fieldId) => displayName(fieldId));
+}
+
 // The facts a dismiss tap over `fieldIds` resolves, named for a sentence
 // that supplies no article of its own — rule 8's dismiss acknowledgment
 // (chip-grammar.ts's dismissAcknowledgment). Identical to the names above
 // for every fact but the three bulk-mapped ones; see AskFact.standaloneName.
+//
+// Record-following, amended 2026-08-28 (#125): a bulk fact's OTHER
+// standalone name (plainStandaloneName) applies only while `fieldIds`
+// names the fact's ENTIRE field set — nothing of it resolved elsewhere,
+// so there is no "rest" yet to refer to. The instant `fieldIds` is a
+// strict subset (a partial answer, or a narrative fill, already holds
+// some of it), `wholeFactNamed` is false and the ordinary standaloneName
+// ("the rest of...") is the honest one — whatever path put that part on
+// the record. Every other fact has no plainStandaloneName, so this is a
+// no-op there: `pick` falls through to the same `standaloneName ?? name`
+// it always used.
 export function standaloneFactNamesFor(ask: AuthoredAsk, fieldIds: string[]): string[] {
-  return factNamesFor(ask, fieldIds, (fact) => fact.standaloneName ?? fact.name);
+  return factNamesFor(ask, fieldIds, (fact, wholeFactNamed) => {
+    if (wholeFactNamed && fact.plainStandaloneName !== undefined) return fact.plainStandaloneName;
+    return fact.standaloneName ?? fact.name;
+  });
 }
 
 export function askApplies(ask: AuthoredAsk, record: AgendaRecord): boolean {

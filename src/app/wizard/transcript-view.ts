@@ -15,9 +15,20 @@
 // transcript, and reload hydration re-derives the current step from a
 // stored session whose last talker turn IS that ask (direct-step.ts's
 // no-append contract depends on it being there). So the session shape is
-// untouched and only the view drops the duplicate — which also means the
-// same rule covers hydration for free, since a hydrated session's
-// trailing turn matches the recomputed reply exactly.
+// untouched and only the view drops the duplicate.
+//
+// That does NOT cover hydration for free in every case — #125's
+// first-voicing amendment broke it for a partial-arrival ask. The stored
+// trailing turn is the ARRIVAL frame (rendered before voiceStep() marked
+// the ask voiced). Hydration recomputes against a session where that
+// mark is already set, so it gets the ordinary RE-ASK frame instead — a
+// different string. The equality check below (:44) then fails to match,
+// and both bubbles render: Issue #89's double bubble, reopened. Filed as
+// #148 (urgent), not fixed here — the narrow fix (compute hydration as
+// if nothing were voiced yet) reproduces the arrival frame but breaks a
+// session where the ask was legitimately re-asked before the reload, so
+// a correct fix has to make copy stable per rendered turn, which touches
+// direct-step.ts's own reference-equality contract and wants design.
 import type { NextStep } from "@/lib/topics";
 import type { TalkStep, TalkTurn } from "@/lib/talk";
 

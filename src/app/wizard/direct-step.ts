@@ -41,7 +41,7 @@
 //   turns to duplicate.
 import { askDeterministic } from "@/lib/ask";
 import { nextStep } from "@/lib/topics";
-import type { TalkSession, TalkStep } from "@/lib/talk";
+import { voiceStep, type TalkSession, type TalkStep } from "@/lib/talk";
 
 export interface StepForSessionOptions {
   // See the file header above. Default false: no talker turn appended.
@@ -69,8 +69,29 @@ export async function stepForSession(
   // it — see TalkStep.question for why a chip tap needs the unprefixed
   // form.
   const reply = options.replyPrefix ? `${options.replyPrefix} ${question}` : question;
-  const resultSession: TalkSession = options.appendReply
-    ? { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] }
-    : session;
+  // voiceStep() (talk.ts), same as respond()'s own tail, but ONLY on the
+  // appendReply:true path — a real chip write (RepeatDecision's commit,
+  // AskForm's dismiss/correction-offer-accept), the direct-write
+  // equivalent of a conversational turn. The appendReply:false path
+  // (reload-hydration, the review-stage reopen) must stay exactly as
+  // pure as it already was: this function's own "hydration safety"
+  // contract (direct-step.test.ts) requires the false branch return the
+  // SAME session reference, not an equal copy, so voiceStep() — which
+  // always allocates when it marks something — cannot run unconditionally
+  // here the way it does in talk.ts's respond(). That reference-safety
+  // claim is the load-bearing one. The idempotence claim that used to sit
+  // here is not true in general: not marking AGAIN in this call does not
+  // mean the session already reads as unvoiced — the mark may already be
+  // set, from the very turn that rendered the question now on screen —
+  // and askDeterministic (ask.ts:129) reads voicedAsks on every path,
+  // hydration included. For a partial-arrival ask that means a reload can
+  // recompute the ordinary re-ask frame against a stored transcript whose
+  // trailing turn is the arrival frame: two different strings, both
+  // rendered (#148; not fixed here).
+  let resultSession: TalkSession = session;
+  if (options.appendReply) {
+    const voiced = voiceStep(session, step);
+    resultSession = { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] };
+  }
   return { session: resultSession, reply, question, nextStep: step };
 }

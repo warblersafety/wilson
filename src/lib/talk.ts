@@ -61,10 +61,44 @@ export interface TalkSession {
   // convention as TalkTurn.source above: every session that predates
   // this field is still a valid TalkSession with it absent.
   volunteeredRepeats?: Partial<Record<RepeatGroup, true>>;
+  // ask-copy.md rule 9's first-voicing amendment (#125): which authored
+  // asks (by AuthoredAsk.id) have had their copy rendered at least once
+  // this report. Read by askDeterministic (src/lib/ask.ts) to choose
+  // between the primary/arrival copy and the ordinary re-ask frame for a
+  // partially-resolved ask, and written by voiceStep() below — never
+  // read or written any other way, so the two stay in agreement. "Voiced
+  // this report": intake state, cleared with the rest by "Start over"
+  // (C6's boundary) because that path always constructs a fresh session
+  // through initTalkSession(), never by editing this map in place.
+  // Optional and additive, same convention as volunteeredRepeats above.
+  voicedAsks?: Partial<Record<string, true>>;
 }
 
 export function initTalkSession(): TalkSession {
-  return { transcript: [], record: initAgenda(), repeatCounts: initRepeatCounts(), volunteeredRepeats: {} };
+  return {
+    transcript: [],
+    record: initAgenda(),
+    repeatCounts: initRepeatCounts(),
+    volunteeredRepeats: {},
+    voicedAsks: {},
+  };
+}
+
+// Marks the ask a just-computed NextStep voices as voiced for the rest
+// of this report (ask-copy.md rule 9, #125: "the arrival frame counts as
+// the ask's voicing"). Called from respond() below and from
+// stepForSession() (src/app/wizard/direct-step.ts) — every place that
+// computes a step's copy for display — so a later partial state of the
+// SAME ask, reached after this one (a further answer that still leaves
+// it open, or a re-derivation once more of it is on the record), renders
+// rule 9's ordinary re-ask frame instead of a second arrival frame.
+// A no-op for a repeat-decision or done step (neither is an ask) and for
+// an ask already marked, so callers can apply it unconditionally rather
+// than each re-deriving step.kind === "topic" first.
+export function voiceStep(session: TalkSession, step: NextStep): TalkSession {
+  if (step.kind !== "topic") return session;
+  if (session.voicedAsks?.[step.ask.id] === true) return session;
+  return { ...session, voicedAsks: { ...session.voicedAsks, [step.ask.id]: true } };
 }
 
 // `value` is only meaningful — and only accepted — for "answer", mirroring
@@ -276,11 +310,23 @@ async function respond(
   pendingCollision?: boolean,
 ): Promise<TalkStep> {
   const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
+  // deps.ask() reads `next`'s voicedAsks as it stood BEFORE this step —
+  // voiceStep() below only updates the session this function returns, so
+  // an ask's own first computation always sees itself as not-yet-voiced.
   const question = await deps.ask(step, next);
   const suppressQuestion = pendingCollision && step.kind === "topic";
   const reply = suppressQuestion ? (replyPrefix ?? question) : replyPrefix ? `${replyPrefix} ${question}` : question;
+  // Suppressed means the ask's own copy was computed but NOT uttered —
+  // `reply` carries only the collision sentence. Marking it voiced would
+  // make the NEXT turn render a re-ask frame ("Got it. Still need: ...")
+  // as that ask's first utterance, which is gate run #1's entry 1 — the
+  // exact defect unit #125 exists to remove. Voicing tracks what the
+  // clinician actually saw, so a suppressed question voices nothing.
+  // (Cross-unit: #124's gate and #125's voicing met for the first time
+  // in this merge; neither unit's own tests could have caught it.)
+  const voiced = suppressQuestion ? next : voiceStep(next, step);
   return {
-    session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
+    session: { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] },
     reply,
     question: suppressQuestion ? reply : question,
     nextStep: step,
@@ -340,6 +386,16 @@ export async function processTurn(
       transcript: [...session.transcript, { role: "clinician", text: message }],
       repeatCounts,
       volunteeredRepeats,
+      // Carried forward unchanged — respond() below is what advances it
+      // (voiceStep(), for whatever step THIS call computes next). Built
+      // as a new object literal rather than `{ ...session, record, ... }`
+      // deliberately (pre-dates #125), which is exactly why this field
+      // was silently dropped here until now: every processTurn() call
+      // reset voicedAsks to undefined, so a re-ask frame anywhere past
+      // the FIRST typed turn of a session always read "never voiced" —
+      // making the whole session behave as if `respond()` had marked
+      // nothing, ever.
+      voicedAsks: session.voicedAsks,
     },
     deps,
     result.replyPrefix,

@@ -12,9 +12,11 @@ import { describe, expect, it } from "vitest";
 import {
   ASK_COUNT_CEILING,
   askCountViolations,
+  bulkDismissNamingViolations,
   clinicianEchoViolations,
   consecutiveDuplicateViolations,
   fieldIdShapedViolations,
+  firstVoicingViolations,
   manifestLabelViolations,
   optionCodeViolations,
   renderedCopyInventory,
@@ -26,8 +28,12 @@ import {
   STATED_UNGATED_ASK_COUNT,
   templateMarkerViolations,
 } from "./ux-floor";
-import { AUTHORED_ASKS, unresolvedFactNames } from "./ask-inventory";
-import { applyAction, initAgenda } from "./agenda";
+import { AUTHORED_ASKS, unresolvedFactNames, type AuthoredAsk } from "./ask-inventory";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
+import { dismissAcknowledgment, dismissableFieldIds } from "./chip-grammar";
+import { describeDismissal } from "./followup-sweep";
+import { askCopy, reAskFrame } from "./ask";
+import { TOPICS, type NextStep } from "./topics";
 import {
   ECHOED_ASK_TRANSCRIPT,
   FIELD_ID_INVENTORY,
@@ -83,6 +89,16 @@ describe("the rendered-copy inventory", () => {
   // acknowledgment names facts, and the asks whose fact list would read
   // worst (DV-1's ten device fields, RC-1's eight contact fields) are
   // exactly the ones a fixture would have left out.
+  //
+  // DV-1's pin changed 2026-08-28 (#125): renderedCopyInventory()'s own
+  // dismiss loop reaches DV-1 UNTOUCHED (fieldIds: ask.askFieldIds, the
+  // whole ask, nothing on the record) — rule 8's record-following name
+  // says that state is named PLAINLY, "the device details", not "the
+  // rest of the device details", which presumes a "rest" nothing has
+  // given a referent to. The OLD pin here is the exact defect the
+  // amendment removes (gate run #1, entry 1's dismiss-acknowledgment
+  // half). The "rest of" form still exists — see the second assertion
+  // below, once part of DV-1 is on the record.
   it("renders rule 8's dismiss acknowledgment for every ask and both chips", () => {
     const dismissals = INVENTORY.filter((entry) => entry.source.startsWith("sweep:dismiss/"));
     expect(dismissals).toHaveLength(AUTHORED_ASKS.length * 2);
@@ -90,7 +106,29 @@ describe("the rendered-copy inventory", () => {
     expect(bySource.get("sweep:dismiss/RA-2/mark_unknown")).toBe(
       "Marked other reports and identity-withholding choice as not on hand.",
     );
-    expect(bySource.get("sweep:dismiss/DV-1/decline")).toBe("Marked the rest of the device details as declined.");
+    expect(bySource.get("sweep:dismiss/DV-1/decline")).toBe("Marked the device details as declined.");
+  });
+
+  // The "rest of" half of the SAME rule: once part of a bulk-mapped fact
+  // is on the record, dismissing what remains is honestly "the rest".
+  // Not in the reference inventory above (which enumerates the untouched
+  // ask only) — driven directly, the same way bulkDismissNamingViolations()
+  // does, over a DV-1 already holding one field.
+  it("names the bulk dismiss acknowledgment 'rest of' once part of the fact is on the record", () => {
+    const dv1 = AUTHORED_ASKS.find((a) => a.id === "DV-1")!;
+    const topic = TOPICS.find((t) => t.id === "device-identity")!;
+    const partialRecord = applyAction(initAgenda(), dv1.askFieldIds[0], { type: "answer" }, "EpiPen");
+    const step: NextStep = {
+      kind: "topic",
+      topic,
+      ask: dv1,
+      fieldIds: dv1.askFieldIds.filter((id) => id !== dv1.askFieldIds[0]),
+    };
+    expect(dismissAcknowledgment(step, "decline")).toBe("Marked the rest of the device details as declined.");
+    // The record is what the naming follows, not the ask itself — the
+    // ask's OTHER dismiss pin above, over the SAME ask untouched, still
+    // reads plainly.
+    expect(partialRecord[dv1.askFieldIds[0]].state).toBe("answered");
   });
 
   // Reviewer pass on #109/#110: these three named a Review-row key or a
@@ -338,6 +376,94 @@ describe("every gate state, not just the reference path", () => {
     const device = scriptedWalk(GATE_STATE_SEEDS[2][1]()).filter((turn) => turn.kind === "ask");
     expect(device.length).toBeGreaterThan(ASK_COUNT_CEILING);
     expect(askCountViolations(scriptedWalk())).toEqual([]);
+  });
+});
+
+// Consequence 7's new entry (#125): "for every topic, instance, and gate
+// state, the copy helpers — given declared voicing and resolution state
+// — return the primary copy or the arrival frame for a partial arrival,
+// never a bare re-ask frame or an unprefixed bulk line." Unlike the
+// checks above, the defect this class guards against lives in askCopy()'s
+// OWN composition logic, not in any inventory data — so, matching
+// transcript-view.test.ts's scriptedFrames(render) proof for the
+// double-bubble class, the injected violation is an ALTERNATE compute
+// function reproducing the pre-#125 behavior, not a hand-built data
+// fixture.
+describe("rule 9's first-voicing property, over declared voicing and resolution state (#125)", () => {
+  // The exact pre-amendment askCopy() (ask.ts, before this unit): partial
+  // meant the bare re-ask frame, full stop — no voicedThisReport
+  // parameter existed to consult. Reproduced here as a plain function
+  // rather than imported, because ask.ts's real askCopy() is the fix and
+  // has no "old mode" switch to select.
+  const preAmendmentAskCopy = (ask: AuthoredAsk, record: AgendaRecord): string => {
+    const unresolved = ask.askFieldIds.filter((id) => record[id].state === "unasked");
+    if (unresolved.length === ask.askFieldIds.length) return ask.copy;
+    return reAskFrame(unresolvedFactNames(ask, record));
+  };
+
+  it("holds across every authored ask, at every partial state, both voicing states", () => {
+    expect(firstVoicingViolations()).toEqual([]);
+  });
+
+  it("goes red on the pre-#125 compute function — gate run #1, entry 1's exact defect", () => {
+    const found = firstVoicingViolations(preAmendmentAskCopy);
+    // Every partial-arrival state across every ask fires: the old
+    // function never looks at voicedThisReport at all.
+    expect(found.length).toBeGreaterThan(100);
+    // DV-1's own defect, named: "And the rest of the device details?"
+    // rendered as C4's first-ever utterance for that topic.
+    const dv1 = found.find((v) => v.source.startsWith("arrival:DV-1/"));
+    expect(dv1?.detail).toContain("never-voiced arrival");
+  });
+
+  it("goes red on a compute function that renders a bulk arrival line unprefixed", () => {
+    // A plausible half-fix: someone wires arrivalAsk in but forgets the
+    // "I've got {held}. " prefix rule 9 requires — the ask half alone,
+    // exactly the case the amendment calls out as still unacceptable
+    // ("never rendered bare: the held prefix is what gives 'the rest'
+    // its referent").
+    const bareBulkArrival = (ask: AuthoredAsk, record: AgendaRecord, voicedThisReport: boolean): string => {
+      const bulkFact = ask.facts?.find((f) => f.arrivalAsk !== undefined);
+      if (!voicedThisReport && bulkFact !== undefined) return bulkFact.arrivalAsk!;
+      return askCopy(ask, record, voicedThisReport);
+    };
+    const found = firstVoicingViolations(bareBulkArrival);
+    expect(found.some((v) => v.detail.includes("unprefixed"))).toBe(true);
+  });
+});
+
+// Rule 8's record-following bulk-dismiss name (#125), the same
+// injected-function shape as the first-voicing property above: the
+// defect lives in which name standaloneFactNamesFor() (ask-inventory.ts)
+// picks, not in any data a fixture could carry on its own.
+describe("rule 8's bulk-dismiss naming follows the record (#125)", () => {
+  // Pre-#125: standaloneName ("the rest of...") unconditionally, whether
+  // or not anything of the fact was on the record — the exact defect
+  // gate run #1 named: "a dismiss on RC-1 acknowledged 'the rest of your
+  // contact details' when nothing of the fact was on the record."
+  const preAmendmentDismissAck = (step: NextStep, action: "mark_unknown" | "decline"): string | undefined => {
+    if (step.kind !== "topic") return undefined;
+    const names = dismissableFieldIds(step).map((id) => {
+      const fact = step.ask.facts?.find((f) => f.fieldIds.includes(id));
+      return fact?.standaloneName ?? fact?.name ?? id;
+    });
+    const deduped = [...new Set(names)];
+    return deduped.length === 0 ? undefined : describeDismissal(deduped, action);
+  };
+
+  it("holds across all three bulk-mapped asks, untouched and partial", () => {
+    expect(bulkDismissNamingViolations()).toEqual([]);
+  });
+
+  it("goes red on the pre-#125 acknowledgment — always 'rest of', record or not", () => {
+    const found = bulkDismissNamingViolations(preAmendmentDismissAck);
+    // Both chips, all three bulk asks (RC-1, DV-1, SP-9, SP-9-2), on the
+    // untouched half only — the old function gets the partial half right
+    // by coincidence (standaloneName IS the correct "rest of" name once
+    // something is on the record), so only "untouched" sources fire.
+    expect(found.length).toBeGreaterThanOrEqual(8);
+    expect(found.every((v) => v.source.endsWith("/untouched"))).toBe(true);
+    expect(found.some((v) => v.detail.includes("nothing of the fact on the record"))).toBe(true);
   });
 });
 
