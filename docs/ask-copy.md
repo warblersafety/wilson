@@ -168,8 +168,11 @@ design conversation first.
    question, not one seventh of it, and the alternative — leaving the
    unnamed six `unasked` — re-asks the same question forever and shows
    six phantom gaps at Review. The bound is this rule's own reasoning,
-   stated at OC-1: *every one of them is voiced above, so no box is ever
-   written false unheard.* Which writes can trigger a completion is
+   and it takes one form per group kind (amended 2026-08-28, #126):
+   where the ask reads every member out loud, OC-1's *every one of them
+   is voiced above, so no box is ever written false unheard*; where
+   naming one member entails the rest, its counterpart — *none is ever
+   written false unentailed.* Which writes can trigger a completion is
    scoped per group kind below (amended 2026-08-28, #126); a
    volunteered member that does not qualify completes nothing, its
    group completing later when its ask voices it. An `unknown` or
@@ -197,8 +200,7 @@ design conversation first.
      validator-grounded member write the record accepts — the ask's
      own turn, a Read-back confirmation of a narrative proposal, or
      a rule-8 volunteered write (announced and correctable, as rule
-     8 provides; the completion, derived from that write, follows
-     any correction of it). A Read-back
+     8 provides). A Read-back
      confirmation is the clinician answering, not machinery
      guessing — proposals being confirmable before anything writes
      is the whole reason Read-back exists — so the "unheard"
@@ -208,6 +210,45 @@ design conversation first.
      the open-fields dialog read "sex: female — you didn't have
      it", and the walk re-asked a fact Read-back had just confirmed
      (gate run #1, C3 — entries 2 and 5).
+
+     **A write to an exclusive group is a write of the whole fact,
+     atomic (amended 2026-08-28, #126).** Rule 3 already holds that a
+     one-hot group is a fact's ONLY representation; this makes that
+     operational. The named member `"true"` and every sibling
+     `"false"` are one operation derived from one grounded quote —
+     never a member write that afterwards meets its siblings one at a
+     time. No member-level write survives to collide with an
+     already-resolved sibling, so the question of what completion does
+     when it meets one does not arise.
+
+     **The atomic write supersedes prior `unknown` and `declined`
+     member states.** Those recorded the fact before it was known or
+     while it was withheld, and the clinician has now stated it.
+     Superseding an absence of value is not the silent replacement the
+     follow-up sweep's invariant guards — that invariant protects
+     *stated* values. A clinician who dismissed PB-1 and later says
+     "he's male" ends with sex answered, not with `SexM: "true"`
+     beside a surviving `SexF: unknown`.
+
+     **A conflicting later statement is a correction of the fact, at
+     fact granularity.** Where a grounded statement conflicts with an
+     exclusive fact already answered, the sweep offers one correction
+     named by the fact — "You said female for sex — it's recorded as
+     male. Replace it?" — and accepting it rewrites the group
+     atomically. Member-level correction offers do not exist for
+     one-hot members: a per-field offer on `SexF`, accepted against an
+     answered `SexM`, is exactly how a report ends with both sex boxes
+     checked on an FDA-bound form.
+
+     **Naming the fact names the whole write.** design.md requires
+     every out-of-ask write to be named in that turn's visible reply.
+     For an exclusive fact, announcing its value — "Also noted —
+     therapy status: ongoing." — names the entire fact; the sibling
+     `"false"`s are that same fact's representation rather than
+     separate writes, so no per-member naming is owed. Recorded here
+     because it is an exemption to another file's rule; design.md
+     carries the mirror sentence.
+
    A multi-select whose options the ask does not enumerate completes
    nothing: PB-3 asks for "race or ethnicity" without naming its seven
    boxes, and they are not alternatives — Hispanic ethnicity is
