@@ -159,7 +159,14 @@ const C1: GateCase = {
   steps: [
     {
       kind: "type",
-      expectAsk: "Still need: patient identifier and sex",
+      // Amended 2026-08-28 (#125): AgeValue arrives pre-filled from the
+      // opening narrative ("61-year-old"), and this is the FIRST turn of
+      // the whole walk — PB-1's own first-ever utterance. Pre-#125 this
+      // rendered the bare re-ask frame, "Got it. Still need: patient
+      // identifier and sex." (gate run #1, entry 1's own quoted
+      // example). The fix is the arrival frame: what's already held,
+      // named, ahead of what's still needed.
+      expectAsk: "I've got age. Still need: patient identifier and sex.",
       message: "MRN 44-1902, and she's female.",
       candidates: [value(IDENT, "MRN 44-1902", "MRN 44-1902"), value(SEX_F, "true", "she's female")],
     },
@@ -178,7 +185,11 @@ const C1: GateCase = {
     { kind: "chip", expectAsk: "Anything else FDA should know", label: "I don't have that" },
     {
       kind: "type",
-      expectAsk: "Still need: strength and manufacturer",
+      // Amended 2026-08-28 (#125): same shape as PB-1 above, a second
+      // instance of the same class — SP-1's ProdNName arrives pre-filled
+      // ("amoxicillin-clavulanate"), and Section D is reached for the
+      // first time here.
+      expectAsk: "I've got product name. Still need: strength and manufacturer/compounder.",
       message: "875 mg tablets, made by Sandoz.",
       candidates: [value(P1_STRENGTH, "875 mg", "875 mg")],
     },
@@ -206,7 +217,15 @@ const C1: GateCase = {
     { kind: "chip", expectAsk: "Is the patient on other medications", label: "I don't have that" },
     { kind: "chip", expectAsk: "Is there another medication to add", label: "No" },
     { kind: "chip", expectAsk: "Your contact details for the report", label: "I don't have that" },
-    { kind: "chip", expectAsk: "Are you reporting as a health professional", label: "I don't have that" },
+    // Amended 2026-08-28 (#125): RC-1 is dismissed here UNTOUCHED —
+    // nothing of the contact-details fact is on the record yet. Rule 8's
+    // record-following name says that state is named plainly, "your
+    // contact details", not "the rest of your contact details" (gate run
+    // #1, entry 1's dismiss-acknowledgment half — quoted verbatim as
+    // this unit's own worked example). This is the reference case's own
+    // instance of a pattern repeated at every bare RC-1 dismiss across
+    // C1-C5.
+    { kind: "chip", expectAsk: "Marked your contact details as not on hand. Are you reporting as a health professional", label: "I don't have that" },
     { kind: "chip", expectAsk: "Two housekeeping items", label: "I don't have that" },
   ],
 };
@@ -427,8 +446,18 @@ const C4: GateCase = {
     { kind: "chip", expectAsk: "After stopping or reducing it", label: "I don't have that" },
     { kind: "chip", expectAsk: "Was it given again", label: "I don't have that" },
     { kind: "chip", expectAsk: "Where and when was it purchased", label: "I don't have that" },
-    { kind: "chip", expectAsk: "Was there another suspect product", label: "No" },
-    { kind: "chip", expectAsk: "And the rest of the device details", label: "I don't have that" },
+    // Amended 2026-08-28 (#125): SP-9 (purchase, gated) is dismissed here
+    // UNTOUCHED, same rule-8 pattern as RC-1's own dismiss in C1 above —
+    // the plain name, not "the rest of the purchase details".
+    { kind: "chip", expectAsk: "Marked the purchase details as not on hand. Was there another suspect product", label: "No" },
+    // Amended 2026-08-28 (#125): DV-1 arrives on this walk already
+    // partially resolved (the narrative's own "EpiPen" fills BrandName),
+    // and Section E's gate opens it only once — this IS DV-1's first-ever
+    // utterance. Pre-#125 this rendered the bare re-ask frame, "And the
+    // rest of the device details?", eight identifiers the clinician never
+    // saw (gate run #1, entry 1). The fix is the arrival frame: the held
+    // field named, then the bulk ask's own authored arrival line.
+    { kind: "chip", expectAsk: "I've got device brand name. What are the rest of the device details?", label: "I don't have that" },
     { kind: "chip", expectAsk: "Who was operating the device", label: "I don't have that" },
     { kind: "chip", expectAsk: "Two device-history checks", label: "I don't have that" },
     { kind: "chip", expectAsk: "Is the patient on other medications", label: "I don't have that" },

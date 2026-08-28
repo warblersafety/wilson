@@ -389,6 +389,17 @@ export function confirmReadBack(handoff: ReadBackHandoff, actions: ProposedActio
     transcript: [...handoff.session.transcript, { role: "clinician", text: handoff.narrative }],
     record,
     repeatCounts,
+    // Carried forward unchanged — this is a hand-built literal, not a
+    // spread of handoff.session, so a TalkSession field added after this
+    // one was written has to be named here explicitly or it silently
+    // resets on every Read-back confirm. That is exactly what happened:
+    // both fields were dropped until now (reviewer pass, PR #136, finding
+    // 7) — the identical shape to the processTurn bug this PR (#125)
+    // already fixed elsewhere (talk.ts). Benign today only by luck (no
+    // ask can have been voiced before Read-back confirms, and voiceStep()
+    // tolerates undefined), one field away from mattering.
+    volunteeredRepeats: handoff.session.volunteeredRepeats,
+    voicedAsks: handoff.session.voicedAsks,
   };
 }
 

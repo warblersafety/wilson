@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgendaRecord } from "./agenda";
 import { fieldById, FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
-import type { ProposedAction } from "./talk";
+import { applyProposedActions, type ProposedAction } from "./talk";
 import type { Topic } from "./topics";
 import { classifyFollowUpActions, describeDismissal, describeFollowUpSweep } from "./followup-sweep";
 import { syntheticAsk } from "./synthetic-topic";
@@ -194,6 +194,42 @@ describe("classifyFollowUpActions", () => {
       { fieldId: "c", action: { fieldId: "c", type: "answer", value: "new" }, currentState: "answered", currentValue: "old" },
     ]);
     expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
+  });
+
+  // Reviewer pass on PR #142, finding 2 (SHOULD-FIX): AskForm.tsx's
+  // accept handlers each carried forward only the ONE pending-offer
+  // channel they themselves resolve, silently dropping the other if
+  // both were pending in the same turn — worst case, accepting a
+  // collision chip made a same-turn "Replace date of event" correction
+  // offer vanish while the field stayed answered at the wrong value, a
+  // silent mis-fill the walk never re-asks about. This pins the
+  // classifier fact that fix depends on: the two channels are populated
+  // independently, over different fields, from one turn, with nothing
+  // written for either — so a handler carrying "the channel I didn't
+  // just resolve" forward untouched is always the right thing to do,
+  // never a stale echo of data that's since changed shape.
+  it("populates both channels from one turn: a correction offer for an answered field, a collision for an unasked one", () => {
+    const record = recordOf({ a: { state: "unasked" }, c: { state: "answered", value: "old" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "500 mg" },
+      { fieldId: "a", type: "answer", value: "875 mg" },
+      { fieldId: "c", type: "answer", value: "new" },
+    ];
+    const result = classifyFollowUpActions(actions, record, [], TOPICS);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toEqual([
+      { fieldId: "c", action: { fieldId: "c", type: "answer", value: "new" }, currentState: "answered", currentValue: "old" },
+    ]);
+    expect(result.collisions).toEqual([
+      {
+        fieldId: "a",
+        values: ["500 mg", "875 mg"],
+        actions: [
+          { fieldId: "a", type: "answer", value: "500 mg" },
+          { fieldId: "a", type: "answer", value: "875 mg" },
+        ],
+      },
+    ]);
   });
 
   it("returns empty result for an empty actions list", () => {
@@ -442,7 +478,22 @@ describe("describeFollowUpSweep", () => {
 
   it("phrases a collision as a clarifying question naming the field", () => {
     const result = describeFollowUpSweep(
-      { writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20"] }], volunteeredRepeatGroups: [] },
+      {
+        writes: [],
+        outOfAskWrites: [],
+        correctionOffers: [],
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+            ],
+          },
+        ],
+        volunteeredRepeatGroups: [],
+      },
       FIELDS,
     );
     expect(result).toContain("therapy stop date");
@@ -471,7 +522,16 @@ describe("describeFollowUpSweep", () => {
         correctionOffers: [
           { fieldId: STOP_DATE, action: { fieldId: STOP_DATE, type: "answer", value: "8/20" }, currentState: "answered", currentValue: "8/19" },
         ],
-        collisions: [{ fieldId: DESC, values: ["rash", "hives"] }],
+        collisions: [
+          {
+            fieldId: DESC,
+            values: ["rash", "hives"],
+            actions: [
+              { fieldId: DESC, type: "answer", value: "rash" },
+              { fieldId: DESC, type: "answer", value: "hives" },
+            ],
+          },
+        ],
         volunteeredRepeatGroups: ["concomitant-medication"],
       },
       FIELDS,
@@ -519,7 +579,19 @@ describe("rule 8's Patterns, rendered byte-for-byte", () => {
 
   it("collision: `I heard two values for {name}: {a} and {b} — which should I write?`", () => {
     const result = describeFollowUpSweep(
-      { ...empty, collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20"] }] },
+      {
+        ...empty,
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+            ],
+          },
+        ],
+      },
       FIELDS,
     );
     expect(result).toBe("I heard two values for therapy stop date: 8/19 and 8/20 — which should I write?");
@@ -542,7 +614,7 @@ describe("the collision reply quotes the values that collided (#109)", () => {
       { fieldId: "a", type: "answer", value: "8/20" },
     ];
     const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
-    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "8/20"] }]);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "8/20"], actions }]);
   });
 
   it("describes a mark_unknown/decline candidate the same way the correction offer does", () => {
@@ -552,7 +624,60 @@ describe("the collision reply quotes the values that collided (#109)", () => {
       { fieldId: "a", type: "mark_unknown" },
     ];
     const result = classifyFollowUpActions(actions, record, ["a"], TOPICS);
-    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "unknown"] }]);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["8/19", "unknown"], actions }]);
+  });
+
+  // Issue #124: a collision-choice chip writes through applyProposedActions
+  // — the SAME path any other answer takes (talk.ts) — so `actions` must
+  // carry the real candidate objects, not just their rendered strings.
+  it("carries each colliding candidate's own action, not just its rendered value", () => {
+    const record = recordOf({ a: { state: "unasked" } });
+    const first: ProposedAction = { fieldId: "a", type: "answer", value: "500 mg" };
+    const second: ProposedAction = { fieldId: "a", type: "answer", value: "875 mg" };
+    const result = classifyFollowUpActions([first, second], record, ["a"], TOPICS);
+    expect(result.collisions).toEqual([{ fieldId: "a", values: ["500 mg", "875 mg"], actions: [first, second] }]);
+    // Applying the SECOND candidate's own action is what a "875 mg" tap
+    // does — proven against applyProposedActions() directly in talk.test.ts
+    // (Issue #124 AC-4); this pins the data shape that write depends on.
+    expect(result.collisions[0].actions[1]).toBe(second);
+  });
+
+  // Issue #124 AC-4: C3's exact same-turn contradiction ("It was 500 mg —
+  // no, 875 mg.", round-gate.md/fixtures/gate/cases.ts) end to end —
+  // classification through the real write path, over the REAL manifest
+  // field id (not a synthetic "a"), with no model involved. Choosing the
+  // SECOND candidate is what tapping the "875 mg" chip does (AskForm.tsx's
+  // handleAcceptCollision, added by this unit): apply that one action
+  // through applyProposedActions(), the same write path every other
+  // answer takes (talk.ts).
+  it("AC-4: choosing 875 mg writes Prod1Strength — the real field the C3 collision is over", () => {
+    const PROD1_STRENGTH = "Page4.Prod1.Prod1Strength";
+    // Reviewer pass on PR #142, finding 5 (NIT): this test used to key
+    // its own hand-built record off this string literal and never
+    // checked it against the manifest — it would have passed just the
+    // same with a bogus id. Resolving it here first makes the test prove
+    // its own load-bearing half: the field this AC claims to be "the
+    // real field the C3 collision is over" actually exists.
+    expect(fieldById(PROD1_STRENGTH)).toBeDefined();
+    const record: AgendaRecord = { [PROD1_STRENGTH]: { state: "unasked" } };
+    const actions: ProposedAction[] = [
+      { fieldId: PROD1_STRENGTH, type: "answer", value: "500 mg" },
+      { fieldId: PROD1_STRENGTH, type: "answer", value: "875 mg" },
+    ];
+    const result = classifyFollowUpActions(actions, record, [PROD1_STRENGTH]);
+    // The turn writes neither — the collision, not a write, is the outcome.
+    expect(result.writes).toEqual([]);
+    const [collision] = result.collisions;
+    expect(collision.fieldId).toBe(PROD1_STRENGTH);
+    expect(collision.values).toEqual(["500 mg", "875 mg"]);
+
+    const chosen = collision.actions[1]; // the "875 mg" chip
+    const written = applyProposedActions(record, [chosen]);
+    expect(written[PROD1_STRENGTH]).toEqual({ state: "answered", value: "875 mg" });
+
+    // Ignoring it (never applying an action for this field) leaves the
+    // field exactly as open as it started — AC-2's second half.
+    expect(record[PROD1_STRENGTH]).toEqual({ state: "unasked" });
   });
 
   // Rule 8 authors the two-value sentence only. Three proposals for one
@@ -564,7 +689,17 @@ describe("the collision reply quotes the values that collided (#109)", () => {
   it("quotes all of them, and does not claim `two`, when three collided", () => {
     const result = describeFollowUpSweep(
       { writes: [], outOfAskWrites: [], correctionOffers: [], volunteeredRepeatGroups: [],
-        collisions: [{ fieldId: STOP_DATE, values: ["8/19", "8/20", "8/21"] }] },
+        collisions: [
+          {
+            fieldId: STOP_DATE,
+            values: ["8/19", "8/20", "8/21"],
+            actions: [
+              { fieldId: STOP_DATE, type: "answer", value: "8/19" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/20" },
+              { fieldId: STOP_DATE, type: "answer", value: "8/21" },
+            ],
+          },
+        ] },
       FIELDS,
     );
     expect(result).toBe("I heard 3 values for therapy stop date: 8/19, 8/20, and 8/21 — which should I write?");

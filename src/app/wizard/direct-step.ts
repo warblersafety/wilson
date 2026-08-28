@@ -24,23 +24,24 @@
 // - true: appends the recomputed reply as its own talker turn to the
 //   session this returns. A chip write (RepeatDecision's commit,
 //   AskForm's dismiss/correction-offer-accept) already appends its OWN
-//   clinician-side "question — answer" turn (widgetTurnText,
-//   chip-grammar.ts) to the session it passes in — but that turn quotes
-//   the PREVIOUS question, not the new one this call's nextStep()
-//   produces. Without also appending the new question, it exists only in
-//   the returned TalkStep.reply (shown in the widget above the
-//   composer), never in session.transcript — so if the clinician's next
-//   action is a typed answer (submitTurn appends only the clinician's
-//   own message, never the question it answers), the transcript shows
-//   that answer with no question above it (reviewer pass on PR #64).
-//   Accepted tradeoff: if the SAME question is instead answered by
-//   another chip tap, it now appears twice in the transcript — once bare
-//   (this turn's talker turn), once folded into that tap's own
-//   "question — answer" line — mild duplication, not a gap;
-//   widgetTurnText's format is frozen AC and unchanged by this.
+//   clinician-side, answer-only turn (widgetTurnText, chip-grammar.ts) to
+//   the session it passes in — but that turn answers the PREVIOUS
+//   question, not the new one this call's nextStep() produces. Without
+//   also appending the new question, it exists only in the returned
+//   TalkStep.reply (shown in the widget above the composer), never in
+//   session.transcript — so if the clinician's next action is a typed
+//   answer (submitTurn appends only the clinician's own message, never
+//   the question it answers), the transcript shows that answer with no
+//   question above it (reviewer pass on PR #64). Before Issue #123, this
+//   also had an accepted tradeoff — a SAME question instead answered by
+//   another chip tap appeared twice, once bare (this turn's talker
+//   turn) and once folded into that tap's own "question — answer" line;
+//   #123 removed the question from a chip tap's own turn entirely, so
+//   that tradeoff no longer applies — there is nothing left for the two
+//   turns to duplicate.
 import { askDeterministic } from "@/lib/ask";
 import { nextStep } from "@/lib/topics";
-import type { TalkSession, TalkStep } from "@/lib/talk";
+import { voiceStep, type TalkSession, type TalkStep } from "@/lib/talk";
 
 export interface StepForSessionOptions {
   // See the file header above. Default false: no talker turn appended.
@@ -68,8 +69,29 @@ export async function stepForSession(
   // it — see TalkStep.question for why a chip tap needs the unprefixed
   // form.
   const reply = options.replyPrefix ? `${options.replyPrefix} ${question}` : question;
-  const resultSession: TalkSession = options.appendReply
-    ? { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] }
-    : session;
+  // voiceStep() (talk.ts), same as respond()'s own tail, but ONLY on the
+  // appendReply:true path — a real chip write (RepeatDecision's commit,
+  // AskForm's dismiss/correction-offer-accept), the direct-write
+  // equivalent of a conversational turn. The appendReply:false path
+  // (reload-hydration, the review-stage reopen) must stay exactly as
+  // pure as it already was: this function's own "hydration safety"
+  // contract (direct-step.test.ts) requires the false branch return the
+  // SAME session reference, not an equal copy, so voiceStep() — which
+  // always allocates when it marks something — cannot run unconditionally
+  // here the way it does in talk.ts's respond(). That reference-safety
+  // claim is the load-bearing one. The idempotence claim that used to sit
+  // here is not true in general: not marking AGAIN in this call does not
+  // mean the session already reads as unvoiced — the mark may already be
+  // set, from the very turn that rendered the question now on screen —
+  // and askDeterministic (ask.ts:129) reads voicedAsks on every path,
+  // hydration included. For a partial-arrival ask that means a reload can
+  // recompute the ordinary re-ask frame against a stored transcript whose
+  // trailing turn is the arrival frame: two different strings, both
+  // rendered (#148; not fixed here).
+  let resultSession: TalkSession = session;
+  if (options.appendReply) {
+    const voiced = voiceStep(session, step);
+    resultSession = { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] };
+  }
   return { session: resultSession, reply, question, nextStep: step };
 }

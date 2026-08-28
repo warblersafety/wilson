@@ -36,6 +36,15 @@ export interface FieldCollision {
   // described the same way a correction offer describes one (so a
   // `mark_unknown` collides as "unknown", not as a missing slot).
   values: string[];
+  // The candidate behind each entry in `values`, same order/length — what
+  // choosing that value actually writes (Issue #124: one tap per
+  // colliding value, mirroring CorrectionOffer's own `action`). Kept
+  // alongside `values` rather than folded into one combined shape:
+  // `values` is what rule 8's narrated sentence quotes and is pinned by
+  // this module's own tests; this is what a chip's one-tap accept passes
+  // to applyProposedActions(), the same write path every other answer
+  // takes.
+  actions: ProposedAction[];
 }
 
 export interface FollowUpSweepResult {
@@ -116,7 +125,7 @@ export function classifyFollowUpActions(
   const singular: ProposedAction[] = [];
   for (const [fieldId, group] of byField) {
     if (group.length > 1) {
-      collisions.push({ fieldId, values: group.map(describeActionValue) });
+      collisions.push({ fieldId, values: group.map(describeActionValue), actions: group });
     } else {
       singular.push(group[0]);
     }
@@ -192,7 +201,13 @@ function correctionOfferSentence(offer: CorrectionOffer, fields: FormFieldSpec[]
 // the two-value sentence only — the numeral beyond it is this build's
 // answer to a case the contract does not cover, and the gap is filed
 // (warblersafety/wilson#113) rather than settled here.
-function collisionSentence(collision: FieldCollision, fields: FormFieldSpec[]): string {
+//
+// Exported (Issue #124) so a collision-choice chip's tap can quote the
+// SAME sentence into its own transcript turn — reusing rule 8's one
+// authored line rather than inventing a second, shorter paraphrase the
+// way the correction-offer chip's "Replace {name}?" does. Rule 8 doesn't
+// author a short form for this, so this build doesn't either.
+export function collisionSentence(collision: FieldCollision, fields: FormFieldSpec[]): string {
   const count = collision.values.length === 2 ? "two" : `${collision.values.length}`;
   const name = fieldOrId(collision.fieldId, fields);
   return `I heard ${count} values for ${name}: ${joinNames(collision.values)} — which should I write?`;

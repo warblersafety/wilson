@@ -32,7 +32,15 @@ import {
 import { askDeterministic } from "./ask";
 import { createExtractFnFrom } from "./extract";
 import { createScriptedProposeFn, type ExtractionScript } from "./scripted-extract";
-import { initTalkSession, processTurn, startTalk, applyProposedActions, type TalkSession, type TalkStep } from "./talk";
+import {
+  initTalkSession,
+  processTurn,
+  startTalk,
+  applyProposedActions,
+  voiceStep,
+  type TalkSession,
+  type TalkStep,
+} from "./talk";
 import { nextStep, setRepeatCount, type RepeatGroup } from "./topics";
 import { applyNarrativeProposals } from "./narrative-extract";
 import { repeatDecisionOptions } from "./chip-grammar";
@@ -139,7 +147,7 @@ export async function simulateCase(
         repeatCounts: setRepeatCount(step.session.repeatCounts, current.repeatGroup, count),
         transcript: [
           ...step.session.transcript,
-          { role: "clinician", text: widgetTurnText(step.question, cased.label ?? ""), source: "widget" },
+          { role: "clinician", text: widgetTurnText(cased.label ?? ""), source: "widget" },
         ],
       };
       step = await recompute(next);
@@ -169,7 +177,7 @@ export async function simulateCase(
       record: applyActionToFields(step.session.record, fieldIds, { type: action }),
       transcript: [
         ...step.session.transcript,
-        { role: "clinician", text: widgetTurnText(step.question, cased.label ?? ""), source: "widget" },
+        { role: "clinician", text: widgetTurnText(cased.label ?? ""), source: "widget" },
       ],
     };
     step = await recompute(next, prefix);
@@ -181,16 +189,26 @@ export async function simulateCase(
 
 // src/app/wizard/direct-step.ts's stepForSession, without the @/ import —
 // src/lib must not depend on src/app (tsconfig.node.json typechecks lib
-// with no DOM lib and no app paths). Kept to the same three lines rather
-// than abstracted into a shared helper: the app's copy carries the
-// appendReply contract this one does not need, and merging them would
-// drag that whole comment into lib for no gain.
+// with no DOM lib and no app paths). Kept to the same lines rather than
+// abstracted into a shared helper: the app's copy carries the
+// appendReply contract this one does not need — every caller here is a
+// simulated chip write (a repeat decision, a dismiss), never a reload,
+// so this always appends and always voices, unconditionally, the same
+// as stepForSession's own appendReply:true branch. voiceStep() (talk.ts)
+// marks whichever ask `step` names, so this simulator's OWN chip-driven
+// turns thread rule 9's first-voicing state (#125) the same way the
+// real app's chip components do — without it, a chip-answered ask that
+// arrives partial (SP-1's narrative-filled name, DV-1's narrative-filled
+// brand) would never register as voiced, and a LATER partial state of
+// the same ask would wrongly render a second arrival frame instead of
+// the ordinary re-ask.
 async function recompute(session: TalkSession, replyPrefix?: string): Promise<TalkStep> {
   const step = nextStep(session.record, session.repeatCounts);
   const question = await askDeterministic(step, session);
   const reply = replyPrefix ? `${replyPrefix} ${question}` : question;
+  const voiced = voiceStep(session, step);
   return {
-    session: { ...session, transcript: [...session.transcript, { role: "talker", text: reply }] },
+    session: { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] },
     reply,
     question,
     nextStep: step,

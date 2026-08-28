@@ -8,7 +8,7 @@
 import { applyAction, type AgendaRecord } from "./agenda";
 import { standaloneFactNamesFor } from "./ask-inventory";
 import type { FieldAction } from "./field-state";
-import { describeDismissal, type CorrectionOffer } from "./followup-sweep";
+import { describeDismissal, type CorrectionOffer, type FieldCollision } from "./followup-sweep";
 import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
 
 export interface RepeatDecisionOptions {
@@ -50,8 +50,19 @@ export function repeatDecisionOptions(
 // renders tapped answers as question/answer pairs rather than invented
 // speech, for the same reason: a machine-composed line must never read
 // as something the clinician said.
-export function widgetTurnText(question: string, answerLabel: string): string {
-  return `${question} — ${answerLabel}`;
+//
+// Issue #123: this used to take the question too, composing
+// `${question} — ${answerLabel}` — the talker's ask, spliced whole into
+// the clinician's own turn. Both turns are already on screen at once
+// (Transcript renders the talker turn, then the chip write appends this
+// one right after it), so quoting the question a second time only made
+// the clinician's half of the conversation read as a recitation of
+// wilson's own words — docs/mockups/screen-04.png's answer bubbles carry
+// only the answer. ux-floor.ts's clinicianEchoViolations() holds the
+// build to this: no clinician turn may contain its preceding talker turn
+// verbatim.
+export function widgetTurnText(answerLabel: string): string {
+  return answerLabel;
 }
 
 // The two dismiss chips' visible labels, and the action each writes.
@@ -145,6 +156,19 @@ export function remainingCorrectionOffers(
   acceptedFieldId: string,
 ): CorrectionOffer[] | undefined {
   const rest = (offers ?? []).filter((offer) => offer.fieldId !== acceptedFieldId);
+  return rest.length > 0 ? rest : undefined;
+}
+
+// AskForm's one-tap collision-choice accept (Issue #124), the exact same
+// concern as remainingCorrectionOffers() just above and for the same
+// reason: stepForSession()'s fresh TalkStep carries no collisions of its
+// own, so resolving one field's collision must not silently drop another
+// field's still-pending one if both happened to land in the same turn.
+export function remainingCollisions(
+  collisions: FieldCollision[] | undefined,
+  resolvedFieldId: string,
+): FieldCollision[] | undefined {
+  const rest = (collisions ?? []).filter((collision) => collision.fieldId !== resolvedFieldId);
   return rest.length > 0 ? rest : undefined;
 }
 

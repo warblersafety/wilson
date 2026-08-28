@@ -65,6 +65,7 @@ describe("the session bundle", () => {
       "record",
       "repeatCounts",
       "volunteeredRepeats",
+      "voicedAsks",
     ]);
   });
 
@@ -131,6 +132,28 @@ describe("the session bundle", () => {
     const bundle = buildSessionBundle(session, EXPORTED_AT);
     expect(bundle.volunteeredRepeats).toEqual({});
     expect(JSON.parse(serializeJson(bundle))).toHaveProperty("volunteeredRepeats");
+  });
+
+  // Reviewer pass, PR #136, finding 7: the bundle omitted voicedAsks
+  // entirely — #125's own new field, added to TalkSession by this same
+  // unit, dropped from the one surface built to answer "why did this
+  // render the arrival frame". A full scripted walk voices real asks, so
+  // this is not a vacuous equality against an empty object.
+  it("carries voicedAsks as they stand, the same way it carries volunteeredRepeats", async () => {
+    const session = await scriptedSession();
+    const bundle = buildSessionBundle(session, EXPORTED_AT);
+    expect(bundle.voicedAsks).toEqual(session.voicedAsks);
+    expect(Object.keys(bundle.voicedAsks).length).toBeGreaterThan(0);
+  });
+
+  // Same normalization as volunteeredRepeats above, and the same reason:
+  // a session that predates voicedAsks is still a valid TalkSession with
+  // it absent.
+  it("normalizes an absent voicedAsks to an empty object", () => {
+    const session: TalkSession = { ...initTalkSession(), voicedAsks: undefined };
+    const bundle = buildSessionBundle(session, EXPORTED_AT);
+    expect(bundle.voicedAsks).toEqual({});
+    expect(JSON.parse(serializeJson(bundle))).toHaveProperty("voicedAsks");
   });
 
   // The whole bundle survives a write/read cycle — the thing that

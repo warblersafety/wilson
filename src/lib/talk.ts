@@ -18,7 +18,7 @@
 // either lands, for no benefit today.
 import { type AgendaRecord, applyAction, initAgenda } from "./agenda";
 import type { FieldAction } from "./field-state";
-import type { CorrectionOffer } from "./followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "./followup-sweep";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   TOPICS,
@@ -61,10 +61,44 @@ export interface TalkSession {
   // convention as TalkTurn.source above: every session that predates
   // this field is still a valid TalkSession with it absent.
   volunteeredRepeats?: Partial<Record<RepeatGroup, true>>;
+  // ask-copy.md rule 9's first-voicing amendment (#125): which authored
+  // asks (by AuthoredAsk.id) have had their copy rendered at least once
+  // this report. Read by askDeterministic (src/lib/ask.ts) to choose
+  // between the primary/arrival copy and the ordinary re-ask frame for a
+  // partially-resolved ask, and written by voiceStep() below — never
+  // read or written any other way, so the two stay in agreement. "Voiced
+  // this report": intake state, cleared with the rest by "Start over"
+  // (C6's boundary) because that path always constructs a fresh session
+  // through initTalkSession(), never by editing this map in place.
+  // Optional and additive, same convention as volunteeredRepeats above.
+  voicedAsks?: Partial<Record<string, true>>;
 }
 
 export function initTalkSession(): TalkSession {
-  return { transcript: [], record: initAgenda(), repeatCounts: initRepeatCounts(), volunteeredRepeats: {} };
+  return {
+    transcript: [],
+    record: initAgenda(),
+    repeatCounts: initRepeatCounts(),
+    volunteeredRepeats: {},
+    voicedAsks: {},
+  };
+}
+
+// Marks the ask a just-computed NextStep voices as voiced for the rest
+// of this report (ask-copy.md rule 9, #125: "the arrival frame counts as
+// the ask's voicing"). Called from respond() below and from
+// stepForSession() (src/app/wizard/direct-step.ts) — every place that
+// computes a step's copy for display — so a later partial state of the
+// SAME ask, reached after this one (a further answer that still leaves
+// it open, or a re-derivation once more of it is on the record), renders
+// rule 9's ordinary re-ask frame instead of a second arrival frame.
+// A no-op for a repeat-decision or done step (neither is an ask) and for
+// an ask already marked, so callers can apply it unconditionally rather
+// than each re-deriving step.kind === "topic" first.
+export function voiceStep(session: TalkSession, step: NextStep): TalkSession {
+  if (step.kind !== "topic") return session;
+  if (session.voicedAsks?.[step.ask.id] === true) return session;
+  return { ...session, voicedAsks: { ...session.voicedAsks, [step.ask.id]: true } };
 }
 
 // `value` is only meaningful — and only accepted — for "answer", mirroring
@@ -116,6 +150,17 @@ export interface ExtractResult {
   // Issue #44: one-tap "replace it?" data for the UI (AskForm.tsx renders
   // a chip per offer). Ephemeral to this turn — see TalkStep below.
   correctionOffers?: CorrectionOffer[];
+  // Issue #124: one-tap-per-value data for the UI (AskForm.tsx renders a
+  // chip per colliding value, the way Read-back already offers one choice
+  // per candidate) — the pending-state channel a collision never had
+  // before this unit; classifyFollowUpActions() writes neither candidate,
+  // and until now nothing carried the values forward for a clinician to
+  // choose between. Ephemeral to this turn, same contract as
+  // correctionOffers above — see TalkStep below. Non-empty here is also
+  // what tells respond() (below) to suppress the ask's own next question
+  // rather than concatenate it after replyPrefix's collision sentence —
+  // see respond()'s own comment for why.
+  collisions?: FieldCollision[];
   // Issue #44: repeat groups a later-instance field was volunteered for
   // this turn — merged into TalkSession.volunteeredRepeats by
   // processTurn(), never into `actions` (no field or count is written).
@@ -155,15 +200,21 @@ export interface TalkStep {
   reply: string;
   // The ask alone, without whatever acknowledgment `reply` may have been
   // composed with (the sweep's prefix, a dismiss tap's rule-8 line). The
-  // transcript's talker turn carries the full `reply` — but a chip tap's
-  // own "question — answer" turn must quote only the QUESTION: it is a
-  // `role: "clinician"` turn, and folding a talker's acknowledgment into
-  // it attributes a machine-composed statement to the clinician, which
-  // chip-grammar.ts's widgetTurnText() exists to prevent. Before this
-  // field, two dismiss taps in a row produced "Marked age and sex as not
-  // on hand. What's the patient's weight…? — I don't have that" as
-  // something the clinician said (reviewer pass, #109/#110). Equal to
-  // `reply` whenever there is no prefix, which is most turns.
+  // transcript's talker turn carries the full `reply`. Added (reviewer
+  // pass, #109/#110) so a chip tap's own "question — answer" clinician
+  // turn could quote the bare question rather than `reply` — folding a
+  // talker's acknowledgment into a `role: "clinician"` turn attributes a
+  // machine-composed statement to the clinician, which this field existed
+  // to prevent; before it, two dismiss taps in a row produced "Marked age
+  // and sex as not on hand. What's the patient's weight…? — I don't have
+  // that" as something the clinician said. Issue #123 then removed the
+  // question from a chip tap's turn entirely (both bubbles are already on
+  // screen at once, so quoting either form only made the clinician's turn
+  // read as a recitation) — chip-grammar.ts's widgetTurnText() no longer
+  // consumes this field, though nothing else claimed it either, so it is
+  // left defined rather than removed as part of that unit (warblersafety/
+  // wilson, follow-up filed). Equal to `reply` whenever there is no
+  // prefix, which is most turns.
   question: string;
   nextStep: NextStep;
   // Issue #44: one-tap "replace it?" correction offers surfaced by THIS
@@ -176,6 +227,16 @@ export interface TalkStep {
   // either way, and the very next sweep re-proposes the same correction
   // fresh if the clinician repeats it.
   correctionOffers?: CorrectionOffer[];
+  // Issue #124: this turn's pending field collisions, one entry per
+  // colliding field, each carrying one tappable choice per candidate
+  // value (FieldCollision.actions). Same ephemeral contract as
+  // correctionOffers just above, for the same reason: not part of
+  // TalkSession, never persisted, nothing to reconcile if ignored — the
+  // field stays exactly as untouched as it is today (classifyFollowUpActions
+  // writes neither candidate), and a reload simply loses the two chips,
+  // never any data. A clinician who repeats the same contradiction gets
+  // the same collision fresh from the next sweep.
+  collisions?: FieldCollision[];
 }
 
 interface Deps {
@@ -196,18 +257,78 @@ interface Deps {
 // produced, so the transcript's talker turn always carries the FULL
 // reply (prefix and question together), never just the question with the
 // sweep's acknowledgment silently dropped.
+//
+// `pendingCollision` (Issue #124): true exactly when this turn's sweep
+// produced one or more field collisions (processTurn() below passes
+// `(result.collisions?.length ?? 0) > 0`). Rule 9's re-ask frame
+// (ask.ts's reAskFrame(), reached through deps.ask() below) says "Got
+// it" over exactly the facts still open on the CURRENT ask — and a
+// colliding field is exactly that: still open, nothing was written for
+// it. Concatenating the two ("<collision line> Got it. Still need:
+// <the same field again>") states the field is simultaneously an open
+// question and an acknowledged one, in the same bubble. So while a
+// collision is pending, the ask's own next question is suppressed
+// rather than concatenated — `replyPrefix` (which describeFollowUpSweep()
+// already ends with the collision's own line, ask-copy.md rule 8) is
+// shown alone, and `question` becomes that same shown text rather than
+// the unseen, deferred ask()'s own phrasing, so a widget tap that quotes
+// TalkStep.question (AskForm.tsx's dismiss chips) never quotes text the
+// clinician was never shown. The suppressed question is not lost, only
+// deferred: nextStep() is still computed against the real, unwritten
+// record, so the very next turn — whether the collision is accepted or
+// the ask is dismissed some other way — recomputes it fresh, exactly as
+// stepForSession() already does after a correction-offer accept
+// (direct-step.ts, #109/#110).
+//
+// Gated on `step.kind === "topic"` (reviewer pass on PR #142, finding
+// 1 — BLOCKING, fixed here): `collisions` has exactly one consumer,
+// AskForm.tsx, which renders a chip per colliding value only on a
+// topic step. A repeat-decision or `done` step has no chip to replace
+// the erased question with, and unconditional suppression erased it
+// from every place it would otherwise live: `reply` (what's shown on
+// screen above RepeatDecision's Yes/No chips) AND the transcript's own
+// talker turn (`respond()` always records `reply` there, below) — a
+// "No" tap would sit under a bare collision sentence with nothing on
+// screen and nothing in the transcript connecting it to "was there
+// another suspect product?" at all. (Before Issue #123 this also broke
+// a second way — RepeatDecision.tsx used to quote `question` into the
+// clinician's own tap turn too, so a wrong `question` value reached a
+// clinician-role transcript entry directly; #123 removed that specific
+// mechanism by making a chip tap's turn answer-only, but the erased-
+// reply/no-visible-question problem this gate fixes is independent of
+// it and survives untouched.) Narrowing the gate, rather than widening
+// chip rendering to other step kinds, is the deliberate choice: the
+// latter wants design. The accepted consequence is that on a non-topic
+// step a pending collision goes back to being concatenated with the
+// ask's own next question — the PRE-#124 behavior, unresolvable by any
+// chip there — restored on purpose rather than left erased. Filed as
+// the follow-up: warblersafety/wilson#151.
 async function respond(
   next: TalkSession,
   deps: Deps,
   replyPrefix?: string,
+  pendingCollision?: boolean,
 ): Promise<TalkStep> {
   const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
+  // deps.ask() reads `next`'s voicedAsks as it stood BEFORE this step —
+  // voiceStep() below only updates the session this function returns, so
+  // an ask's own first computation always sees itself as not-yet-voiced.
   const question = await deps.ask(step, next);
-  const reply = replyPrefix ? `${replyPrefix} ${question}` : question;
+  const suppressQuestion = pendingCollision && step.kind === "topic";
+  const reply = suppressQuestion ? (replyPrefix ?? question) : replyPrefix ? `${replyPrefix} ${question}` : question;
+  // Suppressed means the ask's own copy was computed but NOT uttered —
+  // `reply` carries only the collision sentence. Marking it voiced would
+  // make the NEXT turn render a re-ask frame ("Got it. Still need: ...")
+  // as that ask's first utterance, which is gate run #1's entry 1 — the
+  // exact defect unit #125 exists to remove. Voicing tracks what the
+  // clinician actually saw, so a suppressed question voices nothing.
+  // (Cross-unit: #124's gate and #125's voicing met for the first time
+  // in this merge; neither unit's own tests could have caught it.)
+  const voiced = suppressQuestion ? next : voiceStep(next, step);
   return {
-    session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
+    session: { ...voiced, transcript: [...voiced.transcript, { role: "talker", text: reply }] },
     reply,
-    question,
+    question: suppressQuestion ? reply : question,
     nextStep: step,
   };
 }
@@ -265,9 +386,20 @@ export async function processTurn(
       transcript: [...session.transcript, { role: "clinician", text: message }],
       repeatCounts,
       volunteeredRepeats,
+      // Carried forward unchanged — respond() below is what advances it
+      // (voiceStep(), for whatever step THIS call computes next). Built
+      // as a new object literal rather than `{ ...session, record, ... }`
+      // deliberately (pre-dates #125), which is exactly why this field
+      // was silently dropped here until now: every processTurn() call
+      // reset voicedAsks to undefined, so a re-ask frame anywhere past
+      // the FIRST typed turn of a session always read "never voiced" —
+      // making the whole session behave as if `respond()` had marked
+      // nothing, ever.
+      voicedAsks: session.voicedAsks,
     },
     deps,
     result.replyPrefix,
+    (result.collisions?.length ?? 0) > 0,
   );
-  return { ...step, correctionOffers: result.correctionOffers };
+  return { ...step, correctionOffers: result.correctionOffers, collisions: result.collisions };
 }
