@@ -220,7 +220,13 @@ design conversation first.
    justify. Patterns:
    - Out-of-ask write: `Also noted — {name}: {value}.`
    - Unknown/declined tap: `Marked {name} as not on hand.` /
-     `Marked {name} as declined.`
+     `Marked {name} as declined.` A bulk-mapped ask's `{name}`
+     depends on what preceded the tap (added 2026-08-28, #125):
+     after a partial answer the re-ask fact name is right — "Marked
+     the rest of your contact details as not on hand." — but an ask
+     given nothing has no "rest", and the acknowledgment names the
+     fact plainly: "your contact details" / "the device details" /
+     "the purchase details".
    - Correction offer: `You said {new} for {name} — it's recorded as
      {old}. Replace it?`
    - Collision: `I heard two values for {name}: {a} and {b} — which
@@ -257,6 +263,33 @@ design conversation first.
    your contact details?" · DV-1 "And the rest of the device details?"
    · SP-9 "And the rest of the purchase details?" No other ask changes;
    PB-1 still re-asks "And the sex?".
+   **First voicing, added 2026-08-28 (#125):** every frame above
+   presumes its primary ask was voiced this session, and the
+   machinery must not render one where it wasn't. A topic can reach
+   its turn already partially resolved — narrative extraction
+   confirmed at Read-back, or facts volunteered out-of-ask under
+   rule 8 — and on dev `7f8f1bd` the re-ask frames rendered there as
+   the topic's FIRST utterance: C4's entire device-identity ask was
+   "And the rest of the device details?", eight identifiers the
+   clinician never saw (gate run #1, entry 1). The rule: an ask
+   whose facts are all open is voiced through its primary copy,
+   always. An ask arriving with some facts resolved and some open is
+   voiced through the **arrival frame** — `I've got {resolved
+   names}. Still need: {open names}.` — which counts as the ask's
+   voicing; partial answers after it re-ask through the normal
+   frames above, and it inherits this rule's four-fact bound (which
+   holds: every ask outside the bulk trio names at most four facts).
+   The three bulk-mapped asks (RC-1, DV-1, SP-9) never use the
+   arrival frame: their single fact cannot split into resolved and
+   open names, and enumerating fields instead is the
+   recite-the-field-list failure this contract exists to remove. A
+   bulk ask arriving partially filled is voiced through its primary
+   copy — DV-1 and SP-9 already hedge ("as available", "if known"),
+   a clinician holding one member answers the rest naturally, and a
+   frame naming "the rest" of something never introduced is
+   unanswerable. Arrival frames are authored copy under rule 1 and
+   sit outside the primary-ask count with the rest of this rule's
+   strings.
 
 ## Inventory
 
@@ -560,7 +593,13 @@ total and the copy-equality check carries no exemptions:
    count equals this document's stated count and is ≤ 24; every field
    id this inventory names exists in the manifest and every manifest
    field carries a disposition; and a stated group-negative exports a
-   PDF printing neither "Unknown" nor any other sentinel.
+   PDF printing neither "Unknown" nor any other sentinel. Rule 9's
+   first-voicing rule joins the enumeration (#125): for every topic,
+   instance, and gate state, a partial arrival's first utterance is
+   the primary copy or the arrival frame — never a bare re-ask frame
+   or a bulk "rest of" line — and a bulk ask dismissed with nothing
+   given acknowledges its plain name, "rest of" only after a partial
+   answer.
 
 Deliberately NOT decided here (Steve's design conversation, informed by
 his staging test): #79 reopen granularity, #77 repeat-count revision,
