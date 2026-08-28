@@ -80,10 +80,29 @@ gate's falsifiability, not an exit from it.
    promotion PR when prepared. It **names the `dev` SHA it drove**,
    links `runs/gate/<SHA>/`, and answers every checklist entry with
    evidence (quotes, screenshots, counts). Two verdicts exist:
-   - **READY FOR STEVE** — no entry failing. **A READY verdict is
-     void the moment `dev` advances past its SHA** (any merge except
-     the promotion itself); the promotion PR's head must match the
-     verdict's SHA.
+   - **READY FOR STEVE** — no entry failing. A READY verdict names
+     the `dev` SHA it **drove**; once the run's own evidence PR
+     merges, the head that merge produces is recorded on the
+     verdict as its **evidence head** (the same motion that
+     repoints the verdict's evidence links to `dev`). The diff
+     between the two must be evidence alone —
+     `git diff --name-only <driven-SHA>..<evidence-head>` prints
+     paths under `runs/` only — and the session preparing the
+     promotion PR pastes that output on it beside the copied
+     verdict. That is how a READY verdict survives its own
+     required artifact (point 3 above) instead of deadlocking on
+     it (#129). Everything past the evidence head voids: **the
+     verdict is void the moment `dev` advances past its evidence
+     head** — product change or `runs/` housekeeping alike, so
+     committed evidence cannot be reshaped under a standing
+     verdict — and a promotion PR whose head no longer matches the
+     evidence head is void with it, whoever notices first; no
+     previously pasted output legitimizes merging from a moved
+     `dev`. Promotion PRs are prepared at promotion time and never
+     left standing, which keeps that window short. The prior
+     formulation's exception for "the promotion itself" is dropped
+     as unreachable — merging `dev → staging` does not advance
+     `dev`.
    - **NOT READY** — findings listed; each becomes new intake per
      CLAUDE.md's no-reopen rule; the gate reruns once the units
      addressing them merge. Steve is not pinged. **Escalation valve**:

@@ -27,9 +27,11 @@ refreshes it.
   promotion PR that Claude prepares — and unless the round-gate skip
   test passes (a mechanical diff-path test, [docs/round-gate.md](docs/round-gate.md)
   "When it runs", its output pasted on the PR), the promotion PR is
-  **not prepared at all until the gate's READY verdict is posted, and
-  its head must match the verdict's named `dev` SHA** — a verdict is
-  void once `dev` advances past it. The verdict is copied onto the
+  **not prepared at all until the gate's READY verdict is posted and
+  still standing, at the `dev` head the verdict records** —
+  [docs/round-gate.md](docs/round-gate.md)'s void rules alone decide
+  when a verdict stands and which head that is; this file
+  deliberately does not restate them. The verdict is copied onto the
   promotion PR once it exists. This gate binds `dev → staging`
   preparation only; `staging → main` copies the already-posted verdict
   forward, no new run. The same rules apply to every
