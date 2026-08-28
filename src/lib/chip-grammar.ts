@@ -50,8 +50,19 @@ export function repeatDecisionOptions(
 // renders tapped answers as question/answer pairs rather than invented
 // speech, for the same reason: a machine-composed line must never read
 // as something the clinician said.
-export function widgetTurnText(question: string, answerLabel: string): string {
-  return `${question} — ${answerLabel}`;
+//
+// Issue #123: this used to take the question too, composing
+// `${question} — ${answerLabel}` — the talker's ask, spliced whole into
+// the clinician's own turn. Both turns are already on screen at once
+// (Transcript renders the talker turn, then the chip write appends this
+// one right after it), so quoting the question a second time only made
+// the clinician's half of the conversation read as a recitation of
+// wilson's own words — docs/mockups/screen-04.png's answer bubbles carry
+// only the answer. ux-floor.ts's clinicianEchoViolations() holds the
+// build to this: no clinician turn may contain its preceding talker turn
+// verbatim.
+export function widgetTurnText(answerLabel: string): string {
+  return answerLabel;
 }
 
 // The two dismiss chips' visible labels, and the action each writes.

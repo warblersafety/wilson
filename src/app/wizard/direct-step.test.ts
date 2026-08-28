@@ -57,15 +57,15 @@ describe("stepForSession", () => {
     expect(opening.nextStep.kind).toBe("topic");
 
     // Simulate AskForm.handleDismiss's own write path exactly: dismiss the
-    // fields this ask actually phrased, append the widget "question —
-    // answer" turn, then recompute with appendReply: true.
+    // fields this ask actually phrased, append the widget's answer-only
+    // turn, then recompute with appendReply: true.
     const askedFieldIds = dismissableFieldIds(opening.nextStep);
     const dismissSession = {
       ...opening.session,
       record: applyActionToFields(opening.session.record, askedFieldIds, { type: "decline" as const }),
       transcript: [
         ...opening.session.transcript,
-        { role: "clinician" as const, text: widgetTurnText(opening.reply, "Rather not say"), source: "widget" as const },
+        { role: "clinician" as const, text: widgetTurnText("Rather not say"), source: "widget" as const },
       ],
     };
     const afterDismiss = await stepForSession(dismissSession, { appendReply: true });
@@ -133,13 +133,19 @@ function dismissEverything() {
   return out;
 }
 
-// Reviewer pass on #109/#110. A chip tap's own transcript entry is
-// `role: "clinician"` and quotes the question it answers. Once a dismiss
-// acknowledgment was composed INTO `reply`, quoting `reply` folded a
-// talker statement into the clinician's own words — and consecutive
-// dismiss taps are an ordinary session, not a corner: a clinician without
-// the patient's weight usually doesn't have their race/ethnicity either.
-// It also reaches unit #92's exported conversation bundle, so it lands on
+// Reviewer pass on #109/#110, and Issue #123. A chip tap's own transcript
+// entry is `role: "clinician"`. #109/#110 fixed it to quote the BARE
+// question (TalkStep.question) rather than the acknowledgment-prefixed
+// `reply` — quoting `reply` folded a talker statement ("Marked … as not
+// on hand.") into the clinician's own words. #123 goes further: the
+// clinician's turn quotes no part of the question at all, bare or
+// acknowledged, so that leak is now structurally impossible rather than
+// merely avoided — and consecutive dismiss taps are still worth testing
+// for the softer claim that remains: nothing the talker said, of any
+// kind, ever reaches the clinician's own turn. Consecutive dismiss taps
+// are an ordinary session, not a corner: a clinician without the
+// patient's weight usually doesn't have their race/ethnicity either. It
+// also reaches unit #92's exported conversation bundle, so it lands on
 // the record, not just the screen.
 //
 // Driven through AskForm.handleDismiss's exact composition rather than
@@ -154,7 +160,7 @@ describe("consecutive dismiss taps", () => {
       record: applyActionToFields(step.session.record, fieldIds, { type: "mark_unknown" }),
       transcript: [
         ...step.session.transcript,
-        { role: "clinician", text: widgetTurnText(step.question, "I don't have that"), source: "widget" },
+        { role: "clinician", text: widgetTurnText("I don't have that"), source: "widget" },
       ],
     };
     return stepForSession(nextSession, {
@@ -177,16 +183,19 @@ describe("consecutive dismiss taps", () => {
     expect(clinician.filter((turn) => turn.text.includes("Marked "))).toEqual([]);
   });
 
-  it("the clinician turn quotes the bare question, acknowledgment stripped", async () => {
+  it("the clinician turn carries only the chip's label — no question, bare or acknowledged", async () => {
     const opening = await startTalk(initTalkSession(), { ask: askDeterministic });
     const second = await tap(opening);
     const third = await tap(second);
 
     // The turn the second tap recorded answers the second ask — whose
-    // visible reply led with the FIRST tap's acknowledgment.
+    // visible reply led with the FIRST tap's acknowledgment. Before #123
+    // this mattered because the clinician turn quoted `.question`, never
+    // `.reply`, specifically to dodge that acknowledgment; now neither is
+    // quoted, so there is nothing left for the acknowledgment to leak into.
     expect(second.reply.startsWith("Marked ")).toBe(true);
     expect(second.question.startsWith("Marked ")).toBe(false);
     const recorded = third.session.transcript.filter((turn) => turn.role === "clinician").at(-1)!;
-    expect(recorded.text).toBe(`${second.question} — I don't have that`);
+    expect(recorded.text).toBe("I don't have that");
   });
 });
