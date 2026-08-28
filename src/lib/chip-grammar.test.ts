@@ -4,13 +4,14 @@
 import { describe, expect, it } from "vitest";
 import { initAgenda } from "./agenda";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
-import type { CorrectionOffer } from "./followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "./followup-sweep";
 import { initRepeatCounts, nextStep, TOPICS, type NextStep, type Topic } from "./topics";
 import {
   applyActionToFields,
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
+  remainingCollisions,
   remainingCorrectionOffers,
   repeatDecisionOptions,
   widgetTurnText,
@@ -176,6 +177,104 @@ describe("remainingCorrectionOffers", () => {
   it("is a no-op when the accepted id isn't among the given offers", () => {
     const offers = [offer("a"), offer("b")];
     expect(remainingCorrectionOffers(offers, "z")).toEqual(offers);
+  });
+});
+
+// Issue #124: the same same-turn-siblings concern remainingCorrectionOffers
+// solves above, for collisions — accepting one field's colliding value
+// must not silently drop another field's still-pending collision from the
+// same turn (stepForSession()'s fresh TalkStep carries neither kind of
+// its own).
+describe("remainingCollisions", () => {
+  function collision(fieldId: string): FieldCollision {
+    return {
+      fieldId,
+      values: [`${fieldId}-1`, `${fieldId}-2`],
+      actions: [
+        { fieldId, type: "answer", value: `${fieldId}-1` },
+        { fieldId, type: "answer", value: `${fieldId}-2` },
+      ],
+    };
+  }
+
+  it("drops only the resolved field's collision, keeping every other one from the same turn", () => {
+    const collisions = [collision("a"), collision("b"), collision("c")];
+    expect(remainingCollisions(collisions, "b")).toEqual([collision("a"), collision("c")]);
+  });
+
+  it("returns undefined, not an empty array, once resolving it empties the list", () => {
+    expect(remainingCollisions([collision("a")], "a")).toBeUndefined();
+  });
+
+  it("returns undefined for an undefined input list (no collisions this turn)", () => {
+    expect(remainingCollisions(undefined, "a")).toBeUndefined();
+  });
+
+  it("is a no-op when the resolved id isn't among the given collisions", () => {
+    const collisions = [collision("a"), collision("b")];
+    expect(remainingCollisions(collisions, "z")).toEqual(collisions);
+  });
+});
+
+// Reviewer pass on PR #142, finding 2 (SHOULD-FIX): both pending-offer
+// channels can be live in the same turn, and AskForm.tsx's three
+// handlers (accept-correction, accept-collision, dismiss) must each
+// carry BOTH forward — the one they just resolved (via the remaining*
+// helper above) AND the other, untouched. Before this fix each handler
+// spread only its own channel, so accepting one silently dropped
+// whatever was pending on the other — worst case, a same-turn
+// correction offer's chip vanishing while its field stayed answered at
+// the wrong value, which the walk then never re-asks about (it's
+// `answered`, not `unasked`). AskForm.tsx has no test harness (this repo
+// has no component tests at all), so this pins the composition at the
+// level reachable without one: the exact shape each handler now builds,
+// proving the two helpers never interfere with each other's list.
+describe("remainingCorrectionOffers and remainingCollisions carried together (Issue #142 reviewer pass, finding 2)", () => {
+  function offer(fieldId: string): CorrectionOffer {
+    return {
+      fieldId,
+      action: { fieldId, type: "answer", value: `value for ${fieldId}` },
+      currentState: "answered",
+      currentValue: `old value for ${fieldId}`,
+    };
+  }
+
+  function collision(fieldId: string): FieldCollision {
+    return {
+      fieldId,
+      values: [`${fieldId}-1`, `${fieldId}-2`],
+      actions: [
+        { fieldId, type: "answer", value: `${fieldId}-1` },
+        { fieldId, type: "answer", value: `${fieldId}-2` },
+      ],
+    };
+  }
+
+  it("accepting a correction offer (handleAcceptCorrection's shape) leaves a same-turn collision fully intact", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b"), collision("c")];
+    const next = {
+      correctionOffers: remainingCorrectionOffers(correctionOffers, "a"),
+      collisions, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ correctionOffers: undefined, collisions: [collision("b"), collision("c")] });
+  });
+
+  it("accepting a collision (handleAcceptCollision's shape) leaves a same-turn correction offer fully intact", () => {
+    const correctionOffers = [offer("a"), offer("b")];
+    const collisions = [collision("c")];
+    const next = {
+      collisions: remainingCollisions(collisions, "c"),
+      correctionOffers, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ collisions: undefined, correctionOffers: [offer("a"), offer("b")] });
+  });
+
+  it("dismissing (handleDismiss's shape) carries both channels forward untouched — a dismiss resolves neither", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b")];
+    const next = { correctionOffers, collisions };
+    expect(next).toEqual({ correctionOffers: [offer("a")], collisions: [collision("b")] });
   });
 });
 

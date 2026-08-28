@@ -18,7 +18,7 @@
 // either lands, for no benefit today.
 import { type AgendaRecord, applyAction, initAgenda } from "./agenda";
 import type { FieldAction } from "./field-state";
-import type { CorrectionOffer } from "./followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "./followup-sweep";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import {
   TOPICS,
@@ -116,6 +116,17 @@ export interface ExtractResult {
   // Issue #44: one-tap "replace it?" data for the UI (AskForm.tsx renders
   // a chip per offer). Ephemeral to this turn — see TalkStep below.
   correctionOffers?: CorrectionOffer[];
+  // Issue #124: one-tap-per-value data for the UI (AskForm.tsx renders a
+  // chip per colliding value, the way Read-back already offers one choice
+  // per candidate) — the pending-state channel a collision never had
+  // before this unit; classifyFollowUpActions() writes neither candidate,
+  // and until now nothing carried the values forward for a clinician to
+  // choose between. Ephemeral to this turn, same contract as
+  // correctionOffers above — see TalkStep below. Non-empty here is also
+  // what tells respond() (below) to suppress the ask's own next question
+  // rather than concatenate it after replyPrefix's collision sentence —
+  // see respond()'s own comment for why.
+  collisions?: FieldCollision[];
   // Issue #44: repeat groups a later-instance field was volunteered for
   // this turn — merged into TalkSession.volunteeredRepeats by
   // processTurn(), never into `actions` (no field or count is written).
@@ -182,6 +193,16 @@ export interface TalkStep {
   // either way, and the very next sweep re-proposes the same correction
   // fresh if the clinician repeats it.
   correctionOffers?: CorrectionOffer[];
+  // Issue #124: this turn's pending field collisions, one entry per
+  // colliding field, each carrying one tappable choice per candidate
+  // value (FieldCollision.actions). Same ephemeral contract as
+  // correctionOffers just above, for the same reason: not part of
+  // TalkSession, never persisted, nothing to reconcile if ignored — the
+  // field stays exactly as untouched as it is today (classifyFollowUpActions
+  // writes neither candidate), and a reload simply loses the two chips,
+  // never any data. A clinician who repeats the same contradiction gets
+  // the same collision fresh from the next sweep.
+  collisions?: FieldCollision[];
 }
 
 interface Deps {
@@ -202,18 +223,66 @@ interface Deps {
 // produced, so the transcript's talker turn always carries the FULL
 // reply (prefix and question together), never just the question with the
 // sweep's acknowledgment silently dropped.
+//
+// `pendingCollision` (Issue #124): true exactly when this turn's sweep
+// produced one or more field collisions (processTurn() below passes
+// `(result.collisions?.length ?? 0) > 0`). Rule 9's re-ask frame
+// (ask.ts's reAskFrame(), reached through deps.ask() below) says "Got
+// it" over exactly the facts still open on the CURRENT ask — and a
+// colliding field is exactly that: still open, nothing was written for
+// it. Concatenating the two ("<collision line> Got it. Still need:
+// <the same field again>") states the field is simultaneously an open
+// question and an acknowledged one, in the same bubble. So while a
+// collision is pending, the ask's own next question is suppressed
+// rather than concatenated — `replyPrefix` (which describeFollowUpSweep()
+// already ends with the collision's own line, ask-copy.md rule 8) is
+// shown alone, and `question` becomes that same shown text rather than
+// the unseen, deferred ask()'s own phrasing, so a widget tap that quotes
+// TalkStep.question (AskForm.tsx's dismiss chips) never quotes text the
+// clinician was never shown. The suppressed question is not lost, only
+// deferred: nextStep() is still computed against the real, unwritten
+// record, so the very next turn — whether the collision is accepted or
+// the ask is dismissed some other way — recomputes it fresh, exactly as
+// stepForSession() already does after a correction-offer accept
+// (direct-step.ts, #109/#110).
+//
+// Gated on `step.kind === "topic"` (reviewer pass on PR #142, finding
+// 1 — BLOCKING, fixed here): `collisions` has exactly one consumer,
+// AskForm.tsx, which renders a chip per colliding value only on a
+// topic step. A repeat-decision or `done` step has no chip to replace
+// the erased question with, and unconditional suppression erased it
+// from every place it would otherwise live: `reply` (what's shown on
+// screen above RepeatDecision's Yes/No chips) AND the transcript's own
+// talker turn (`respond()` always records `reply` there, below) — a
+// "No" tap would sit under a bare collision sentence with nothing on
+// screen and nothing in the transcript connecting it to "was there
+// another suspect product?" at all. (Before Issue #123 this also broke
+// a second way — RepeatDecision.tsx used to quote `question` into the
+// clinician's own tap turn too, so a wrong `question` value reached a
+// clinician-role transcript entry directly; #123 removed that specific
+// mechanism by making a chip tap's turn answer-only, but the erased-
+// reply/no-visible-question problem this gate fixes is independent of
+// it and survives untouched.) Narrowing the gate, rather than widening
+// chip rendering to other step kinds, is the deliberate choice: the
+// latter wants design. The accepted consequence is that on a non-topic
+// step a pending collision goes back to being concatenated with the
+// ask's own next question — the PRE-#124 behavior, unresolvable by any
+// chip there — restored on purpose rather than left erased. Filed as
+// the follow-up: warblersafety/wilson#151.
 async function respond(
   next: TalkSession,
   deps: Deps,
   replyPrefix?: string,
+  pendingCollision?: boolean,
 ): Promise<TalkStep> {
   const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
   const question = await deps.ask(step, next);
-  const reply = replyPrefix ? `${replyPrefix} ${question}` : question;
+  const suppressQuestion = pendingCollision && step.kind === "topic";
+  const reply = suppressQuestion ? (replyPrefix ?? question) : replyPrefix ? `${replyPrefix} ${question}` : question;
   return {
     session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
     reply,
-    question,
+    question: suppressQuestion ? reply : question,
     nextStep: step,
   };
 }
@@ -274,6 +343,7 @@ export async function processTurn(
     },
     deps,
     result.replyPrefix,
+    (result.collisions?.length ?? 0) > 0,
   );
-  return { ...step, correctionOffers: result.correctionOffers };
+  return { ...step, correctionOffers: result.correctionOffers, collisions: result.collisions };
 }

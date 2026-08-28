@@ -23,10 +23,11 @@ import {
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
+  remainingCollisions,
   remainingCorrectionOffers,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import type { CorrectionOffer } from "@/lib/followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -105,15 +106,27 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(
-        await stepForSession(nextSession, {
-          appendReply: true,
-          // ask-copy.md rule 8 (#110). Named from the same step the
-          // `fieldIds` above came from, so the sentence names exactly the
-          // facts this tap resolved.
-          replyPrefix: dismissAcknowledgment(current.nextStep, action),
-        }),
-      );
+      const nextStepResult = await stepForSession(nextSession, {
+        appendReply: true,
+        // ask-copy.md rule 8 (#110). Named from the same step the
+        // `fieldIds` above came from, so the sentence names exactly the
+        // facts this tap resolved.
+        replyPrefix: dismissAcknowledgment(current.nextStep, action),
+      });
+      onSubmitted({
+        ...nextStepResult,
+        // Reviewer pass on PR #142, finding 2: stepForSession()'s fresh
+        // TalkStep carries neither pending-offer channel of its own — a
+        // dismiss tap writes only the CURRENT ask's own fieldIds, never
+        // a correctionOffer's or collision's field (those always name
+        // OTHER fields this turn's sweep found extra evidence for), so
+        // both channels are exactly as pending after the tap as they
+        // were before it and must be carried forward untouched, the same
+        // way handleAcceptCorrection/handleAcceptCollision below carry
+        // forward whichever channel they did NOT just resolve.
+        correctionOffers: current.correctionOffers,
+        collisions: current.collisions,
+      });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
@@ -158,6 +171,71 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       onSubmitted({
         ...nextStepResult,
         correctionOffers: remainingCorrectionOffers(current.correctionOffers, offer.fieldId),
+        // Reviewer pass on PR #142, finding 2: a same-turn collision
+        // names a DIFFERENT field than the offer just accepted
+        // (classifyFollowUpActions() puts each field in at most one of
+        // the two channels), so it is untouched by this accept and must
+        // be carried forward as-is — without this, accepting a
+        // correction offer used to silently drop every pending collision
+        // chip, even though none of them was acted on.
+        collisions: current.collisions,
+      });
+    } catch (err) {
+      setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
+    } finally {
+      setIsDismissing(false);
+      onPendingChange?.(false);
+    }
+  }
+
+  // One-tap collision resolution (Issue #124 AC-1/AC-2), the same shape as
+  // handleAcceptCorrection above: a deterministic write through the
+  // normal path (applyProposedActions), recorded in the transcript, one
+  // tap. `index` selects which of `collision.values`/`collision.actions`
+  // was tapped — chip labels ARE the values themselves (mirroring
+  // Read-back's own collision radios and the correction-offer chip's
+  // field label), so the tap already tells us which one without asking
+  // the clinician to disambiguate a second time. remainingCollisions()
+  // carries the turn's other, still-unresolved collisions forward,
+  // mirroring remainingCorrectionOffers() just above and for the same
+  // reason (reviewer pass on PR #64): stepForSession()'s fresh step has
+  // none of its own.
+  async function handleAcceptCollision(collision: FieldCollision, index: number) {
+    setError(null);
+    setIsDismissing(true);
+    onPendingChange?.(true);
+    try {
+      const nextSession: TalkSession = {
+        ...current.session,
+        record: applyProposedActions(current.session.record, [collision.actions[index]]),
+        transcript: [
+          ...current.session.transcript,
+          // Issue #123 (dev merged in after this handler was first
+          // written, during the reviewer-pass follow-up on PR #142): no
+          // collisionSentence() prefix — rule 8's own line is already on
+          // screen as part of current.reply (describeFollowUpSweep()
+          // puts every pending collision's sentence there), so quoting
+          // it again into the clinician's own tap would be the same
+          // recitation #123 removed from handleDismiss/
+          // handleAcceptCorrection above. The tapped value is the whole
+          // answer.
+          { role: "clinician", text: widgetTurnText(collision.values[index]), source: "widget" },
+        ],
+      };
+      const nextStepResult = await stepForSession(nextSession, { appendReply: true });
+      onSubmitted({
+        ...nextStepResult,
+        collisions: remainingCollisions(current.collisions, collision.fieldId),
+        // Reviewer pass on PR #142, finding 2 (SHOULD-FIX, the worst-case
+        // direction): without this, accepting a collision chip silently
+        // dropped every pending correction-offer chip too — e.g. the
+        // "Replace date of event" chip vanishing while EventDate stayed
+        // `answered` at the wrong value, which the walk then never
+        // re-asks about (it isn't `unasked`). A same-turn correction
+        // offer names a different field than the collision just
+        // resolved, so it carries forward untouched, mirroring
+        // handleAcceptCorrection above.
+        correctionOffers: current.correctionOffers,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
@@ -183,6 +261,27 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
               />
             );
           })}
+        </div>
+      )}
+      {current.collisions && current.collisions.length > 0 && (
+        <div className="ask-form__collisions">
+          {current.collisions.map((collision) => (
+            <div
+              key={collision.fieldId}
+              className="ask-form__collision-group"
+              role="group"
+              aria-label={`Choose a value for ${displayNameFor(collision.fieldId)}`}
+            >
+              {collision.values.map((value, index) => (
+                <Chip
+                  key={index}
+                  label={value}
+                  disabled={busy}
+                  onClick={() => void handleAcceptCollision(collision, index)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       )}
       <textarea

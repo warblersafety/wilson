@@ -600,6 +600,21 @@ h3 {
   gap: var(--space-3);
 }
 
+/* Issue #124: one group per colliding field, one chip per candidate
+   value — stacked when more than one field collides in the same turn,
+   wrapped within each field's own row. */
+.ask-form__collisions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ask-form__collision-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 .ask-form__hint {
   margin: 0;
   color: var(--text-subtle);
