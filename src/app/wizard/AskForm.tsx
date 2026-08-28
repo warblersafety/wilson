@@ -27,8 +27,7 @@ import {
   remainingCorrectionOffers,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import { FORM_3500_FIELDS } from "@/lib/form-3500-fields";
-import { collisionSentence, type CorrectionOffer, type FieldCollision } from "@/lib/followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -196,28 +195,31 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
   // was tapped — chip labels ARE the values themselves (mirroring
   // Read-back's own collision radios and the correction-offer chip's
   // field label), so the tap already tells us which one without asking
-  // the clinician to disambiguate a second time. The transcript quotes
-  // collisionSentence() — rule 8's own authored line, unchanged by this
-  // unit — rather than current.question: with two collisions pending in
-  // the same turn (rare, but classifyFollowUpActions() doesn't rule it
-  // out), current.question covers whichever text was shown for the WHOLE
-  // turn, not this one field's own question. remainingCollisions() carries
-  // the turn's other, still-unresolved collisions forward, mirroring
-  // remainingCorrectionOffers() just above and for the same reason
-  // (reviewer pass on PR #64): stepForSession()'s fresh step has none of
-  // its own.
+  // the clinician to disambiguate a second time. remainingCollisions()
+  // carries the turn's other, still-unresolved collisions forward,
+  // mirroring remainingCorrectionOffers() just above and for the same
+  // reason (reviewer pass on PR #64): stepForSession()'s fresh step has
+  // none of its own.
   async function handleAcceptCollision(collision: FieldCollision, index: number) {
     setError(null);
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const question = collisionSentence(collision, FORM_3500_FIELDS);
       const nextSession: TalkSession = {
         ...current.session,
         record: applyProposedActions(current.session.record, [collision.actions[index]]),
         transcript: [
           ...current.session.transcript,
-          { role: "clinician", text: widgetTurnText(question, collision.values[index]), source: "widget" },
+          // Issue #123 (dev merged in after this handler was first
+          // written, during the reviewer-pass follow-up on PR #142): no
+          // collisionSentence() prefix — rule 8's own line is already on
+          // screen as part of current.reply (describeFollowUpSweep()
+          // puts every pending collision's sentence there), so quoting
+          // it again into the clinician's own tap would be the same
+          // recitation #123 removed from handleDismiss/
+          // handleAcceptCorrection above. The tapped value is the whole
+          // answer.
+          { role: "clinician", text: widgetTurnText(collision.values[index]), source: "widget" },
         ],
       };
       const nextStepResult = await stepForSession(nextSession, { appendReply: true });

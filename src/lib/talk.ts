@@ -250,19 +250,25 @@ interface Deps {
 // 1 — BLOCKING, fixed here): `collisions` has exactly one consumer,
 // AskForm.tsx, which renders a chip per colliding value only on a
 // topic step. A repeat-decision or `done` step has no chip to replace
-// the erased question with — and RepeatDecision.tsx quotes `question`
-// into a clinician-role transcript turn, so suppressing it there used
-// to delete the repeat question from the reply, the transcript, AND
-// that quote, leaving it nowhere and letting a "No" tap answer a
-// question the clinician never saw (the exact clinician-role
-// misattribution harm class unit #123 closed, reopened through this
-// path). Narrowing the gate, rather than widening chip rendering to
-// other step kinds, is the deliberate choice: the latter wants design.
-// The accepted consequence is that on a non-topic step a pending
-// collision goes back to being concatenated with the ask's own next
-// question — the PRE-#124 behavior, unresolvable by any chip there —
-// restored on purpose rather than left erased. Filed as the follow-up:
-// warblersafety/wilson#151.
+// the erased question with, and unconditional suppression erased it
+// from every place it would otherwise live: `reply` (what's shown on
+// screen above RepeatDecision's Yes/No chips) AND the transcript's own
+// talker turn (`respond()` always records `reply` there, below) — a
+// "No" tap would sit under a bare collision sentence with nothing on
+// screen and nothing in the transcript connecting it to "was there
+// another suspect product?" at all. (Before Issue #123 this also broke
+// a second way — RepeatDecision.tsx used to quote `question` into the
+// clinician's own tap turn too, so a wrong `question` value reached a
+// clinician-role transcript entry directly; #123 removed that specific
+// mechanism by making a chip tap's turn answer-only, but the erased-
+// reply/no-visible-question problem this gate fixes is independent of
+// it and survives untouched.) Narrowing the gate, rather than widening
+// chip rendering to other step kinds, is the deliberate choice: the
+// latter wants design. The accepted consequence is that on a non-topic
+// step a pending collision goes back to being concatenated with the
+// ask's own next question — the PRE-#124 behavior, unresolvable by any
+// chip there — restored on purpose rather than left erased. Filed as
+// the follow-up: warblersafety/wilson#151.
 async function respond(
   next: TalkSession,
   deps: Deps,
