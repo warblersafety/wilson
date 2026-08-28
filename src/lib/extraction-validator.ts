@@ -175,7 +175,13 @@ export const PUNCT_CHARS = "[.,!?;:'\"’‘“”—–…-]";
 // context-sensitive casing (e.g. Greek final sigma) and handles
 // surrogate-pair (astral-plane) characters, neither of which a
 // character-by-character version gets right (reviewer pass, finding).
-function normalize(text: string): string {
+//
+// Exported so derive.ts's text-ask-negative matcher (rule 7's other
+// half, Issue #121) normalizes a clinician's raw message against the
+// SAME rules a candidate's own grounding already uses, one
+// normalization rather than a second hand-rolled copy that could drift
+// from what "the clinician's own words" means here.
+export function normalize(text: string): string {
   return text
     .normalize("NFKC")
     .toLowerCase()

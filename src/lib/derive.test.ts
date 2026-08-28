@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import { AUTHORED_ASKS, factCompletesFromOne, unresolvedAskFieldIds } from "./ask-inventory";
 import { fieldById } from "./form-3500-fields";
-import { deriveCompanionWrites } from "./derive";
+import { deriveCompanionWrites, isClearTextAskNegative, textAskNegativeWrite } from "./derive";
 import type { ProposedAction } from "./talk";
 import { TOPICS, type NextStep } from "./topics";
 
@@ -238,5 +238,86 @@ describe("what the derive pass leaves to the model", () => {
     ]);
     expect(derived.map((d) => d.fieldId)).not.toContain(SEX_M);
     expect(derived.map((d) => d.fieldId)).not.toContain(SEX_F);
+  });
+});
+
+// Issue #121 / rule 7's other half: a clear "none"/"nothing" answer to
+// MH-1, LD-1, or AC-1 writes the literal "None", answered — never
+// mark_unknown. Paired both directions per #90's own convention (this
+// file's header comment): a negative that matters as much as its
+// positive.
+const OTHER_HISTORY = "Page3.Sec6Data.OtherHistory";
+const TEST_DATA_1 = "Page3.TestDataTable.Row1.TestData1";
+const ADDITIONAL_COMMENTS = "Page3.AdditionalComments";
+
+describe("the text-ask negative — rule 7's other half", () => {
+  it("MH-1's clear negative writes the literal None, answered", () => {
+    expect(textAskNegativeWrite(stepFor("MH-1"), "no relevant history")).toEqual({
+      fieldId: OTHER_HISTORY,
+      type: "answer",
+      value: "None",
+    });
+  });
+
+  it("LD-1's clear negative writes the literal None, answered", () => {
+    expect(textAskNegativeWrite(stepFor("LD-1"), "none")).toEqual({
+      fieldId: TEST_DATA_1,
+      type: "answer",
+      value: "None",
+    });
+  });
+
+  it("AC-1's clear negative writes the literal None, answered", () => {
+    expect(textAskNegativeWrite(stepFor("AC-1"), "nothing else to add")).toEqual({
+      fieldId: ADDITIONAL_COMMENTS,
+      type: "answer",
+      value: "None",
+    });
+  });
+
+  it("matches case- and punctuation-insensitively, the same normalization grounding already uses", () => {
+    expect(textAskNegativeWrite(stepFor("AC-1"), "  Nothing Else To Add.  ")).toEqual({
+      fieldId: ADDITIONAL_COMMENTS,
+      type: "answer",
+      value: "None",
+    });
+  });
+
+  // Rule 7's own boundary: a mark_unknown on genuine "I don't have that
+  // information" is a different statement from "none", and must still
+  // resolve unknown — this function must stand aside, not force it.
+  it("does not fire on ignorance phrasing — that stays unknown, not None", () => {
+    expect(textAskNegativeWrite(stepFor("MH-1"), "I don't have that information")).toBeNull();
+    expect(textAskNegativeWrite(stepFor("MH-1"), "I don't know")).toBeNull();
+    expect(textAskNegativeWrite(stepFor("LD-1"), "not sure")).toBeNull();
+  });
+
+  // The boundary called out by name: content riding along with a
+  // negative-shaped opener carries real information "None" would erase.
+  // Full-string match only, never a substring/prefix match.
+  it("does not fire on a negative that carries real content past it", () => {
+    expect(textAskNegativeWrite(stepFor("MH-1"), "no relevant history of cardiac issues")).toBeNull();
+  });
+
+  it("is bounded to MH-1/LD-1/AC-1 — the same clear negative elsewhere does not fire", () => {
+    expect(textAskNegativeWrite(stepFor("PB-1"), "none")).toBeNull();
+  });
+
+  it("does not fire outside a topic step", () => {
+    expect(textAskNegativeWrite({ kind: "done" }, "none")).toBeNull();
+  });
+});
+
+describe("isClearTextAskNegative", () => {
+  it("matches the bounded set", () => {
+    for (const text of ["none", "no", "nothing", "nothing else", "nothing to add"]) {
+      expect(isClearTextAskNegative(text)).toBe(true);
+    }
+  });
+
+  it("rejects ignorance and free text alike", () => {
+    for (const text of ["I don't know", "not sure", "no relevant history of cardiac issues", "penicillin"]) {
+      expect(isClearTextAskNegative(text)).toBe(false);
+    }
   });
 });
