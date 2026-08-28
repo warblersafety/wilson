@@ -28,8 +28,10 @@ refreshes it.
   test passes (a mechanical diff-path test, [docs/round-gate.md](docs/round-gate.md)
   "When it runs", its output pasted on the PR), the promotion PR is
   **not prepared at all until the gate's READY verdict is posted, and
-  its head must match the verdict's named `dev` SHA** — a verdict is
-  void once `dev` advances past it. The verdict is copied onto the
+  its head must be a `dev` head that verdict survives** — void rules
+  in [docs/round-gate.md](docs/round-gate.md): any advance past the
+  verdict's named SHA voids it unless the diff is `runs/`-only (the
+  run's own evidence commit). The verdict is copied onto the
   promotion PR once it exists. This gate binds `dev → staging`
   preparation only; `staging → main` copies the already-posted verdict
   forward, no new run. The same rules apply to every

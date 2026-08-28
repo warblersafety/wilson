@@ -81,9 +81,21 @@ gate's falsifiability, not an exit from it.
    links `runs/gate/<SHA>/`, and answers every checklist entry with
    evidence (quotes, screenshots, counts). Two verdicts exist:
    - **READY FOR STEVE** — no entry failing. **A READY verdict is
-     void the moment `dev` advances past its SHA** (any merge except
-     the promotion itself); the promotion PR's head must match the
-     verdict's SHA.
+     void the moment `dev` advances past its SHA carrying anything
+     but the run's own evidence** (the promotion itself excepted, as
+     before). The survival test is mechanical, no judgment:
+     `git diff --name-only <verdict-SHA>..dev` must print paths
+     under `runs/` alone — one path outside `runs/`, gate-relevant
+     or not, and the verdict is void. That is deliberately stricter
+     than the skip test's gate-relevant list, which is
+     known-incomplete (#120). The carve-out exists because the
+     verdict's own required artifact is a commit (point 3 above):
+     without it, committing a READY run's evidence would void the
+     verdict it substantiates, and the first READY run deadlocks
+     (#129). Evidence is not product; everything else is treated as
+     if it were. The promotion PR's head must be a `dev` head the
+     verdict survives, and the survival test's output is pasted on
+     the promotion PR beside the verdict.
    - **NOT READY** — findings listed; each becomes new intake per
      CLAUDE.md's no-reopen rule; the gate reruns once the units
      addressing them merge. Steve is not pinged. **Escalation valve**:
