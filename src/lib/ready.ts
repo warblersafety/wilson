@@ -13,6 +13,7 @@
 // leaving it to a manual note a future edit could quietly drift past.
 import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { PDF_COPY } from "./review";
 
 export interface ReadyCounts {
   answered: number;
@@ -67,6 +68,13 @@ export function formatReadyCounts(counts: ReadyCounts): string {
 //     one would be new scope past the frozen AC.
 export const READY_COPY = {
   heading: "Report ready.",
+  // Shown instead of `heading` while PDF generation has failed (Issue
+  // #128, AC-1: the surface must not claim the report is ready — meaning
+  // the PDF is in hand — while it demonstrably is not). Deliberately
+  // parallel to `heading` rather than a new voice: "ready" (a claim about
+  // the PDF) becomes "signed off" (a claim about the record, which stays
+  // true regardless of what the export request did).
+  failureHeading: "Report signed off.",
   subhead:
     "Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.",
   formLabel: "Form",
@@ -81,6 +89,83 @@ export const READY_COPY = {
   // would do.
   storage: "wilson stores nothing on its own servers — this download is your copy.",
 } as const;
+
+// The Ready surface's PDF-generation status (Issue #128) — structurally
+// identical to usePdfExport's own PdfExportStatus
+// (src/app/intake/use-pdf-export.ts), declared locally rather than
+// imported: src/lib is typechecked without the DOM lib
+// (tsconfig.node.json), so this file cannot import anything under
+// src/app, and a plain string-literal union needs no shared name to
+// type-check against the hook's own `status` field at the call site.
+export type PdfGenerationStatus = "loading" | "ready" | "error";
+
+// The Ready surface's whole rendering decision for a given generation
+// status, kept out of Ready.tsx so the one-state-at-a-time contract is
+// provable under vitest's node environment (ready.test.ts) rather than
+// only by reading the component. Ready.tsx is a thin switch over this —
+// it calls readySurfaceView(pdf.status) once and reads nothing else off
+// pdf.status directly — so what this function returns is what actually
+// renders, not a parallel claim about it.
+export interface ReadySurfaceView {
+  state: "attempting" | "succeeded" | "failed";
+  // The surface's H1. Never READY_COPY.heading while `state` is "failed"
+  // — that is AC-1's whole rule, made structural rather than a convention
+  // a future edit could quietly violate.
+  heading: string;
+  // The checkmark. Withheld on failure along with the heading it
+  // decorates — a success glyph over a failure notice is the same
+  // over-claim in a different form.
+  showMark: boolean;
+  // Whether the Download CTA renders AT ALL. False on failure: an earlier
+  // version left it in place merely disabled, but a prominent CTA next to
+  // "generation failed" reads as offered regardless of the attribute
+  // (Issue #128, finding 1's second half) — failure gets the retry
+  // button instead, not a greyed-out sibling of the one that didn't work.
+  showDownload: boolean;
+  // Whether the (rendered) Download CTA is clickable. Only true once
+  // bytes are actually in hand.
+  downloadEnabled: boolean;
+  // The "Generating the PDF…" status line — attempting only.
+  showGenerating: boolean;
+  // PDF_COPY.failure while failed, null otherwise — the one place this
+  // surface's failure copy is decided, so success can never render it as
+  // a stale remnant of a prior attempt.
+  failureMessage: string | null;
+}
+
+export function readySurfaceView(pdfStatus: PdfGenerationStatus): ReadySurfaceView {
+  if (pdfStatus === "error") {
+    return {
+      state: "failed",
+      heading: READY_COPY.failureHeading,
+      showMark: false,
+      showDownload: false,
+      downloadEnabled: false,
+      showGenerating: false,
+      failureMessage: PDF_COPY.failure,
+    };
+  }
+  const succeeded = pdfStatus === "ready";
+  return {
+    // "attempting" while loading, whether this is the first request or a
+    // retry — usePdfExport re-runs the same effect either way (retry()
+    // just bumps the `attempt` dependency), so there is only one loading
+    // state to model, not a separate "retrying" one.
+    state: succeeded ? "succeeded" : "attempting",
+    // Truthful before generation succeeds, not only after (implementation
+    // guidance for Issue #128): the record IS signed off from the moment
+    // this surface is reached, whether or not the PDF bytes have arrived
+    // — AC-1 scopes the no-ready-claim rule to the failed state only, so
+    // the attempting and succeeded states are free to share this heading,
+    // and do.
+    heading: READY_COPY.heading,
+    showMark: true,
+    showDownload: true,
+    downloadEnabled: succeeded,
+    showGenerating: !succeeded,
+    failureMessage: null,
+  };
+}
 
 export const START_OVER_CONFIRM_COPY = {
   heading: "Start a new report?",
