@@ -51,6 +51,17 @@ describe("facsimileValue — text fields", () => {
     expect(facsimileValue(textField(), { state: "unknown" })).toBe("Unknown");
   });
 
+  // docs/ask-copy.md rule 7's text-ask negative (Issue #121): MH-1/LD-1/
+  // AC-1's machinery-forced "None" reaches this renderer as an ordinary
+  // answered value — pinned explicitly (not just covered incidentally by
+  // "answered returns the value" above) because "None" is also Python's
+  // null spelling, the exact collision rule 7 exists to prevent.
+  it("a text-ask negative's answered 'None' renders as the literal word, never the unknown sentinel", () => {
+    const rendered = facsimileValue(textField(), { state: "answered", value: "None" });
+    expect(rendered).toBe("None");
+    expect(rendered).not.toBe("Unknown");
+  });
+
   it("declined returns the sentinel", () => {
     expect(facsimileValue(textField(), { state: "declined" })).toBe("Declined to answer");
   });

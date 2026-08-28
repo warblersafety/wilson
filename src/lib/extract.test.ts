@@ -463,4 +463,122 @@ describe("createExtractFn", () => {
       expect(call.system[0].cache_control).toEqual({ type: "ephemeral" });
     });
   });
+
+  // Issue #121 / docs/ask-copy.md rule 7's text-ask negative: MH-1/LD-1/
+  // AC-1's own field, forced to answered "None" regardless of what the
+  // extractor proposed for it this turn — proved end to end here (not
+  // just derive.test.ts's pure unit), the same way the checkbox-group
+  // companion test above proves rule 3's derives reach the record
+  // through the real turn.
+  describe("the text-ask negative (Issue #121)", () => {
+    const OTHER_HISTORY = "Page3.Sec6Data.OtherHistory";
+    const ADDITIONAL_COMMENTS = "Page3.AdditionalComments";
+
+    // Parks the walk on `stopBeforeTopicId` by declining every field of
+    // every topic ahead of it, mirroring the checkbox-group test above.
+    async function sessionParkedBefore(stopBeforeTopicId: string) {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda, applyAction } = await import("./agenda");
+      let record = initAgenda();
+      for (const topic of realTopics) {
+        if (topic.id === stopBeforeTopicId) break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      return { realTopics, realFields, record };
+    }
+
+    it("overrides a mark_unknown proposal with answered None — the extractor's kind does not matter", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "no relevant history" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toContainEqual({ fieldId: OTHER_HISTORY, type: "answer", value: "None" });
+      expect(result.actions).not.toContainEqual({ fieldId: OTHER_HISTORY, type: "mark_unknown" });
+    });
+
+    it("still writes None when the extractor proposes nothing at all for a clear negative", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({ candidates: [], repeatDecision: null }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toContainEqual({ fieldId: OTHER_HISTORY, type: "answer", value: "None" });
+    });
+
+    it("overrides a wrong-kind 'value' proposal too — regardless of kind means regardless", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: OTHER_HISTORY, kind: "value", value: "no relevant history", quote: { turnIndex: 1, text: "no relevant history" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "no relevant history");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "answer", value: "None" }]);
+    });
+
+    it("leaves a genuinely unknown answer as mark_unknown — ignorance is not a negative", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-medical-history");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "I don't have that information" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "I don't have that information");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "mark_unknown" }]);
+    });
+
+    it("resolves AC-1's negative the same way", async () => {
+      const { realTopics, realFields, record } = await sessionParkedBefore("event-additional-comments");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: ADDITIONAL_COMMENTS, kind: "unknown", quote: { turnIndex: 1, text: "nothing else to add" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Anything else FDA should know?" }] });
+      const result = await extract(session, "nothing else to add");
+      expect(result.actions).toEqual([{ fieldId: ADDITIONAL_COMMENTS, type: "answer", value: "None" }]);
+    });
+
+    it("does not disturb a different text-ask field already resolved earlier in the session", async () => {
+      const { realTopics, realFields, record: parked } = await sessionParkedBefore("event-medical-history");
+      // AC-1's field carries an earlier, unrelated answer — rule 7: "Companions
+      // and further rows stay untouched."
+      const { applyAction } = await import("./agenda");
+      const record = applyAction(parked, ADDITIONAL_COMMENTS, { type: "answer" }, "life is good");
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [{ fieldId: OTHER_HISTORY, kind: "unknown", quote: { turnIndex: 1, text: "none" } }],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({ record, transcript: [{ role: "talker", text: "Any relevant history?" }] });
+      const result = await extract(session, "none");
+      expect(result.actions).toEqual([{ fieldId: OTHER_HISTORY, type: "answer", value: "None" }]);
+      expect(result.actions).not.toContainEqual(expect.objectContaining({ fieldId: ADDITIONAL_COMMENTS }));
+    });
+  });
 });

@@ -147,7 +147,7 @@ export async function simulateCase(
         repeatCounts: setRepeatCount(step.session.repeatCounts, current.repeatGroup, count),
         transcript: [
           ...step.session.transcript,
-          { role: "clinician", text: widgetTurnText(step.question, cased.label ?? ""), source: "widget" },
+          { role: "clinician", text: widgetTurnText(cased.label ?? ""), source: "widget" },
         ],
       };
       step = await recompute(next);
@@ -177,7 +177,7 @@ export async function simulateCase(
       record: applyActionToFields(step.session.record, fieldIds, { type: action }),
       transcript: [
         ...step.session.transcript,
-        { role: "clinician", text: widgetTurnText(step.question, cased.label ?? ""), source: "widget" },
+        { role: "clinician", text: widgetTurnText(cased.label ?? ""), source: "widget" },
       ],
     };
     step = await recompute(next, prefix);

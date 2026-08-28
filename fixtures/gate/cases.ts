@@ -354,7 +354,13 @@ const C3: GateCase = {
       message: "The second one was metformin.",
       candidates: [value(P2_NAME, "metformin", "metformin")],
     },
-    { kind: "chip", expectAsk: "I'll ask about that once we get to additio", label: "I don't have that" },
+    // #122: Prod2Name is now written directly from this turn's own
+    // in-ask answer (it is instance 2's own SP-1, not a volunteer), so
+    // the walk lands on rule 9's ordinary partial re-ask for the two
+    // facts SP-1-2 still has open — never the false "I'll ask about
+    // that once we get to additional suspect product" deferral the
+    // pre-fix build rendered while standing on this very ask.
+    { kind: "chip", expectAsk: "Still need: product #2 strength and product #2 manufacturer", label: "I don't have that" },
     { kind: "chip", expectAsk: "Lot number", label: "I don't have that" },
     { kind: "chip", expectAsk: "NDC or unique ID as not on hand. How was i", label: "I don't have that" },
     { kind: "chip", expectAsk: "When did therapy start and stop", label: "I don't have that" },

@@ -16,6 +16,7 @@
 // belt-and-braces version — the class stated as data, so the check is
 // provable without a walk.
 import type { RenderedFrame, RenderedString, WalkTurn } from "../../src/lib/ux-floor";
+import type { TalkTurn } from "../../src/lib/talk";
 
 // v1.1's OC-1: seven outcome checkboxes, each question built from its own
 // manifest label. The label is spliced into a sentence, which is why the
@@ -102,11 +103,37 @@ const DOUBLE_BUBBLE_ASK = "Any relevant history — preexisting conditions, alle
 
 export const DOUBLE_BUBBLE_FRAMES: RenderedFrame[] = [
   [
-    { source: "transcript[0]", text: "Describe what happened — the event, product problem, or medication error, in your own words." },
-    { source: "transcript[1]", text: "Rash across the trunk, 36 hours after the second dose." },
-    { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK },
-    { source: "current-ask", text: DOUBLE_BUBBLE_ASK },
+    { source: "transcript[0]", text: "Describe what happened — the event, product problem, or medication error, in your own words.", role: "talker" },
+    { source: "transcript[1]", text: "Rash across the trunk, 36 hours after the second dose.", role: "clinician" },
+    { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK, role: "talker" },
+    { source: "current-ask", text: DOUBLE_BUBBLE_ASK, role: "talker" },
   ],
+];
+
+// Issue #123: the other direction frameDuplicateViolations() must prove,
+// now that it is role-aware — two DISTINCT, legitimate chip taps sharing
+// the same short answer ("I don't have that" twice) is the mockup's own
+// intended treatment, not the double bubble above. Two different talker
+// questions, two identical clinician answers, no violation.
+export const CHIP_VOCABULARY_FRAMES: RenderedFrame[] = [
+  [
+    { source: "transcript[0]", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?", role: "talker" },
+    { source: "transcript[1]", text: "I don't have that", role: "clinician" },
+    { source: "transcript[2]", text: "What's the patient's weight — and date of birth, if you record it?", role: "talker" },
+    { source: "transcript[3]", text: "I don't have that", role: "clinician" },
+  ],
+];
+
+// Issue #123: a chip tap's own clinician turn used to splice the WHOLE
+// preceding question into itself — chip-grammar.ts's widgetTurnText()'s
+// old two-argument form, `${question} — ${answerLabel}`. Not a
+// hypothetical: this is the real shape of every dismiss-chip turn on
+// dev 7f8f1bd (runs/gate/7f8f1bdb.../C3/09-C3-turn-08.png), where the
+// clinician's own bubble read as the question read back to itself.
+// docs/mockups/screen-04.png shows a short, answer-only bubble instead.
+export const ECHOED_ASK_TRANSCRIPT: TalkTurn[] = [
+  { role: "talker", text: DOUBLE_BUBBLE_ASK },
+  { role: "clinician", text: `${DOUBLE_BUBBLE_ASK} — I don't have that`, source: "widget" },
 ];
 
 // The adjacency the CM-2-{n} amendment depends on, broken exactly the way
