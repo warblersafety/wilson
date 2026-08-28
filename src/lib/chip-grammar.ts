@@ -8,7 +8,7 @@
 import { applyAction, type AgendaRecord } from "./agenda";
 import { standaloneFactNamesFor } from "./ask-inventory";
 import type { FieldAction } from "./field-state";
-import { describeDismissal, type CorrectionOffer } from "./followup-sweep";
+import { describeDismissal, type CorrectionOffer, type FieldCollision } from "./followup-sweep";
 import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
 
 export interface RepeatDecisionOptions {
@@ -145,6 +145,19 @@ export function remainingCorrectionOffers(
   acceptedFieldId: string,
 ): CorrectionOffer[] | undefined {
   const rest = (offers ?? []).filter((offer) => offer.fieldId !== acceptedFieldId);
+  return rest.length > 0 ? rest : undefined;
+}
+
+// AskForm's one-tap collision-choice accept (Issue #124), the exact same
+// concern as remainingCorrectionOffers() just above and for the same
+// reason: stepForSession()'s fresh TalkStep carries no collisions of its
+// own, so resolving one field's collision must not silently drop another
+// field's still-pending one if both happened to land in the same turn.
+export function remainingCollisions(
+  collisions: FieldCollision[] | undefined,
+  resolvedFieldId: string,
+): FieldCollision[] | undefined {
+  const rest = (collisions ?? []).filter((collision) => collision.fieldId !== resolvedFieldId);
   return rest.length > 0 ? rest : undefined;
 }
 

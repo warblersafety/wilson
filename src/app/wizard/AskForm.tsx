@@ -23,10 +23,12 @@ import {
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
+  remainingCollisions,
   remainingCorrectionOffers,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import type { CorrectionOffer } from "@/lib/followup-sweep";
+import { FORM_3500_FIELDS } from "@/lib/form-3500-fields";
+import { collisionSentence, type CorrectionOffer, type FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -165,6 +167,50 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     }
   }
 
+  // One-tap collision resolution (Issue #124 AC-1/AC-2), the same shape as
+  // handleAcceptCorrection above: a deterministic write through the
+  // normal path (applyProposedActions), recorded in the transcript, one
+  // tap. `index` selects which of `collision.values`/`collision.actions`
+  // was tapped — chip labels ARE the values themselves (mirroring
+  // Read-back's own collision radios and the correction-offer chip's
+  // field label), so the tap already tells us which one without asking
+  // the clinician to disambiguate a second time. The transcript quotes
+  // collisionSentence() — rule 8's own authored line, unchanged by this
+  // unit — rather than current.question: with two collisions pending in
+  // the same turn (rare, but classifyFollowUpActions() doesn't rule it
+  // out), current.question covers whichever text was shown for the WHOLE
+  // turn, not this one field's own question. remainingCollisions() carries
+  // the turn's other, still-unresolved collisions forward, mirroring
+  // remainingCorrectionOffers() just above and for the same reason
+  // (reviewer pass on PR #64): stepForSession()'s fresh step has none of
+  // its own.
+  async function handleAcceptCollision(collision: FieldCollision, index: number) {
+    setError(null);
+    setIsDismissing(true);
+    onPendingChange?.(true);
+    try {
+      const question = collisionSentence(collision, FORM_3500_FIELDS);
+      const nextSession: TalkSession = {
+        ...current.session,
+        record: applyProposedActions(current.session.record, [collision.actions[index]]),
+        transcript: [
+          ...current.session.transcript,
+          { role: "clinician", text: widgetTurnText(question, collision.values[index]), source: "widget" },
+        ],
+      };
+      const nextStepResult = await stepForSession(nextSession, { appendReply: true });
+      onSubmitted({
+        ...nextStepResult,
+        collisions: remainingCollisions(current.collisions, collision.fieldId),
+      });
+    } catch (err) {
+      setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
+    } finally {
+      setIsDismissing(false);
+      onPendingChange?.(false);
+    }
+  }
+
   return (
     <form className="ask-form" onSubmit={handleSubmit}>
       <p className="ask-form__reply">{current.reply}</p>
@@ -181,6 +227,27 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
               />
             );
           })}
+        </div>
+      )}
+      {current.collisions && current.collisions.length > 0 && (
+        <div className="ask-form__collisions">
+          {current.collisions.map((collision) => (
+            <div
+              key={collision.fieldId}
+              className="ask-form__collision-group"
+              role="group"
+              aria-label={`Choose a value for ${displayNameFor(collision.fieldId)}`}
+            >
+              {collision.values.map((value, index) => (
+                <Chip
+                  key={index}
+                  label={value}
+                  disabled={busy}
+                  onClick={() => void handleAcceptCollision(collision, index)}
+                />
+              ))}
+            </div>
+          ))}
         </div>
       )}
       <textarea

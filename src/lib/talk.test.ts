@@ -401,6 +401,96 @@ describe("processTurn", () => {
       expect(result.correctionOffers).toBeUndefined();
     });
 
+    // Issue #124: a follow-up collision holds pending state the same way
+    // a correction offer does — carried through processTurn() untouched,
+    // never folded into `actions` (classifyFollowUpActions() writes
+    // neither colliding candidate).
+    describe("collisions (Issue #124)", () => {
+      const COLLISION = {
+        fieldId: "a",
+        values: ["500 mg", "875 mg"],
+        actions: [
+          { fieldId: "a", type: "answer" as const, value: "500 mg" },
+          { fieldId: "a", type: "answer" as const, value: "875 mg" },
+        ],
+      };
+
+      it("carries collisions through to the returned TalkStep", async () => {
+        const extract: ExtractFn = async () => ({
+          actions: [],
+          replyPrefix: "I heard two values for a: 500 mg and 875 mg — which should I write?",
+          collisions: [COLLISION],
+        });
+        const session = syntheticSession();
+        const result = await processTurn(session, "500 mg, no, 875 mg", {
+          extract,
+          ask: askStep,
+          topics: TOPICS,
+          fields: FIELDS,
+        });
+        expect(result.collisions).toEqual([COLLISION]);
+      });
+
+      it("leaves collisions undefined when extract() reports none", async () => {
+        const extract: ExtractFn = async () => ({ actions: [{ fieldId: "a", type: "answer", value: "42" }] });
+        const session = syntheticSession();
+        const result = await processTurn(session, "42", { extract, ask: askStep, topics: TOPICS, fields: FIELDS });
+        expect(result.collisions).toBeUndefined();
+      });
+
+      // The bug this unit fixes (Issue #124): before this, the collision
+      // sentence — already a live, unresolved question ("which should I
+      // write?") — was concatenated with the ask's own next question,
+      // which for a partially-answered topic is rule 9's re-ask frame
+      // ("Got it. Still need: …"). "Got it" acknowledges facts as settled
+      // in the SAME breath the collision line asks the clinician to
+      // settle one. askStep (this file's fake AskFn) always returns
+      // TOPIC_1.label regardless of record state — standing in here for
+      // "whatever the ask's own next question would have been" — so this
+      // proves respond() suppresses it, not that a specific re-ask frame
+      // is absent.
+      it("does not append the ask's own question when a collision is pending — the collision line stands alone", async () => {
+        const collisionLine = "I heard two values for a: 500 mg and 875 mg — which should I write?";
+        const extract: ExtractFn = async () => ({
+          actions: [],
+          replyPrefix: collisionLine,
+          collisions: [COLLISION],
+        });
+        const session = syntheticSession();
+        const result = await processTurn(session, "500 mg, no, 875 mg", {
+          extract,
+          ask: askStep,
+          topics: TOPICS,
+          fields: FIELDS,
+        });
+        expect(result.reply).toBe(collisionLine);
+        expect(result.reply).not.toContain(TOPIC_1.label);
+        // The transcript's talker turn is exactly what's shown — no
+        // suppressed text lurking in session state either.
+        expect(result.session.transcript.at(-1)).toEqual({ role: "talker", text: collisionLine });
+        // TalkStep.question backs a widget tap's own transcript quote
+        // (chip-grammar.ts's widgetTurnText) — it must equal what was
+        // actually shown, never the suppressed ask() text, or a dismiss
+        // tap on this turn would quote a question the clinician never saw.
+        expect(result.question).toBe(collisionLine);
+      });
+
+      it("still concatenates the ask's own question normally once nothing is colliding", async () => {
+        const extract: ExtractFn = async () => ({
+          actions: [{ fieldId: "a", type: "answer", value: "42" }],
+          replyPrefix: "Also noted: something else — a value.",
+        });
+        const session = syntheticSession();
+        const result = await processTurn(session, "42, and something else", {
+          extract,
+          ask: askStep,
+          topics: TOPICS,
+          fields: FIELDS,
+        });
+        expect(result.reply).toBe(`Also noted: something else — a value. ${TOPIC_1.label}`);
+      });
+    });
+
     it("merges a volunteered repeat group into session.volunteeredRepeats", async () => {
       const extract: ExtractFn = async () => ({ actions: [], volunteeredRepeatGroups: ["suspect-product"] });
       const session = syntheticSession();

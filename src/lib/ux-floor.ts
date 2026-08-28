@@ -140,7 +140,16 @@ const SWEEP_FIXTURES: Array<[string, FollowUpSweepResult]> = [
       writes: [],
       outOfAskWrites: [],
       correctionOffers: [],
-      collisions: [{ fieldId: AGE_VALUE, values: ["58", "62"] }],
+      collisions: [
+        {
+          fieldId: AGE_VALUE,
+          values: ["58", "62"],
+          actions: [
+            { fieldId: AGE_VALUE, type: "answer", value: "58" },
+            { fieldId: AGE_VALUE, type: "answer", value: "62" },
+          ],
+        },
+      ],
       volunteeredRepeatGroups: [],
     },
   ],
