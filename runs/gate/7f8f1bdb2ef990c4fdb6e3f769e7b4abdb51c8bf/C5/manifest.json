@@ -1,0 +1,47 @@
+{
+  "case": "C5",
+  "title": "reluctant reporter",
+  "spec": "heavy \"I don't have that\" / \"rather not say\", partial answers forcing rule-9 re-asks, a repeat decision answered \"no\"",
+  "evidences": [
+    1,
+    2,
+    3
+  ],
+  "devSha": "7f8f1bdb2ef990c4fdb6e3f769e7b4abdb51c8bf",
+  "treeClean": true,
+  "surfacesDeclared": [
+    "start",
+    "read-back",
+    "follow-ups",
+    "review",
+    "review-paper-facsimile",
+    "open-fields",
+    "ready",
+    "report-chrome"
+  ],
+  "surfacesReached": [
+    "follow-ups",
+    "open-fields",
+    "read-back",
+    "ready",
+    "report-chrome",
+    "review",
+    "review-paper-facsimile",
+    "start"
+  ],
+  "surfacesByWalk": {
+    "C5": [
+      "follow-ups",
+      "open-fields",
+      "read-back",
+      "ready",
+      "report-chrome",
+      "review",
+      "review-paper-facsimile",
+      "start"
+    ]
+  },
+  "screenshots": 13,
+  "failures": [],
+  "modelFidelity": "Fake model. Copy, layout and screen fidelity are model-independent and are certified by this run; flow and length are NOT — they hold only as exercised by the scripted extractions."
+}

@@ -1,0 +1,20 @@
+[shot] 01-read-back.png
+
+READ-BACK PANEL:
+What I’d write from this — 4 valuesage58read from “58-year-old”sex: maleYesread from “58-year-old man”event descriptionrashread from “developed a rash”product nameamoxicillinread from “amoxicillin”
+READ-BACK AFFORDANCES: ["Edit narrative","Looks right"]
+
+=== CORRECTION OFFER (before step 8) ===
+BUBBLE: You said 2026-08-19 for date of event — it's recorded as 2026-08-20. Replace it? Anything else FDA should know?
+AFFORDANCES: ["Replace date of event","Send","I don't have that","Rather not say"]
+[shot] 02-correction-offer.png
+
+=== COLLISION (before step 10) ===
+BUBBLE: I heard two values for strength: 500 mg and 875 mg — which should I write? Got it. Still need: strength and manufacturer/compounder.
+AFFORDANCES: ["Send","I don't have that","Rather not say"]
+[shot] 03-collision.png
+
+--- DEVIATION: typing '875 mg' at the collision instead of dismissing ---
+AFTER TYPING: I heard two values for strength: 500 mg and 875 mg — which should I write? Got it. Still need: strength and manufacturer/compounder.
+strength now: {"state":"unasked"}
+[shot] 04-collision-after-retype.png

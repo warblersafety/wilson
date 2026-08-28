@@ -1,0 +1,55 @@
+{
+  "caseId": "C5",
+  "narratives": [
+    {
+      "narrative": "Patient had a reaction. I would rather not go into detail beyond what you ask for.",
+      "candidates": []
+    }
+  ],
+  "turns": [
+    {
+      "message": "MRN 51-7788.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.PatientIdentifier",
+          "kind": "value",
+          "value": "MRN 51-7788",
+          "quote": "MRN 51-7788"
+        }
+      ]
+    },
+    {
+      "message": "Hives after the first dose.",
+      "candidates": [
+        {
+          "fieldId": "Page2.SecB_Adverse.DescEvent",
+          "kind": "value",
+          "value": "Hives after the first dose",
+          "quote": "Hives after the first dose"
+        }
+      ]
+    },
+    {
+      "message": "2026-07-30.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.EventDate",
+          "kind": "value",
+          "value": "2026-07-30",
+          "quote": "2026-07-30"
+        }
+      ]
+    },
+    {
+      "message": "Cephalexin.",
+      "candidates": [
+        {
+          "fieldId": "Page4.Prod1.Prod1Name",
+          "kind": "value",
+          "value": "Cephalexin",
+          "quote": "Cephalexin"
+        }
+      ]
+    }
+  ]
+}

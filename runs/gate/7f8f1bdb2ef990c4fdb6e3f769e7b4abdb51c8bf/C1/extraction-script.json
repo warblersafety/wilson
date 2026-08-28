@@ -1,0 +1,97 @@
+{
+  "caseId": "C1",
+  "narratives": [
+    {
+      "narrative": "61-year-old on amoxicillin-clavulanate for a dental abscess developed a diffuse maculopapular rash and low-grade fever on day 4. Drug stopped, rash resolved over a week.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.AgeValue",
+          "kind": "value",
+          "value": "61",
+          "quote": "61-year-old"
+        },
+        {
+          "fieldId": "Page2.SecB_Adverse.DescEvent",
+          "kind": "value",
+          "value": "diffuse maculopapular rash and low-grade fever",
+          "quote": "diffuse maculopapular rash and low-grade fever"
+        },
+        {
+          "fieldId": "Page4.Prod1.Prod1Name",
+          "kind": "value",
+          "value": "amoxicillin-clavulanate",
+          "quote": "amoxicillin-clavulanate"
+        }
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "message": "MRN 44-1902, and she's female.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.PatientIdentifier",
+          "kind": "value",
+          "value": "MRN 44-1902",
+          "quote": "MRN 44-1902"
+        },
+        {
+          "fieldId": "Page1.SecA_Patient.SexF",
+          "kind": "value",
+          "value": "true",
+          "quote": "she's female"
+        }
+      ]
+    },
+    {
+      "message": "It started on 2026-08-14, and it's an adverse reaction.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.EventDate",
+          "kind": "value",
+          "value": "2026-08-14",
+          "quote": "2026-08-14"
+        }
+      ]
+    },
+    {
+      "message": "875 mg tablets, made by Sandoz.",
+      "candidates": [
+        {
+          "fieldId": "Page4.Prod1.Prod1Strength",
+          "kind": "value",
+          "value": "875 mg",
+          "quote": "875 mg"
+        }
+      ]
+    },
+    {
+      "message": "One tablet twice daily by mouth.",
+      "candidates": [
+        {
+          "fieldId": "Page4.Prod1.Prod1Dose",
+          "kind": "value",
+          "value": "one tablet twice daily",
+          "quote": "One tablet twice daily"
+        }
+      ]
+    },
+    {
+      "message": "Started 2026-08-10 and stopped 2026-08-15.",
+      "candidates": [
+        {
+          "fieldId": "Page4.Prod1.Prod1TherapyStartDate",
+          "kind": "value",
+          "value": "2026-08-10",
+          "quote": "2026-08-10"
+        },
+        {
+          "fieldId": "Page4.Prod1.Prod1TherapyStopDate",
+          "kind": "value",
+          "value": "2026-08-15",
+          "quote": "2026-08-15"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "caseId": "C3",
+  "narratives": [
+    {
+      "narrative": "58-year-old man on amoxicillin and metformin developed a rash on the 20th. He also takes lisinopril, atorvastatin and metformin. ALT was 402.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.AgeValue",
+          "kind": "value",
+          "value": "58",
+          "quote": "58-year-old"
+        },
+        {
+          "fieldId": "Page1.SecA_Patient.SexM",
+          "kind": "value",
+          "value": "true",
+          "quote": "58-year-old man"
+        },
+        {
+          "fieldId": "Page2.SecB_Adverse.DescEvent",
+          "kind": "value",
+          "value": "rash",
+          "quote": "developed a rash"
+        },
+        {
+          "fieldId": "Page4.Prod1.Prod1Name",
+          "kind": "value",
+          "value": "amoxicillin",
+          "quote": "amoxicillin"
+        }
+      ]
+    }
+  ],
+  "turns": [
+    {
+      "message": "The rash was on the 20th. ALT came back at 402, by the way.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.EventDate",
+          "kind": "value",
+          "value": "2026-08-20",
+          "quote": "the 20th"
+        },
+        {
+          "fieldId": "Page3.TestDataTable.Row1.TestData1",
+          "kind": "value",
+          "value": "ALT 402",
+          "quote": "ALT came back at 402"
+        }
+      ]
+    },
+    {
+      "message": "Actually the rash was the 19th, not the 20th.",
+      "candidates": [
+        {
+          "fieldId": "Page1.SecA_Patient.EventDate",
+          "kind": "value",
+          "value": "2026-08-19",
+          "quote": "the 19th"
+        }
+      ]
+    },
+    {
+      "message": "It was 500 mg — no, 875 mg.",
+      "candidates": [
+        {
+          "fieldId": "Page4.Prod1.Prod1Strength",
+          "kind": "value",
+          "value": "500 mg",
+          "quote": "500 mg"
+        },
+        {
+          "fieldId": "Page4.Prod1.Prod1Strength",
+          "kind": "value",
+          "value": "875 mg",
+          "quote": "875 mg"
+        }
+      ]
+    },
+    {
+      "message": "The second one was metformin.",
+      "candidates": [
+        {
+          "fieldId": "Page5.Prod2.Prod2Name",
+          "kind": "value",
+          "value": "metformin",
+          "quote": "metformin"
+        }
+      ]
+    },
+    {
+      "message": "Lisinopril, started years ago.",
+      "candidates": [
+        {
+          "fieldId": "Page6.SecF_Other.Table1.Row1.Prod1",
+          "kind": "value",
+          "value": "lisinopril",
+          "quote": "Lisinopril"
+        }
+      ]
+    }
+  ]
+}

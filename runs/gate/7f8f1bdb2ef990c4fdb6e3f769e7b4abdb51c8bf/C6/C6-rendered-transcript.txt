@@ -1,0 +1,68 @@
+--- transcript panel, in order ---
+patient developed nagging cough while on lisinopril. reported yesterday, cough is non-serious but ongoing
+Who is the patient — an identifier like an MRN or initials, their age, and sex?
+Who is the patient — an identifier like an MRN or initials, their age, and sex? — I don't have that
+Marked patient identifier, age, and sex as not on hand. What's the patient's weight — and date of birth, if you record it?
+What's the patient's weight — and date of birth, if you record it? — I don't have that
+Marked weight and date of birth as not on hand. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine. — I don't have that
+Marked race or ethnicity as not on hand. When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers? — I don't have that
+Marked date of event and report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those? — I don't have that
+Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+no relevant history
+Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date. — I don't have that
+Marked relevant tests or labs as not on hand. Anything else FDA should know?
+nothing else to add
+Got it. Still need: strength and manufacturer/compounder.
+Got it. Still need: strength and manufacturer/compounder. — I don't have that
+Marked strength and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand.
+Lot number, and the NDC or other unique ID — if they're on hand. — I don't have that
+Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?
+How was it taken — dose, how often, and by what route? — I don't have that
+Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when? — I don't have that
+Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
+What was it prescribed or used for? — I don't have that
+Marked diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known. — I don't have that
+Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+After stopping or reducing it, did the event improve — yes, no, or doesn't apply? — I don't have that
+Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?
+Was it given again — and if so, did the event come back? — I don't have that
+Marked response after restarting as not on hand. Was there another suspect product?
+Was there another suspect product? — No
+Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+Is the patient on other medications? Name them, with rough start and stop dates if you have them. — I don't have that
+Marked other medications as not on hand. Is there another medication to add?
+Is there another medication to add? — No
+Your contact details for the report — name, address, phone, and email?
+Your contact details for the report — name, address, phone, and email? — I don't have that
+Marked the rest of your contact details as not on hand. Are you reporting as a health professional, and what's your occupation?
+Are you reporting as a health professional, and what's your occupation? — I don't have that
+
+--- asks rendered in the composer bubble ---
+Who is the patient — an identifier like an MRN or initials, their age, and sex?
+Marked patient identifier, age, and sex as not on hand. What's the patient's weight — and date of birth, if you record it?
+Marked weight and date of birth as not on hand. For FDA's demographics — the patient's race or ethnicity, if you record it? More than one is fine.
+Marked race or ethnicity as not on hand. When did it happen — and is this an adverse reaction, a product problem like a defect, a medication error, or a problem after switching manufacturers?
+Marked date of event and report type as not on hand. How serious was the outcome — hospitalization, life-threatening, disability or permanent damage, an intervention to prevent permanent harm, a congenital anomaly, death, another serious medical event — or none of those?
+Marked outcome as not on hand. Any relevant history — preexisting conditions, allergies, pregnancy, tobacco or alcohol use?
+Any relevant tests or labs? For each: the test, the result, the reference range if it's useful, and the date.
+Marked relevant tests or labs as not on hand. Anything else FDA should know?
+Got it. Still need: strength and manufacturer/compounder.
+Marked strength and manufacturer/compounder as not on hand. Lot number, and the NDC or other unique ID — if they're on hand.
+Marked lot number and NDC or unique ID as not on hand. How was it taken — dose, how often, and by what route?
+Marked dose, frequency, and route as not on hand. When did therapy start and stop — or is it still ongoing? If the dose was reduced instead, when?
+Marked therapy start date, therapy stop date, therapy status, and the date the dose was reduced as not on hand. What was it prescribed or used for?
+Marked diagnosis for use as not on hand. Anything notable about the product type — brand, generic or biosimilar, OTC, compounded, cannabinoid, or cosmetic? And the expiration date, if known.
+Marked product type and expiration date as not on hand. After stopping or reducing it, did the event improve — yes, no, or doesn't apply?
+Marked response after stopping as not on hand. Was it given again — and if so, did the event come back?
+Marked response after restarting as not on hand. Was there another suspect product?
+Is the patient on other medications? Name them, with rough start and stop dates if you have them.
+Marked other medications as not on hand. Is there another medication to add?
+Your contact details for the report — name, address, phone, and email?
+Marked the rest of your contact details as not on hand. Are you reporting as a health professional, and what's your occupation?
+Marked health-professional status and occupation as not on hand. Two housekeeping items — have you also reported this to the manufacturer, a user facility, a distributor, or a packer? And should FDA withhold your identity from the manufacturer?
