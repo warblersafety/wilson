@@ -247,6 +247,25 @@ export function displayNameFor(fieldId: string): string {
   return fieldById(fieldId) ? displayName(fieldId) : fieldId;
 }
 
+// The bare "stated value" half of an exclusive one-hot member's display
+// name — added 2026-08-28 (#126) for rule 7's fact-granularity
+// correction offer, whose authored sentence quotes only the value ("You
+// said female for sex — it's recorded as male. Replace it?"), never the
+// whole fact phrase ("You said sex: female for sex..."). Every exclusive
+// member but one is already authored "{something}: {value}" (rule 6) —
+// stripped after the LAST ": ", since the "something" half doesn't
+// always equal the fact's own name (SP-4's members read "therapy
+// ongoing: yes" under the fact "therapy status") and instance 2 prefixes
+// an instance marker ("product #2 therapy ongoing: yes"). PA-1's
+// EvalRetd is the one authored member with no colon at all ("returned to
+// manufacturer") — falls back to the whole phrase rather than inventing
+// a shorter one rule 1 doesn't authorize.
+export function exclusiveMemberValue(fieldId: string): string {
+  const name = displayName(fieldId);
+  const at = name.lastIndexOf(": ");
+  return at === -1 ? name : name.slice(at + 2);
+}
+
 // Sentence-joins names the way rule 9's re-ask frames and the sweep's
 // acknowledgments need. Names are comma-free by construction (see the
 // file header), so the Oxford comma here is unambiguous.

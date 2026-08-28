@@ -314,7 +314,18 @@ const C3: GateCase = {
     ],
   },
   steps: [
-    { kind: "chip", expectAsk: "Still need: patient identifier and sex.", label: "I don't have that" },
+    // Amended 2026-08-28 (#126): "58-year-old man" grounds SexM at
+    // Read-back, and rule 7's exclusive-fact amendment now completes the
+    // whole sex fact atomically THERE — SexM answered true, SexF
+    // answered false, both in the SAME batch the narrative confirm
+    // writes. Pre-#126 this rendered "Still need: patient identifier
+    // and sex." (a fact the clinician had just confirmed, re-asked) and
+    // the record ended `SexM: answered "true"` beside `SexF: unknown` —
+    // gate run #1, entries 2 and 5, issue #126's own reproduction. The
+    // fix is visible here as sex moving from the "still need" half to
+    // the "I've got" half, full string pinned rather than a fragment
+    // that would pass on either side.
+    { kind: "chip", expectAsk: "I've got age and sex. Still need: patient identifier.", label: "I don't have that" },
     { kind: "chip", expectAsk: "What's the patient's weight", label: "I don't have that" },
     { kind: "chip", expectAsk: "For FDA's demographics", label: "I don't have that" },
     {

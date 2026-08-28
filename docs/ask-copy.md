@@ -168,19 +168,98 @@ design conversation first.
    question, not one seventh of it, and the alternative — leaving the
    unnamed six `unasked` — re-asks the same question forever and shows
    six phantom gaps at Review. The bound is this rule's own reasoning,
-   stated at OC-1: *every one of them is voiced above, so no box is ever
-   written false unheard.* So completion applies only to a group whose
-   own ask was the one on screen; a checkbox volunteered out-of-ask
-   completes nothing, and its group completes later, when its ask voices
-   it. An `unknown` or `declined` completes nothing either — "I don't
+   and it takes one form per group kind (amended 2026-08-28, #126):
+   where the ask reads every member out loud, OC-1's *every one of them
+   is voiced above, so no box is ever written false unheard*; where
+   naming one member entails the rest, its counterpart — *none is ever
+   written false unentailed.* Which writes can trigger a completion is
+   scoped per group kind below (amended 2026-08-28, #126); a
+   volunteered member that does not qualify completes nothing, its
+   group completing later when its ask voices it. An `unknown` or
+   `declined` completes nothing either — "I don't
    know if she was hospitalised" is not an answer to the question. This
    is mechanical and lives in `src/lib/derive.ts`, not in the extractor
    prompt: a rule this consequential should not vary run to run.
-   **The bound has a second half, added after review:** being on screen
-   is not the same as being heard. Completion applies only where naming
-   one member entails the rest (mutually exclusive alternatives — sex,
-   ongoing, abated, reappeared) or where the ask's copy reads every
-   member out loud (OC-1's seven outcomes, RA-2's four recipients).
+   **The bound's two halves, by group kind (amended 2026-08-28,
+   #126):** being on screen is not the same as being heard — and
+   hearing is not the only honest ground; entailment is the other.
+   - **Where the ask's copy reads every member out loud**
+     (`voicesEveryMember` in `src/lib/ask-inventory.ts`: OC-1's
+     seven outcomes, RA-2's four recipients), completion applies
+     only to a group whose own ask was the one on screen — hearing
+     the list is what makes the unnamed members' `"false"` honest,
+     so a member arriving any other way completes nothing until the
+     ask voices it. Unchanged.
+   - **Where naming one member entails the rest** (`exclusive` in
+     the inventory — the one-hot alternatives: sex, therapy
+     ongoing, health professional, the Abated and Reappear trios,
+     and their kin; the per-fact declaration is authoritative), the
+     entailment carries on the clinician's own words, not on a list
+     being read: "58-year-old man" settles the sex question
+     wherever it is said. Completion applies to a
+     validator-grounded `"true"` write on any of three paths — the
+     ask's own turn, a Read-back confirmation of a narrative
+     proposal, or a rule-8 volunteered write (announced and
+     correctable, as rule 8 provides). Two boundaries are stated
+     here rather than assumed, both narrower than this rule wants
+     and both filed as defects against it: an action that is not
+     `answer "true"` — `"false"`, `unknown`, `declined` — is out of
+     scope and still takes the field-level path (#155), and a
+     tapped collision chip writes its member without reaching the
+     sweep at all, so it completes nothing (#154). Recorded because
+     a contract that overstates its own reach is how the next unit
+     inherits a bug. A Read-back
+     confirmation is the clinician answering, not machinery
+     guessing — proposals being confirmable before anything writes
+     is the whole reason Read-back exists — so the "unheard"
+     reasoning does not reach it. Before this amendment the in-ask
+     bound applied blanket: a narrative-confirmed `SexM` completed
+     nothing, the record held a male patient with `SexF: unknown`,
+     the open-fields dialog read "sex: female — you didn't have
+     it", and the walk re-asked a fact Read-back had just confirmed
+     (gate run #1, C3 — entries 2 and 5).
+
+     **A write to an exclusive group is a write of the whole fact,
+     atomic (amended 2026-08-28, #126).** Rule 3 already holds that a
+     one-hot group is a fact's ONLY representation; this makes that
+     operational. The named member `"true"` and every sibling
+     `"false"` are one operation derived from one grounded quote —
+     never a member write that afterwards meets its siblings one at a
+     time. No member-level write survives to collide with an
+     already-resolved sibling, so the question of what completion does
+     when it meets one does not arise.
+
+     **The atomic write supersedes prior `unknown` and `declined`
+     member states.** Those recorded the fact before it was known or
+     while it was withheld, and the clinician has now stated it.
+     Superseding an absence of value is not the silent replacement the
+     follow-up sweep's invariant guards — that invariant protects
+     *stated* values. A clinician who dismissed PB-1 and later says
+     "he's male" ends with sex answered, not with `SexM: "true"`
+     beside a surviving `SexF: unknown`.
+
+     **A conflicting later statement is a correction of the fact, at
+     fact granularity.** Where a grounded statement conflicts with an
+     exclusive fact already answered, the sweep offers one correction
+     named by the fact — "You said female for sex — it's recorded as
+     male. Replace it?" — and accepting it rewrites the group
+     atomically. A member-level offer is never the right shape for a
+     one-hot member: a per-field offer on `SexF`, accepted against
+     an answered `SexM`, is exactly how a report ends with both sex
+     boxes checked on an FDA-bound form. The sweep's own offer path
+     honours that. Two live paths do not yet — a tapped collision
+     chip (#154) and a non-`answer "true"` action (#155) — and they
+     are gaps against this rule, not exceptions to it.
+
+     **Naming the fact names the whole write.** design.md requires
+     every out-of-ask write to be named in that turn's visible reply.
+     For an exclusive fact, announcing its value — "Also noted —
+     therapy status: ongoing." — names the entire fact; the sibling
+     `"false"`s are that same fact's representation rather than
+     separate writes, so no per-member naming is owed. Recorded here
+     because it is an exemption to another file's rule; design.md
+     carries the mirror sentence.
+
    A multi-select whose options the ask does not enumerate completes
    nothing: PB-3 asks for "race or ethnicity" without naming its seven
    boxes, and they are not alternatives — Hispanic ethnicity is

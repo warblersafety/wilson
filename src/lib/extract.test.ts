@@ -442,6 +442,79 @@ describe("createExtractFn", () => {
       expect(result.replyPrefix ?? "").not.toContain("death");
     });
 
+    // ask-copy.md rule 7's amendment (#126), the doc-review's own
+    // residue: "the volunteered path exercises different machinery than
+    // Read-back and deserves its own named deterministic test." This is
+    // that test — extract.ts's real classifyFollowUpActions +
+    // deriveCompanionWrites pipeline, distinct from
+    // narrative-extract.test.ts's applyNarrativeProposals proof
+    // (derive.test.ts's own Read-back describe block). PB-1's sex is
+    // DECLINED (not merely unasked) before the volunteer arrives, so
+    // this also proves supersession end to end: the walk is parked past
+    // patient-basics entirely, and the clinician volunteers sex while
+    // answering event-what-happened's own WH-1.
+    it("VOLUNTEERED WRITE completes an exclusive fact through the real per-turn sweep, superseding a prior decline", async () => {
+      const { TOPICS: realTopics } = await import("./topics");
+      const { FORM_3500_FIELDS: realFields } = await import("./form-3500-fields");
+      const { initAgenda, applyAction } = await import("./agenda");
+      const SEX_M = "Page1.SecA_Patient.SexM";
+      const SEX_F = "Page1.SecA_Patient.SexF";
+      const DESC = "Page2.SecB_Adverse.DescEvent";
+      // Park the walk on event-what-happened by declining everything
+      // before it — patient-basics' PB-1 included, so SexM/SexF are
+      // `declined`, not `unasked`, when the volunteer arrives.
+      let record = initAgenda();
+      for (const topic of realTopics) {
+        if (topic.id === "event-what-happened") break;
+        for (const id of topic.fieldIds) record = applyAction(record, id, { type: "decline" });
+      }
+      vi.spyOn(client.messages, "parse").mockResolvedValue(
+        fakeParsedResponse({
+          candidates: [
+            { fieldId: DESC, kind: "value", value: "hives", quote: { turnIndex: 1, text: "broke out in hives" } },
+            { fieldId: SEX_M, kind: "value", value: "true", quote: { turnIndex: 1, text: "he's male" } },
+          ],
+          repeatDecision: null,
+        }),
+      );
+      const extract = createExtractFn(client, realTopics, realFields);
+      const session = sessionWith({
+        record,
+        transcript: [
+          {
+            role: "talker",
+            text: "Describe what happened — the event, product problem, or medication error, in your own words.",
+          },
+        ],
+      });
+      const result = await extract(session, "He broke out in hives. Oh, and he's male, by the way.");
+
+      // The in-ask write, unaffected.
+      expect(result.actions).toContainEqual({ fieldId: DESC, type: "answer", value: "hives" });
+      // The volunteered write supersedes the prior `declined` state — a
+      // write, not a correction offer (followup-sweep.test.ts pins the
+      // classifier's own half of this rule directly).
+      expect(result.actions).toContainEqual({ fieldId: SEX_M, type: "answer", value: "true" });
+      expect(result.correctionOffers ?? []).toEqual([]);
+      // Atomic completion reaches all the way through the real pipeline:
+      // the sibling is derived false in the SAME batch, never left a
+      // phantom `declined` beside an answered-true SexM.
+      expect(result.actions).toContainEqual({ fieldId: SEX_F, type: "answer", value: "false" });
+      // Naming: the fact is announced once, by its own stated value — no
+      // separate naming for the derived sibling (design.md's exemption
+      // — "the sibling falses are that same fact's representation, not
+      // separate writes owed separate naming").
+      expect(result.replyPrefix ?? "").toContain("sex: male");
+      expect(result.replyPrefix ?? "").not.toContain("sex: female");
+
+      // And applied through the real write path, the record ends with
+      // sex fully resolved.
+      const { applyProposedActions } = await import("./talk");
+      const nextRecord = applyProposedActions(record, result.actions);
+      expect(nextRecord[SEX_M]).toEqual({ state: "answered", value: "true" });
+      expect(nextRecord[SEX_F]).toEqual({ state: "answered", value: "false" });
+    });
+
     it("passes the full field manifest (not just openFields) to validateCandidates, via the ALL_FIELD_TYPES default", async () => {
       // A candidate for "c" (not part of TOPIC's fields, and not in the
       // open set either — already answered) must still be checked against

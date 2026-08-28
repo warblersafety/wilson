@@ -9,10 +9,11 @@
 // building over data extract.ts already validated, which is what makes
 // every rule here directly, deterministically testable.
 import type { AgendaRecord } from "./agenda";
+import { exclusiveFactContaining, type AskFact } from "./ask-inventory";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { FieldState } from "./field-state";
 import { REPEAT_GROUP_LABELS } from "./ask";
-import { displayNameFor, joinNames } from "./display-names";
+import { displayNameFor, exclusiveMemberValue, joinNames } from "./display-names";
 import type { ProposedAction } from "./talk";
 import { repeatGroupOfLaterInstanceField, TOPICS, type RepeatGroup, type Topic } from "./topics";
 
@@ -23,6 +24,31 @@ export interface CorrectionOffer {
   action: ProposedAction;
   currentState: FieldState;
   currentValue?: string;
+  // Present only for a conflict against an already-answered `exclusive`
+  // fact (ask-copy.md rule 7's amendment, #126, item 3): a per-field
+  // offer is exactly wrong here — accepted against SexF while SexM
+  // stands answered, it is how a report ends with both sex boxes checked
+  // on an FDA-bound form. `writes` is the FULL atomic rewrite (the new
+  // member true, every OTHER member false, in the fact's own field
+  // order) to apply on accept — never `[action]` alone. `currentFieldId`
+  // is the sibling currently holding the fact's "true" value, carried so
+  // the sentence builder can name what it's being replaced with. Absent
+  // means the ordinary field-level offer below applies.
+  exclusiveFact?: { name: string; writes: ProposedAction[]; currentFieldId: string };
+}
+
+// The full atomic rewrite for one exclusive fact's conflict, in the
+// fact's own field order — the named member's own action stands where it
+// falls, every other member becomes an explicit "false" write. Mirrors
+// derive.ts's completeExclusiveFactWrites in spirit (same fact, same
+// all-other-members-false shape) but is not the same function: that one
+// derives ADDITIONS to a batch that already contains the triggering
+// write and skips already-settled siblings (a fresh completion); this is
+// a full, unconditional REPLACEMENT of every member's value, because a
+// conflict-against-answered means every sibling is already resolved one
+// way and the whole group is being rewritten, not completed.
+function exclusiveFactRewrite(fact: AskFact, action: ProposedAction): ProposedAction[] {
+  return fact.fieldIds.map((fieldId) => (fieldId === action.fieldId ? action : { fieldId, type: "answer", value: "false" }));
 }
 
 // A field this turn proposed more than one candidate for. Carries the
@@ -139,6 +165,59 @@ export function classifyFollowUpActions(
       throw new Error(`classifyFollowUpActions: record missing field id: ${action.fieldId}`);
     }
     const entry = record[action.fieldId];
+
+    // Rule 7's amendment, item 3 (#126): a "true" write naming a member
+    // of an `exclusive` fact is judged against the FACT's own resolution,
+    // not the field's — never the ordinary per-field unasked/resolved
+    // check below. Scoped to `type === "answer" && value === "true"`
+    // deliberately: that is the only shape the amendment's language
+    // covers ("the named member true"), and it is also the only shape
+    // the extractor prompts ever produce for a one-hot member (propose
+    // true for the box selected) — a stray "false" is left to the
+    // ordinary field-level path, unchanged.
+    if (action.type === "answer" && action.value === "true") {
+      const exclusiveFact = exclusiveFactContaining(action.fieldId);
+      if (exclusiveFact !== undefined) {
+        const currentTrueFieldId = exclusiveFact.fieldIds.find(
+          (id) => record[id]?.state === "answered" && record[id]?.value === "true",
+        );
+        // A DIFFERENT member already holds the fact's "true" value: a
+        // real conflict, offered at fact granularity — never as a
+        // member-level offer, which is exactly the shape that lets a
+        // report end up with two boxes checked. Re-confirming the SAME
+        // member that is already true (currentTrueFieldId === the
+        // action's own field) is not a conflict — nothing to replace —
+        // and falls through to the write below like any other case
+        // where the fact isn't already answered against this member.
+        if (currentTrueFieldId !== undefined && currentTrueFieldId !== action.fieldId) {
+          correctionOffers.push({
+            fieldId: action.fieldId,
+            action,
+            currentState: entry.state,
+            currentValue: entry.value,
+            exclusiveFact: {
+              name: exclusiveFact.name,
+              currentFieldId: currentTrueFieldId,
+              writes: exclusiveFactRewrite(exclusiveFact, action),
+            },
+          });
+          continue;
+        }
+        // Not yet answered against this member — including a sibling
+        // currently `unknown`/`declined`, which is exactly rule 7's
+        // supersession case: those record an absence of value, not a
+        // stated one, so this is a write, not an offer. Superseding the
+        // SIBLING's unknown/declined state is derive.ts's
+        // completeExclusiveFactWrites' job once this write lands in
+        // `writes`, not this classifier's.
+        writes.push(action);
+        if (!askFieldIds.includes(action.fieldId)) {
+          outOfAskWrites.push(action);
+        }
+        continue;
+      }
+    }
+
     if (entry.state === "unasked") {
       writes.push(action);
       if (!askFieldIds.includes(action.fieldId)) {
@@ -187,7 +266,26 @@ function describeCurrentState(offer: CorrectionOffer): string {
   return "marked declined";
 }
 
+// Rule 7's amendment, item 3 (#126): the fact-granularity form the
+// amendment quotes verbatim — "You said female for sex — it's recorded
+// as male. Replace it?" — DIFFERENT from correctionOfferSentence()'s
+// ordinary field-level shape below, which for a one-hot member would
+// render the nonsense "You said true for sex: female — it's recorded as
+// false. Replace it?". Both value halves are the bare stated value
+// (display-names.ts's exclusiveMemberValue — "male", not "sex: male"),
+// never the raw "true"/"false" internal representation.
+function exclusiveFactCorrectionOfferSentence(offer: CorrectionOffer): string {
+  const info = offer.exclusiveFact;
+  if (info === undefined) {
+    throw new Error("exclusiveFactCorrectionOfferSentence: offer carries no exclusiveFact");
+  }
+  const newValue = exclusiveMemberValue(offer.fieldId);
+  const oldValue = exclusiveMemberValue(info.currentFieldId);
+  return `You said ${newValue} for ${info.name} — it's recorded as ${oldValue}. Replace it?`;
+}
+
 function correctionOfferSentence(offer: CorrectionOffer, fields: FormFieldSpec[]): string {
+  if (offer.exclusiveFact !== undefined) return exclusiveFactCorrectionOfferSentence(offer);
   const phrase = fieldOrId(offer.fieldId, fields);
   return `You said ${describeOfferedChange(offer)} for ${phrase} — it's ${describeCurrentState(offer)}. Replace it?`;
 }

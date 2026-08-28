@@ -774,6 +774,30 @@ export function factCompletesFromOne(fact: AskFact): boolean {
   return fact.exclusive === true || fact.voicesEveryMember === true;
 }
 
+// Every `exclusive` fact's own AskFact object, keyed by each member field
+// id — added 2026-08-28 (#126) for the atomic-completion machinery
+// (derive.ts's completeExclusiveFactWrites) and the fact-granularity
+// correction offer (followup-sweep.ts). A field belongs to at most one
+// exclusive fact (authoring's own invariant: one-hot groups don't share
+// members), so a Map lookup is safe the same way ASK_BY_FIELD_ID below
+// is. Deliberately NOT scoped to one ask/topic: rule 7's amendment is
+// that entailment "carries on the clinician's own words, not on a list
+// being read", so the caller may be the ask's own turn, a rule-8
+// volunteered write anywhere in the walk, or a Read-back confirmation —
+// this lookup has to reach every exclusive fact regardless of which ask
+// owns it, not just the one currently on screen.
+const EXCLUSIVE_FACT_BY_FIELD_ID = new Map<string, AskFact>();
+for (const ask of AUTHORED_ASKS) {
+  for (const fact of ask.facts ?? []) {
+    if (fact.exclusive !== true) continue;
+    for (const fieldId of fact.fieldIds) EXCLUSIVE_FACT_BY_FIELD_ID.set(fieldId, fact);
+  }
+}
+
+export function exclusiveFactContaining(fieldId: string): AskFact | undefined {
+  return EXCLUSIVE_FACT_BY_FIELD_ID.get(fieldId);
+}
+
 // A CHECKBOX fact whose options the ask does not enumerate and which is
 // not mutually exclusive is answered by ONE member: the clinician
 // answered the question, nothing entitles us to write the rest false, so

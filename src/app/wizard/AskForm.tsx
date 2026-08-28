@@ -157,7 +157,15 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
     try {
       const nextSession: TalkSession = {
         ...current.session,
-        record: applyProposedActions(current.session.record, [offer.action]),
+        // ask-copy.md rule 7's amendment (#126): an exclusive-fact offer
+        // carries the FULL atomic rewrite in `exclusiveFact.writes` (the
+        // new member true, every sibling false, one operation) — never
+        // `[offer.action]` alone, which would write only the named
+        // member and leave the group's prior "true" sibling standing,
+        // exactly the both-boxes-checked defect this offer shape exists
+        // to prevent. An ordinary field-level offer carries no
+        // `exclusiveFact` and applies `offer.action` alone, unchanged.
+        record: applyProposedActions(current.session.record, offer.exclusiveFact?.writes ?? [offer.action]),
         transcript: [
           ...current.session.transcript,
           // Issue #123: no synthetic "Replace <field>? —" question
@@ -251,7 +259,11 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       {current.correctionOffers && current.correctionOffers.length > 0 && (
         <div className="ask-form__corrections" role="group" aria-label="Correction offers">
           {current.correctionOffers.map((offer) => {
-            const label = displayNameFor(offer.fieldId);
+            // ask-copy.md rule 7's amendment (#126): an exclusive-fact
+            // offer is named by the FACT ("Replace sex"), never the
+            // member ("Replace sex: female") — member-level naming is
+            // exactly the shape item 3 abolishes for one-hot members.
+            const label = offer.exclusiveFact?.name ?? displayNameFor(offer.fieldId);
             return (
               <Chip
                 key={offer.fieldId}

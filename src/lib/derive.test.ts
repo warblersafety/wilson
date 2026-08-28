@@ -93,6 +93,95 @@ describe("group completion", () => {
   });
 });
 
+// docs/ask-copy.md rule 7's amendment (#126): a write to an `exclusive`
+// group is a write of the whole FACT, atomic, and completion now applies
+// to ANY validator-grounded member write the record accepts — the ask's
+// own turn (unchanged, proven above), a rule-8 volunteered write, or a
+// Read-back confirmation (proven in the dictation-path describe block
+// below) — never bounded to the ask that was on screen the way
+// `voicesEveryMember` completion still is.
+describe("exclusive-fact atomic completion is path-agnostic (#126)", () => {
+  const EVAL_YES = "Page3.TestDataTable.EvalYes";
+  const EVAL_NO = "Page3.TestDataTable.EvalNo";
+  const EVAL_RETD = "Page3.TestDataTable.EvalRetd";
+
+  // The doc-review residue this unit's build half owns: a NAMED test for
+  // the volunteered path specifically, at this module's own level (the
+  // extract.ts-pipeline version lives in extract.test.ts). PB-2 (weight)
+  // is on screen; the clinician volunteers the patient's sex mid-topic.
+  // Pre-#126 this completed nothing — deriveCompanionWrites' group-
+  // completion loop was scoped to `step.ask.facts`, so a checkbox
+  // volunteered during a different ask completed nothing (see the
+  // "completes nothing for a group whose ask was not the one on screen"
+  // test above, which pins that this is STILL true for voicesEveryMember)
+  // — and the walk would go on to re-ask PB-1's sex later.
+  it("completes a one-hot pair from a write volunteered OUTSIDE the ask on screen", () => {
+    const derived = deriveCompanionWrites(stepFor("PB-2"), initAgenda(), [answer(SEX_F, "true")]);
+    expect(derived).toContainEqual(answer(SEX_M, "false"));
+  });
+
+  it("completes a three-way exclusive group the same way — PA-1's product availability", () => {
+    const derived = deriveCompanionWrites(stepFor("PB-2"), initAgenda(), [answer(EVAL_RETD, "true")]);
+    expect(derived.map((d) => d.fieldId).sort()).toEqual([EVAL_NO, EVAL_YES].sort());
+    for (const write of derived) expect(write).toEqual(answer(write.fieldId, "false"));
+  });
+
+  // The amendment's supersession clause: "the atomic write supersedes
+  // prior unknown and declined member states" — those recorded the fact
+  // before it was known or while it was withheld, not a stated value, so
+  // the sweep's "never silently overwrite a resolved field" invariant
+  // does not protect them. A naive port of the EXISTING alreadySettled
+  // guard (isResolved: true for unknown/declined too) would have
+  // reproduced this unit's own bug in the opposite direction — a
+  // resolved-unknown sibling surviving beside an answered-true one.
+  it("supersedes a sibling already marked unknown — a dismissed PB-1 later volunteers sex", () => {
+    const record = applyAction(initAgenda(), SEX_F, { type: "mark_unknown" });
+    const derived = deriveCompanionWrites(stepFor("PB-2"), record, [answer(SEX_M, "true")]);
+    expect(derived).toContainEqual(answer(SEX_F, "false"));
+  });
+
+  it("supersedes a sibling already marked declined, the same way", () => {
+    const record = applyAction(initAgenda(), SEX_F, { type: "decline" });
+    const derived = deriveCompanionWrites(stepFor("PB-2"), record, [answer(SEX_M, "true")]);
+    expect(derived).toContainEqual(answer(SEX_F, "false"));
+  });
+
+  // Never extended to an ANSWERED sibling — that is item 4's fact-level
+  // correction offer (followup-sweep.test.ts), not silent supersession.
+  // By the time a batch reaches this function an answered sibling can
+  // only mean classifyFollowUpActions already diverted the conflicting
+  // write into a correction offer (so the named member's own "true"
+  // write is never in `writes` at all) — this is the defensive proof at
+  // this function's own level, regardless of how the answered state
+  // arose.
+  it("never touches an already-ANSWERED sibling", () => {
+    const record = applyAction(initAgenda(), SEX_F, { type: "answer" }, "false");
+    const derived = deriveCompanionWrites(stepFor("PB-2"), record, [answer(SEX_M, "true")]);
+    expect(derived.map((d) => d.fieldId)).not.toContain(SEX_F);
+  });
+
+  // The trigger itself still has to be a "true" answer — "the named
+  // member true, every sibling false" (rule 7's amendment). An unknown
+  // or declined trigger completes nothing, same as the in-ask bound
+  // above.
+  it("completes nothing from an unknown or declined TRIGGER", () => {
+    for (const action of [{ type: "mark_unknown" as const }, { type: "decline" as const }]) {
+      const derived = deriveCompanionWrites(stepFor("PB-2"), initAgenda(), [{ fieldId: SEX_F, ...action }]);
+      expect(derived, action.type).toEqual([]);
+    }
+  });
+
+  // voicesEveryMember is UNCHANGED — still in-ask only, proven again here
+  // alongside the exclusive tests above so the split is visible in one
+  // place: OC-1's outcome fact volunteered while PB-2 is on screen still
+  // completes nothing, exactly as the top-level "completes nothing for a
+  // group whose ask was not the one on screen" test already pins.
+  it("does not extend voicesEveryMember completion out-of-ask", () => {
+    const derived = deriveCompanionWrites(stepFor("PB-2"), initAgenda(), [answer(HOSPITAL, "true")]);
+    expect(derived).toEqual([]);
+  });
+});
+
 describe("the bare-age default", () => {
   it("defaults a bare age to years, and unchecks the other three units", () => {
     const derived = deriveCompanionWrites(stepFor("PB-1"), initAgenda(), [answer(AGE_VALUE, "61")]);
@@ -208,6 +297,96 @@ describe("the bare-age default reaches the dictation path too", () => {
       [],
     );
     expect(record["Page1.SecA_Patient.WeightLB"].state).toBe("unasked");
+  });
+});
+
+// Issue #126 AC-1/AC-3/AC-5: the exclusive-fact half of rule 7's
+// amendment, unlike the bare-age default above, is NEW at Read-back —
+// pre-#126 narrative-extract.ts's own comment said "group completion is
+// deliberately absent... a narrative voices nothing," which was the
+// letter of the OLD in-ask-only bound and produced gate run #1's C3
+// defect (issue #126): "58-year-old man" confirmed at Read-back left
+// `SexM: answered "true"` beside `SexF: unknown`, and the walk re-asked
+// sex right after the clinician had just answered it.
+describe("exclusive-fact completion reaches the dictation path too (Read-back, #126)", () => {
+  it("completes a one-hot pair from a narrative-confirmed write, the same as in-ask", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { record } = applyNarrativeProposals(initAgenda(), initRepeatCounts(), [answer(SEX_M, "true")], []);
+    expect(record[SEX_F]).toEqual({ state: "answered", value: "false" });
+  });
+
+  // AC-5, gate run #1 C3 (docs/round-gate.md; fixtures/gate/cases.ts's
+  // own C3 case): the clinician dictates "58-year-old man...", Read-back
+  // shows "sex: male — read from '58-year-old man'", they confirm. The
+  // record must hold sex as a resolved fact, and the walk's very next
+  // utterance for PB-1 must not re-ask it — AC-3's "does not re-ask" and
+  // AC-4's "no unknown sibling in the open-fields dialog" both follow
+  // mechanically once the record itself is right, proven directly below.
+  it("AC-5 — C3: after Read-back, SexF is answered false and 'sex' is absent from the next ask", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { askCopy } = await import("./ask");
+    const { unresolvedFactNames } = await import("./ask-inventory");
+    const { record } = applyNarrativeProposals(
+      initAgenda(),
+      initRepeatCounts(),
+      // "58-year-old man" — age.ts's own bare-age default fires
+      // alongside completion, exactly as it would through a real
+      // Read-back confirm batch.
+      [answer(AGE_VALUE, "58"), answer(SEX_M, "true")],
+      [],
+    );
+    expect(record[SEX_F]).toEqual({ state: "answered", value: "false" });
+
+    const pb1 = AUTHORED_ASKS.find((a) => a.id === "PB-1")!;
+    // AC-3: "sex" is gone from what the ask is still waiting on — not
+    // merely absent from the rendered string (it correctly still
+    // appears on the "I've got" acknowledgment side below; "absent from
+    // the next ask" means absent from what is being ASKED, rule 9's
+    // still-need half).
+    expect(unresolvedFactNames(pb1, record)).toEqual(["patient identifier"]);
+    expect(unresolvedFactNames(pb1, record)).not.toContain("sex");
+    // The exact rendered arrival frame, pinned: age and sex both held,
+    // named once each, never re-asked.
+    expect(askCopy(pb1, record, false)).toBe("I've got age and sex. Still need: patient identifier.");
+  });
+
+  // AC-4: no `unknown` sibling of a confirmed one-hot member anywhere in
+  // the open-fields dialog or its count — proven directly against
+  // open-fields.ts's own derivation, the same surface a clinician sees
+  // at sign-off.
+  it("AC-4: no unknown sex sibling in the open-fields dialog after Read-back completes it", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { openFieldEntries } = await import("./open-fields");
+    const { record } = applyNarrativeProposals(initAgenda(), initRepeatCounts(), [answer(SEX_M, "true")], []);
+    const repeatCounts = initRepeatCounts();
+    const entries = openFieldEntries(record, repeatCounts);
+    expect(entries.find((e) => e.fieldId === SEX_F || e.fieldId === SEX_M)).toBeUndefined();
+  });
+
+  it("completes a three-way exclusive group at Read-back too", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const EVAL_YES = "Page3.TestDataTable.EvalYes";
+    const EVAL_NO = "Page3.TestDataTable.EvalNo";
+    const EVAL_RETD = "Page3.TestDataTable.EvalRetd";
+    const { record } = applyNarrativeProposals(initAgenda(), initRepeatCounts(), [answer(EVAL_RETD, "true")], []);
+    expect(record[EVAL_YES]).toEqual({ state: "answered", value: "false" });
+    expect(record[EVAL_NO]).toEqual({ state: "answered", value: "false" });
+  });
+
+  // voicesEveryMember stays unreachable from Read-back, unchanged: a
+  // narrative voices no ask, so OC-1's outcome fact — which requires
+  // being heard, not just entailed — completes nothing here, the same
+  // bound bareAgeDefaultWrites' own sibling comment states for group
+  // completion generally.
+  it("does not extend voicesEveryMember completion to Read-back", async () => {
+    const { applyNarrativeProposals } = await import("./narrative-extract");
+    const { initRepeatCounts } = await import("./topics");
+    const { record } = applyNarrativeProposals(initAgenda(), initRepeatCounts(), [answer(HOSPITAL, "true")], []);
+    expect(record[DEATH].state).toBe("unasked");
   });
 });
 
