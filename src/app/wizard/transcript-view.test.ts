@@ -12,7 +12,7 @@ import { initTalkSession, processTurn, startTalk, type ExtractFn, type TalkStep 
 import { stepForSession } from "./direct-step";
 import { visibleTranscriptTurns } from "./transcript-view";
 import { frameDuplicateViolations, scriptedFrames, type RenderedFrame } from "@/lib/ux-floor";
-import { DOUBLE_BUBBLE_FRAMES } from "../../../fixtures/ux-floor/violations";
+import { CHIP_VOCABULARY_FRAMES, DOUBLE_BUBBLE_FRAMES } from "../../../fixtures/ux-floor/violations";
 
 // What the clinician actually sees on Follow-ups: Transcript renders
 // every visible turn, then AskForm (or RepeatDecision) renders the reply
@@ -199,15 +199,23 @@ describe("Wizard's wiring to the helper", () => {
 // #89's tests above count occurrences of ONE string, the current ask.
 // The floor's check is the general form of the same rule and lives here
 // because this is where the render helper does: across a full scripted
-// walk, no string at all may appear twice in a single rendered frame.
+// walk, no TALKER string may appear twice in a single rendered frame.
+// Narrowed from "no string at all" by Issue #123 (orchestrator-
+// authorized, see frameDuplicateViolations()'s own comment in
+// ux-floor.ts): chips are a fixed, short vocabulary, so two distinct,
+// legitimate taps sharing the same clinician text is now ordinary and
+// is the mockup's intended treatment, not a rendering bug.
 
 // What Wizard.tsx actually composes: Transcript over visibleTranscriptTurns,
-// then AskForm's (or RepeatDecision's) accent bubble.
+// then AskForm's (or RepeatDecision's) accent bubble. `role` carried
+// through from each TalkTurn (Issue #123: frameDuplicateViolations() is
+// role-aware) — the accent bubble is always talker-shaped, the same
+// question the walk is about to render as a talker turn once answered.
 function shippedFrame(step: TalkStep): RenderedFrame {
   const rendersAsk = step.nextStep.kind === "topic" || step.nextStep.kind === "repeat-decision";
   return [
-    ...visibleTranscriptTurns(step).map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text })),
-    ...(rendersAsk ? [{ source: "current-ask", text: step.reply }] : []),
+    ...visibleTranscriptTurns(step).map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text, role: turn.role })),
+    ...(rendersAsk ? [{ source: "current-ask", text: step.reply, role: "talker" as const }] : []),
   ];
 }
 
@@ -219,8 +227,8 @@ function shippedFrame(step: TalkStep): RenderedFrame {
 function preFixFrame(step: TalkStep): RenderedFrame {
   const rendersAsk = step.nextStep.kind === "topic" || step.nextStep.kind === "repeat-decision";
   return [
-    ...step.session.transcript.map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text })),
-    ...(rendersAsk ? [{ source: "current-ask", text: step.reply }] : []),
+    ...step.session.transcript.map((turn, i) => ({ source: `transcript[${i}]`, text: turn.text, role: turn.role })),
+    ...(rendersAsk ? [{ source: "current-ask", text: step.reply, role: "talker" as const }] : []),
   ];
 }
 
@@ -233,19 +241,35 @@ describe("the UX floor: no string renders twice in one frame", () => {
 
   it("goes red on the render rule that shipped the double bubble", async () => {
     // Steve's 2026-08-26 staging screenshot: the identical paragraph
-    // back-to-back in gray and teal, on every turn of the walk.
+    // back-to-back in gray and teal, on every turn of the walk. Driven
+    // over the SAME post-#123 walk as the test above (short, repeating
+    // chip answers throughout) — proving role-awareness doesn't just
+    // silence the check, it still finds the real talker-side defect
+    // sitting right next to all those legitimate clinician repeats.
     const frames = await scriptedFrames(preFixFrame);
     const found = frameDuplicateViolations(frames);
     expect(found.length).toBeGreaterThan(20);
     expect(found[0].detail).toContain("renders twice in the same frame");
     // Always the accent bubble: the transcript turn is legitimately
-    // there, the second copy of it is not.
+    // there, the second copy of it is not. Before #123's role-aware
+    // narrowing, this same assertion also caught every legitimate
+    // repeated "I don't have that" as a false `source: "transcript[N]"`
+    // entry — the exact conflict the orchestrator authorized this fix
+    // for.
     expect(found.every((v) => v.source === "current-ask")).toBe(true);
   });
 
   it("goes red on a hand-built frame carrying the same duplicate", () => {
     // The class stated as data, so the check is proven independently of
-    // the walk that happens to drive it.
+    // the walk that happens to drive it. The talker-dupe direction.
     expect(frameDuplicateViolations(DOUBLE_BUBBLE_FRAMES)).toHaveLength(1);
+  });
+
+  // The other direction (Issue #123): two DIFFERENT, legitimate chip taps
+  // sharing the same short clinician text is not a violation. Same shape
+  // of proof as the hand-built double-bubble case above, for the
+  // opposite claim.
+  it("stays clean on two distinct taps sharing the same chip-vocabulary answer", () => {
+    expect(frameDuplicateViolations(CHIP_VOCABULARY_FRAMES)).toEqual([]);
   });
 });

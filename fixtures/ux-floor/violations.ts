@@ -103,10 +103,24 @@ const DOUBLE_BUBBLE_ASK = "Any relevant history — preexisting conditions, alle
 
 export const DOUBLE_BUBBLE_FRAMES: RenderedFrame[] = [
   [
-    { source: "transcript[0]", text: "Describe what happened — the event, product problem, or medication error, in your own words." },
-    { source: "transcript[1]", text: "Rash across the trunk, 36 hours after the second dose." },
-    { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK },
-    { source: "current-ask", text: DOUBLE_BUBBLE_ASK },
+    { source: "transcript[0]", text: "Describe what happened — the event, product problem, or medication error, in your own words.", role: "talker" },
+    { source: "transcript[1]", text: "Rash across the trunk, 36 hours after the second dose.", role: "clinician" },
+    { source: "transcript[2]", text: DOUBLE_BUBBLE_ASK, role: "talker" },
+    { source: "current-ask", text: DOUBLE_BUBBLE_ASK, role: "talker" },
+  ],
+];
+
+// Issue #123: the other direction frameDuplicateViolations() must prove,
+// now that it is role-aware — two DISTINCT, legitimate chip taps sharing
+// the same short answer ("I don't have that" twice) is the mockup's own
+// intended treatment, not the double bubble above. Two different talker
+// questions, two identical clinician answers, no violation.
+export const CHIP_VOCABULARY_FRAMES: RenderedFrame[] = [
+  [
+    { source: "transcript[0]", text: "Who is the patient — an identifier like an MRN or initials, their age, and sex?", role: "talker" },
+    { source: "transcript[1]", text: "I don't have that", role: "clinician" },
+    { source: "transcript[2]", text: "What's the patient's weight — and date of birth, if you record it?", role: "talker" },
+    { source: "transcript[3]", text: "I don't have that", role: "clinician" },
   ],
 ];
 

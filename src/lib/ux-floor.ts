@@ -55,6 +55,12 @@ import { dismissAcknowledgment, widgetTurnText } from "./chip-grammar";
 export interface RenderedString {
   source: string;
   text: string;
+  // Which side of the conversation this string belongs to, when the
+  // producer knows it (a rendered transcript pair does). Left unset by
+  // producers with no turn to attribute one to — renderedCopyInventory()'s
+  // enumerated copy is authored strings, not a conversation.
+  // frameDuplicateViolations() below (Issue #123) is the only consumer.
+  role?: "talker" | "clinician";
 }
 
 export interface UxFloorViolation {
@@ -612,16 +618,49 @@ export async function scriptedFrames(render: (step: TalkStep) => RenderedFrame):
   return (await scriptedSteps()).map(render);
 }
 
-// AC-4. One violation per (frame, repeated string), attributed to the
-// LATER occurrence — the second bubble is the one that shouldn't be
+// AC-4. One violation per (frame, repeated TALKER string), attributed to
+// the LATER occurrence — the second bubble is the one that shouldn't be
 // there, and naming it is what points at the render rule rather than at
 // the session.
+//
+// Narrowed by Issue #123 (orchestrator-authorized): a `role: "clinician"`
+// entry is never compared, on either side of a match — it neither trips
+// a violation nor blocks one. Before #123, no two clinician turns could
+// ever coincidentally share text (chip-grammar.ts's widgetTurnText()
+// spliced the whole preceding question into every chip answer, so each
+// one was unique by construction) — this check's old all-strings
+// equality was safe only because that made a clinician-side collision
+// structurally impossible, never because it was deliberately excluded.
+// #123 made the opposite true: chips are a fixed, short vocabulary
+// (design.md), so two distinct, legitimate taps sharing "No" or "I
+// don't have that" is now ordinary, and it is the mockup's own intended
+// treatment, not a rendering bug. The defect class this check exists
+// for — the render rule repeating something WILSON said (unit #91's
+// 2026-08-26 double bubble) — is untouched: a talker turn duplicated by
+// another talker turn or by the current-ask accent bubble (itself
+// talker-shaped, `role` defaults to that below) still flags. The one
+// clinician-side class this check could ever have caught — the question
+// echoed INTO the answer — was never actually caught by it even before
+// #123: that echo made the clinician's text a SUPERSTRING of the
+// talker's, never byte-equal, so this equality check was always blind to
+// it; #123's clinicianEchoViolations() is what holds that class now.
+//
+// Residual, consciously accepted: a literal double-paint of ONE
+// clinician turn — the render layer somehow rendering the exact same
+// clinician entry twice in one frame — is no longer string-detectable
+// here, now that clinician text is exempt on both sides of the
+// comparison. Never observed in any run; nothing in this build's render
+// path does it (Transcript.tsx maps session.transcript once; AskForm's
+// and RepeatDecision's own accent bubble is always the NEXT talker
+// reply, never a `role: "clinician"` string). Guarded only by turn
+// identity at render, not by this check, from here on.
 export function frameDuplicateViolations(frames: RenderedFrame[]): UxFloorViolation[] {
   const out: UxFloorViolation[] = [];
   for (const [index, frame] of frames.entries()) {
     const seen = new Set<string>();
     const reported = new Set<string>();
     for (const entry of frame) {
+      if (entry.role === "clinician") continue;
       if (!seen.has(entry.text)) {
         seen.add(entry.text);
         continue;
