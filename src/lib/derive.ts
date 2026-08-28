@@ -156,6 +156,19 @@ export function deriveCompanionWrites(
 // to make: it only ever sees a member entitled to write straight
 // through.
 //
+// That holds on the EXTRACT path. The narrative path has no classifier
+// — applyNarrativeProposals (narrative-extract.ts) calls this directly
+// — and is safe today for a different reason: narrativePassFields
+// (topics.ts) offers unresolved fields only, and Read-back runs once
+// against a fresh record, so a conflicting `"true"` cannot arise there.
+// That is the real invariant, and it is narrower than it looks: a
+// second narrative pass, a re-dictation, or an amend flow would break
+// it, and `exclusiveSiblingAlreadySettled` below would then SKIP the
+// answered sibling with no offer to catch it — both boxes checked,
+// silently. gate-simulate.ts is already a second caller. Name it here
+// so a future caller does not have to rediscover it (reviewer pass, PR
+// #141, finding 5).
+//
 // Supersession: an `unknown`/`declined` sibling is overwritten `false`
 // the same as an `unasked` one — those record an absence of value, not a
 // stated one, so the sweep's "never silently overwrite a resolved
@@ -193,8 +206,12 @@ export function completeExclusiveFactWrites(record: AgendaRecord, writes: Propos
 // own artifact seeds — "61-year-old" — therefore left four unit
 // checkboxes open forever.
 //
-// Group completion deliberately does NOT travel with it: completion is
-// bounded by what an ask voiced, and a dictated narrative voices nothing.
+// Group completion does not travel with it for `voicesEveryMember`
+// facts: that half of rule 7 is still bounded by what an ask voiced,
+// and a dictated narrative voices nothing. Exclusive facts ARE
+// completed on the narrative path since #126 — entailment carries on
+// the clinician's own words, not on a list being read — which is
+// completeExclusiveFactWrites' job above, not this function's.
 export function bareAgeDefaultWrites(record: AgendaRecord, writes: ProposedAction[]): ProposedAction[] {
   // Only when these writes are what set the age, and only when nothing —
   // model, record, or this same batch — has already said which unit.

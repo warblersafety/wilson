@@ -196,11 +196,19 @@ design conversation first.
      and their kin; the per-fact declaration is authoritative), the
      entailment carries on the clinician's own words, not on a list
      being read: "58-year-old man" settles the sex question
-     wherever it is said. Completion applies to any
-     validator-grounded member write the record accepts — the ask's
-     own turn, a Read-back confirmation of a narrative proposal, or
-     a rule-8 volunteered write (announced and correctable, as rule
-     8 provides). A Read-back
+     wherever it is said. Completion applies to a
+     validator-grounded `"true"` write on any of three paths — the
+     ask's own turn, a Read-back confirmation of a narrative
+     proposal, or a rule-8 volunteered write (announced and
+     correctable, as rule 8 provides). Two boundaries are stated
+     here rather than assumed, both narrower than this rule wants
+     and both filed as defects against it: an action that is not
+     `answer "true"` — `"false"`, `unknown`, `declined` — is out of
+     scope and still takes the field-level path (#155), and a
+     tapped collision chip writes its member without reaching the
+     sweep at all, so it completes nothing (#154). Recorded because
+     a contract that overstates its own reach is how the next unit
+     inherits a bug. A Read-back
      confirmation is the clinician answering, not machinery
      guessing — proposals being confirmable before anything writes
      is the whole reason Read-back exists — so the "unheard"
@@ -235,10 +243,13 @@ design conversation first.
      exclusive fact already answered, the sweep offers one correction
      named by the fact — "You said female for sex — it's recorded as
      male. Replace it?" — and accepting it rewrites the group
-     atomically. Member-level correction offers do not exist for
-     one-hot members: a per-field offer on `SexF`, accepted against an
-     answered `SexM`, is exactly how a report ends with both sex boxes
-     checked on an FDA-bound form.
+     atomically. A member-level offer is never the right shape for a
+     one-hot member: a per-field offer on `SexF`, accepted against
+     an answered `SexM`, is exactly how a report ends with both sex
+     boxes checked on an FDA-bound form. The sweep's own offer path
+     honours that. Two live paths do not yet — a tapped collision
+     chip (#154) and a non-`answer "true"` action (#155) — and they
+     are gaps against this rule, not exceptions to it.
 
      **Naming the fact names the whole write.** design.md requires
      every out-of-ask write to be named in that turn's visible reply.
