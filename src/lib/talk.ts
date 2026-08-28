@@ -239,6 +239,24 @@ interface Deps {
 // the ask is dismissed some other way — recomputes it fresh, exactly as
 // stepForSession() already does after a correction-offer accept
 // (direct-step.ts, #109/#110).
+//
+// Gated on `step.kind === "topic"` (reviewer pass on PR #142, finding
+// 1 — BLOCKING, fixed here): `collisions` has exactly one consumer,
+// AskForm.tsx, which renders a chip per colliding value only on a
+// topic step. A repeat-decision or `done` step has no chip to replace
+// the erased question with — and RepeatDecision.tsx quotes `question`
+// into a clinician-role transcript turn, so suppressing it there used
+// to delete the repeat question from the reply, the transcript, AND
+// that quote, leaving it nowhere and letting a "No" tap answer a
+// question the clinician never saw (the exact clinician-role
+// misattribution harm class unit #123 closed, reopened through this
+// path). Narrowing the gate, rather than widening chip rendering to
+// other step kinds, is the deliberate choice: the latter wants design.
+// The accepted consequence is that on a non-topic step a pending
+// collision goes back to being concatenated with the ask's own next
+// question — the PRE-#124 behavior, unresolvable by any chip there —
+// restored on purpose rather than left erased. Filed as the follow-up:
+// warblersafety/wilson#151.
 async function respond(
   next: TalkSession,
   deps: Deps,
@@ -247,11 +265,12 @@ async function respond(
 ): Promise<TalkStep> {
   const step = nextStep(next.record, next.repeatCounts, deps.topics ?? TOPICS, deps.fields ?? FORM_3500_FIELDS);
   const question = await deps.ask(step, next);
-  const reply = pendingCollision ? (replyPrefix ?? question) : replyPrefix ? `${replyPrefix} ${question}` : question;
+  const suppressQuestion = pendingCollision && step.kind === "topic";
+  const reply = suppressQuestion ? (replyPrefix ?? question) : replyPrefix ? `${replyPrefix} ${question}` : question;
   return {
     session: { ...next, transcript: [...next.transcript, { role: "talker", text: reply }] },
     reply,
-    question: pendingCollision ? reply : question,
+    question: suppressQuestion ? reply : question,
     nextStep: step,
   };
 }

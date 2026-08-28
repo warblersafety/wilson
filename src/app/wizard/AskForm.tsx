@@ -108,15 +108,27 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(current.question, answerLabel), source: "widget" },
         ],
       };
-      onSubmitted(
-        await stepForSession(nextSession, {
-          appendReply: true,
-          // ask-copy.md rule 8 (#110). Named from the same step the
-          // `fieldIds` above came from, so the sentence names exactly the
-          // facts this tap resolved.
-          replyPrefix: dismissAcknowledgment(current.nextStep, action),
-        }),
-      );
+      const nextStepResult = await stepForSession(nextSession, {
+        appendReply: true,
+        // ask-copy.md rule 8 (#110). Named from the same step the
+        // `fieldIds` above came from, so the sentence names exactly the
+        // facts this tap resolved.
+        replyPrefix: dismissAcknowledgment(current.nextStep, action),
+      });
+      onSubmitted({
+        ...nextStepResult,
+        // Reviewer pass on PR #142, finding 2: stepForSession()'s fresh
+        // TalkStep carries neither pending-offer channel of its own — a
+        // dismiss tap writes only the CURRENT ask's own fieldIds, never
+        // a correctionOffer's or collision's field (those always name
+        // OTHER fields this turn's sweep found extra evidence for), so
+        // both channels are exactly as pending after the tap as they
+        // were before it and must be carried forward untouched, the same
+        // way handleAcceptCorrection/handleAcceptCollision below carry
+        // forward whichever channel they did NOT just resolve.
+        correctionOffers: current.correctionOffers,
+        collisions: current.collisions,
+      });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
     } finally {
@@ -158,6 +170,14 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       onSubmitted({
         ...nextStepResult,
         correctionOffers: remainingCorrectionOffers(current.correctionOffers, offer.fieldId),
+        // Reviewer pass on PR #142, finding 2: a same-turn collision
+        // names a DIFFERENT field than the offer just accepted
+        // (classifyFollowUpActions() puts each field in at most one of
+        // the two channels), so it is untouched by this accept and must
+        // be carried forward as-is — without this, accepting a
+        // correction offer used to silently drop every pending collision
+        // chip, even though none of them was acted on.
+        collisions: current.collisions,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
@@ -202,6 +222,16 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
       onSubmitted({
         ...nextStepResult,
         collisions: remainingCollisions(current.collisions, collision.fieldId),
+        // Reviewer pass on PR #142, finding 2 (SHOULD-FIX, the worst-case
+        // direction): without this, accepting a collision chip silently
+        // dropped every pending correction-offer chip too — e.g. the
+        // "Replace date of event" chip vanishing while EventDate stayed
+        // `answered` at the wrong value, which the walk then never
+        // re-asks about (it isn't `unasked`). A same-turn correction
+        // offer names a different field than the collision just
+        // resolved, so it carries forward untouched, mirroring
+        // handleAcceptCorrection above.
+        correctionOffers: current.correctionOffers,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));

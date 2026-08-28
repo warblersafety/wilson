@@ -196,6 +196,42 @@ describe("classifyFollowUpActions", () => {
     expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
   });
 
+  // Reviewer pass on PR #142, finding 2 (SHOULD-FIX): AskForm.tsx's
+  // accept handlers each carried forward only the ONE pending-offer
+  // channel they themselves resolve, silently dropping the other if
+  // both were pending in the same turn — worst case, accepting a
+  // collision chip made a same-turn "Replace date of event" correction
+  // offer vanish while the field stayed answered at the wrong value, a
+  // silent mis-fill the walk never re-asks about. This pins the
+  // classifier fact that fix depends on: the two channels are populated
+  // independently, over different fields, from one turn, with nothing
+  // written for either — so a handler carrying "the channel I didn't
+  // just resolve" forward untouched is always the right thing to do,
+  // never a stale echo of data that's since changed shape.
+  it("populates both channels from one turn: a correction offer for an answered field, a collision for an unasked one", () => {
+    const record = recordOf({ a: { state: "unasked" }, c: { state: "answered", value: "old" } });
+    const actions: ProposedAction[] = [
+      { fieldId: "a", type: "answer", value: "500 mg" },
+      { fieldId: "a", type: "answer", value: "875 mg" },
+      { fieldId: "c", type: "answer", value: "new" },
+    ];
+    const result = classifyFollowUpActions(actions, record, [], TOPICS);
+    expect(result.writes).toEqual([]);
+    expect(result.correctionOffers).toEqual([
+      { fieldId: "c", action: { fieldId: "c", type: "answer", value: "new" }, currentState: "answered", currentValue: "old" },
+    ]);
+    expect(result.collisions).toEqual([
+      {
+        fieldId: "a",
+        values: ["500 mg", "875 mg"],
+        actions: [
+          { fieldId: "a", type: "answer", value: "500 mg" },
+          { fieldId: "a", type: "answer", value: "875 mg" },
+        ],
+      },
+    ]);
+  });
+
   it("returns empty result for an empty actions list", () => {
     const result = classifyFollowUpActions([], recordOf({}), [], TOPICS);
     expect(result).toEqual({ writes: [], outOfAskWrites: [], correctionOffers: [], collisions: [], volunteeredRepeatGroups: [] });
@@ -616,6 +652,13 @@ describe("the collision reply quotes the values that collided (#109)", () => {
   // answer takes (talk.ts).
   it("AC-4: choosing 875 mg writes Prod1Strength — the real field the C3 collision is over", () => {
     const PROD1_STRENGTH = "Page4.Prod1.Prod1Strength";
+    // Reviewer pass on PR #142, finding 5 (NIT): this test used to key
+    // its own hand-built record off this string literal and never
+    // checked it against the manifest — it would have passed just the
+    // same with a bogus id. Resolving it here first makes the test prove
+    // its own load-bearing half: the field this AC claims to be "the
+    // real field the C3 collision is over" actually exists.
+    expect(fieldById(PROD1_STRENGTH)).toBeDefined();
     const record: AgendaRecord = { [PROD1_STRENGTH]: { state: "unasked" } };
     const actions: ProposedAction[] = [
       { fieldId: PROD1_STRENGTH, type: "answer", value: "500 mg" },

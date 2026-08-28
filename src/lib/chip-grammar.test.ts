@@ -214,6 +214,68 @@ describe("remainingCollisions", () => {
   });
 });
 
+// Reviewer pass on PR #142, finding 2 (SHOULD-FIX): both pending-offer
+// channels can be live in the same turn, and AskForm.tsx's three
+// handlers (accept-correction, accept-collision, dismiss) must each
+// carry BOTH forward — the one they just resolved (via the remaining*
+// helper above) AND the other, untouched. Before this fix each handler
+// spread only its own channel, so accepting one silently dropped
+// whatever was pending on the other — worst case, a same-turn
+// correction offer's chip vanishing while its field stayed answered at
+// the wrong value, which the walk then never re-asks about (it's
+// `answered`, not `unasked`). AskForm.tsx has no test harness (this repo
+// has no component tests at all), so this pins the composition at the
+// level reachable without one: the exact shape each handler now builds,
+// proving the two helpers never interfere with each other's list.
+describe("remainingCorrectionOffers and remainingCollisions carried together (Issue #142 reviewer pass, finding 2)", () => {
+  function offer(fieldId: string): CorrectionOffer {
+    return {
+      fieldId,
+      action: { fieldId, type: "answer", value: `value for ${fieldId}` },
+      currentState: "answered",
+      currentValue: `old value for ${fieldId}`,
+    };
+  }
+
+  function collision(fieldId: string): FieldCollision {
+    return {
+      fieldId,
+      values: [`${fieldId}-1`, `${fieldId}-2`],
+      actions: [
+        { fieldId, type: "answer", value: `${fieldId}-1` },
+        { fieldId, type: "answer", value: `${fieldId}-2` },
+      ],
+    };
+  }
+
+  it("accepting a correction offer (handleAcceptCorrection's shape) leaves a same-turn collision fully intact", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b"), collision("c")];
+    const next = {
+      correctionOffers: remainingCorrectionOffers(correctionOffers, "a"),
+      collisions, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ correctionOffers: undefined, collisions: [collision("b"), collision("c")] });
+  });
+
+  it("accepting a collision (handleAcceptCollision's shape) leaves a same-turn correction offer fully intact", () => {
+    const correctionOffers = [offer("a"), offer("b")];
+    const collisions = [collision("c")];
+    const next = {
+      collisions: remainingCollisions(collisions, "c"),
+      correctionOffers, // carried forward untouched — the fix under test
+    };
+    expect(next).toEqual({ collisions: undefined, correctionOffers: [offer("a"), offer("b")] });
+  });
+
+  it("dismissing (handleDismiss's shape) carries both channels forward untouched — a dismiss resolves neither", () => {
+    const correctionOffers = [offer("a")];
+    const collisions = [collision("b")];
+    const next = { correctionOffers, collisions };
+    expect(next).toEqual({ correctionOffers: [offer("a")], collisions: [collision("b")] });
+  });
+});
+
 describe("friendlyFailureMessage", () => {
   it("never leaks the raw error text, regardless of what it says", () => {
     const raw = "Could not resolve authentication method. Expected one of apiKey...";
