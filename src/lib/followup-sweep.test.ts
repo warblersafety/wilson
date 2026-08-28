@@ -243,6 +243,100 @@ describe("classifyFollowUpActions", () => {
   });
 });
 
+// Issue #122 (the round-gate's C3 case): the later-instance exclusion
+// above fired unconditionally, even when the field it excluded was the
+// CURRENT ask's own field — so instance 2's own SP-1 answer ("The second
+// one was metformin.") was deferred as if it were a volunteer, the false
+// "Noted — I'll ask about that..." acknowledgment rendered while
+// standing on that very ask, and Prod2Name was never written. Real
+// manifest ids throughout, matching ask-inventory.ts's SP-1-2 and
+// CM-2-5 askFieldIds — this is deliberately not the synthetic "p2"/"m2"
+// fixture above, since the whole point is to catch drift against the
+// real inventory's askFieldIds shape.
+describe("a later-instance candidate that belongs to the ask on screen (#122)", () => {
+  const SP2_NAME = "Page5.Prod2.Prod2Name";
+  const SP2_STRENGTH = "Page5.Prod2.Prod2Strength";
+  const SP2_MANU = "Page5.Prod2.Prod2ManuComp";
+  // ask-inventory.ts's suspectProduct(2) SP-1-2: askFieldIds is exactly
+  // these three.
+  const SP1_2_ASK_FIELD_IDS = [SP2_NAME, SP2_STRENGTH, SP2_MANU];
+
+  // ask-inventory.ts's concomitantMedication(5) CM-2-5: askFieldIds is
+  // exactly this one field.
+  const CM5 = "Page6.SecF_Other.Table1.Row5.Prod5";
+
+  it("C3: 'The second one was metformin.' writes Prod2Name when SP-1-2 is the ask on screen", () => {
+    const record: AgendaRecord = {
+      [SP2_NAME]: { state: "unasked" },
+      [SP2_STRENGTH]: { state: "unasked" },
+      [SP2_MANU]: { state: "unasked" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, SP1_2_ASK_FIELD_IDS);
+    expect(result.writes).toEqual([{ fieldId: SP2_NAME, type: "answer", value: "metformin" }]);
+    expect(result.outOfAskWrites).toEqual([]);
+    expect(result.correctionOffers).toEqual([]);
+    expect(result.collisions).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual([]);
+  });
+
+  it("the SAME message volunteered at an unrelated ask still defers, with no write", () => {
+    const record: AgendaRecord = { [SP2_NAME]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    // "Page2.SecB_Adverse.DescEvent" (event description) names none of
+    // Prod2's fields — a genuinely unrelated ask.
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(result.writes).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual(["suspect-product"]);
+  });
+
+  it("the same rule for the concomitant group's CM-2-{n} asks: in-ask writes", () => {
+    const record: AgendaRecord = { [CM5]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: CM5, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, [CM5]);
+    expect(result.writes).toEqual([{ fieldId: CM5, type: "answer", value: "metformin" }]);
+    expect(result.outOfAskWrites).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual([]);
+  });
+
+  it("...and the concomitant group's CM-2-{n} field still defers when genuinely out-of-ask", () => {
+    const record: AgendaRecord = { [CM5]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: CM5, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(result.writes).toEqual([]);
+    expect(result.volunteeredRepeatGroups).toEqual(["concomitant-medication"]);
+  });
+
+  // AC-2: the false acknowledgment ("Noted — I'll ask about that once we
+  // get to additional suspect product.") must be structurally impossible
+  // to render while that very ask is on screen — proven end to end
+  // through describeFollowUpSweep(), not just against
+  // volunteeredRepeatGroups directly, since the acknowledgment is what a
+  // clinician actually reads.
+  it("AC-2: the deferral acknowledgment cannot render for a field the current ask owns", () => {
+    const record: AgendaRecord = {
+      [SP2_NAME]: { state: "unasked" },
+      [SP2_STRENGTH]: { state: "unasked" },
+      [SP2_MANU]: { state: "unasked" },
+    };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, SP1_2_ASK_FIELD_IDS);
+    expect(describeFollowUpSweep(result)).not.toContain("I'll ask about that once we get to");
+  });
+
+  // The other direction, so the check above isn't vacuously true because
+  // the acknowledgment never renders at all: genuinely out-of-ask still
+  // produces it, byte for byte.
+  it("...but still renders the deferral acknowledgment for the genuinely out-of-ask case", () => {
+    const record: AgendaRecord = { [SP2_NAME]: { state: "unasked" } };
+    const actions: ProposedAction[] = [{ fieldId: SP2_NAME, type: "answer", value: "metformin" }];
+    const result = classifyFollowUpActions(actions, record, ["Page2.SecB_Adverse.DescEvent"]);
+    expect(describeFollowUpSweep(result)).toBe(
+      "Noted — I'll ask about that once we get to additional suspect product.",
+    );
+  });
+});
+
 describe("describeFollowUpSweep", () => {
   // Real manifest ids, not the synthetic "a"/"b"/"c" these tests used to
   // carry: the acknowledgment names a field by its AUTHORED display name

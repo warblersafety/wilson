@@ -66,8 +66,18 @@ export interface FollowUpSweepResult {
 // actually happens to each one. Three independent classifications, in
 // this order:
 //
-//   1. Does the field belong to a repeat group's instance 2+? -> a
-//      volunteered-later-instance mention: no write, group recorded.
+//   1. Does the field belong to a repeat group's instance 2+, AND is it
+//      NOT one of the fields the ask currently on screen (`askFieldIds`)
+//      is itself asking about? -> a volunteered-later-instance mention:
+//      no write, group recorded. A later-instance field the CURRENT ask
+//      owns is that ask's own answer, not a volunteer — design.md's
+//      carve-out: "that instance's fields are filled by its own
+//      authored ask (suspect products) or the group's authored
+//      later-instance ask (concomitant medications — CM-2), never
+//      attributed by the sweep." Checked as part of the same test that
+//      finds the group, not after: reaching notLaterInstance is what
+//      lets it fall through to steps 2-3 below like any other in-ask
+//      answer (#122).
 //   2. Among what's left, does the SAME field appear more than once? ->
 //      a collision: no write, field id AND every colliding value
 //      recorded (rule 8's reply quotes them).
@@ -86,7 +96,7 @@ export function classifyFollowUpActions(
   const notLaterInstance: ProposedAction[] = [];
   for (const action of actions) {
     const group = repeatGroupOfLaterInstanceField(action.fieldId, topics);
-    if (group !== null) {
+    if (group !== null && !askFieldIds.includes(action.fieldId)) {
       if (!seenGroups.has(group)) {
         seenGroups.add(group);
         volunteeredRepeatGroups.push(group);
