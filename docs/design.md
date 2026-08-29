@@ -386,7 +386,7 @@ deterministic unit test in the implementing unit's frozen criteria:
   refusal; no silent drop of a volunteered correction either).
   **One-hot groups are the exception, and are handled at fact
   granularity (added 2026-08-28, #126; `docs/ask-copy.md` rule 7 is
-  authoritative, including the two gaps it records — #154, #155).** A
+  authoritative, including the one gap it records — #155).** A
   validator-grounded `"true"` write to an `exclusive` group, through
   the sweep or a Read-back confirm, is one atomic write of the whole
   fact, so three things follow. It supersedes prior
