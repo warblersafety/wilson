@@ -363,7 +363,7 @@ describe("exclusive-fact completion reaches the dictation path too (Read-back, #
     const { record } = applyNarrativeProposals(initAgenda(), initRepeatCounts(), [answer(SEX_M, "true")], []);
     const repeatCounts = initRepeatCounts();
     const entries = openFieldEntries(record, repeatCounts);
-    expect(entries.find((e) => e.fieldId === SEX_F || e.fieldId === SEX_M)).toBeUndefined();
+    expect(entries.find((e) => e.fieldIds.includes(SEX_F) || e.fieldIds.includes(SEX_M))).toBeUndefined();
   });
 
   it("completes a three-way exclusive group at Read-back too", async () => {

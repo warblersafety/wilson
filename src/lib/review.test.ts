@@ -362,7 +362,10 @@ describe("reviewFieldRows", () => {
     expect(rows.find((r) => r.fieldId === "Page1.SecA_Patient.WeightValue")?.text).toBe("80");
     for (const unit of ["Page1.SecA_Patient.WeightLB", "Page1.SecA_Patient.WeightKG"]) {
       expect(rows.map((r) => r.fieldId), unit).toContain(unit);
-      expect(openFieldEntries(record, ONE_EACH).map((e) => e.fieldId), unit).toContain(unit);
+      // A bare weight collapses lb/kg to ONE dialog row (ask-copy.md rule
+      // 8, #127) — flattened here so the assertion still checks each
+      // FIELD is represented somewhere, not that it owns a row of its own.
+      expect(openFieldEntries(record, ONE_EACH).flatMap((e) => e.fieldIds), unit).toContain(unit);
     }
   });
 
@@ -371,7 +374,7 @@ describe("reviewFieldRows", () => {
     // dialog and still legible on the card.
     const record = initAgenda();
     const rows = rowsFor(record, "patient-basics").map((r) => r.fieldId);
-    const listed = openFieldEntries(record, ONE_EACH).map((e) => e.fieldId);
+    const listed = openFieldEntries(record, ONE_EACH).flatMap((e) => e.fieldIds);
     for (const unit of ["Page1.SecA_Patient.AgeYears", "Page1.SecA_Patient.AgeDays"]) {
       expect(rows, unit).toContain(unit);
       expect(listed, unit).not.toContain(unit);

@@ -193,6 +193,18 @@ const NAMES: Record<string, string> = {
 // 2: same names prefixed 'product #2'").
 const PRODUCT_INSTANCE_PREFIX: Record<number, string> = { 1: "", 2: "product #2 " };
 
+// Exported for open-fields.ts's own instance-qualification of FACT names
+// (ask-copy.md rule 8, #127): a multi-field fact's authored name carries
+// no instance marker of its own — `suspectProduct(2)` reuses instance
+// 1's "therapy status" byte-for-byte — so a confirmed second product
+// would render two identical open-fields rows with nothing to tell them
+// apart. The dialog carries the same prefix displayName() already
+// applies to every instance-2 field, read from this same table rather
+// than a second "product #2 " literal someone could edit only one of.
+export function productInstancePrefix(instance: number): string {
+  return PRODUCT_INSTANCE_PREFIX[instance] ?? "";
+}
+
 function productName(fieldId: string): string | undefined {
   const match = fieldId.match(/^Page(?:4\.Prod1|5\.Prod2)\.(.+)$/);
   if (!match) return undefined;

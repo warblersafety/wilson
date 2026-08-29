@@ -12,12 +12,18 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
+  companionGroupLabel,
+  factGroups,
   hasOpenFields,
   openFieldEntries,
+  openFieldsHeading,
   rowForField,
   summarizeOpenFields,
+  totalFactCount,
 } from "./open-fields";
-import { curatedRows } from "./report-chrome";
+import { curatedRows, recordFieldCounts } from "./report-chrome";
+import { anchorOf, EXCLUSIVE_COMPANION_GROUPS } from "./ask-inventory";
+import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts } from "./topics";
 
 const SUSPECT_1_LOT = "Page4.Prod1.Prod1LotNum";
@@ -28,6 +34,59 @@ const CONCOMITANT_2 = "Page6.SecF_Other.Table1.Row2.Prod2";
 const CONCOMITANT_3 = "Page6.SecF_Other.Table1.Row3.Prod3";
 const PATIENT_IDENTIFIER = "Page1.SecA_Patient.PatientIdentifier";
 const DESC_EVENT = "Page2.SecB_Adverse.DescEvent";
+
+const SEX_M = "Page1.SecA_Patient.SexM";
+const SEX_F = "Page1.SecA_Patient.SexF";
+const RACE_FIELDS = [
+  "Page1.SecA_Patient.RaceAmInd",
+  "Page1.SecA_Patient.RaceAsian",
+  "Page1.SecA_Patient.RaceBlack",
+  "Page1.SecA_Patient.EthnicLatino",
+  "Page1.SecA_Patient.RaceMiddleEastern",
+  "Page1.SecA_Patient.RacePacific",
+  "Page1.SecA_Patient.RaceWhite",
+];
+const RACE_WHITE = "Page1.SecA_Patient.RaceWhite";
+const WEIGHT_VALUE = "Page1.SecA_Patient.WeightValue";
+const WEIGHT_LB = "Page1.SecA_Patient.WeightLB";
+const WEIGHT_KG = "Page1.SecA_Patient.WeightKG";
+// Form order (topics.ts's own event-outcome fieldIds), NOT the fact's
+// authored order in ask-inventory.ts (which follows OC-1's spoken
+// sequence — "...death, another serious medical event" — and puts Death
+// near the end): a row's fieldIds walk topic.fieldIds order, same as
+// every other derivation in this codebase, so entries stay in form order
+// even though the ask read them out differently.
+const OUTCOME_FIELDS = [
+  "Page1.SecA_Patient.Death",
+  "Page1.SecA_Patient.Hospital",
+  "Page1.SecA_Patient.LifeThreaten",
+  "Page1.SecA_Patient.Disability",
+  "Page1.SecA_Patient.ReqdInter",
+  "Page1.SecA_Patient.Congenital",
+  "Page1.SecA_Patient.OtherEvents",
+];
+const CONTACT_FIELDS = [
+  "Page7.SecG_Reporter.LastName",
+  "Page7.SecG_Reporter.FirstName",
+  "Page7.SecG_Reporter.Address",
+  "Page7.SecG_Reporter.City",
+  "Page7.SecG_Reporter.State",
+  "Page7.SecG_Reporter.ZipCode",
+  "Page7.SecG_Reporter.PhoneNum",
+  "Page7.SecG_Reporter.Email",
+];
+const P1_THERAPY_ONGOING_YES = "Page4.Prod1.Prod1TherapyOngoingYes";
+const P1_THERAPY_ONGOING_NO = "Page4.Prod1.Prod1TherapyOngoingNo";
+const P2_THERAPY_ONGOING_YES = "Page5.Prod2.Prod2TherapyOngoingYes";
+const P2_THERAPY_ONGOING_NO = "Page5.Prod2.Prod2TherapyOngoingNo";
+
+function markAllUnknown(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
+  return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, { type: "mark_unknown" }), record);
+}
+
+function reopenAll(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
+  return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, { type: "reopen" }), record);
+}
 
 // Every reachable field resolved, so a test can then re-open exactly the
 // states it cares about instead of fighting 200-odd `unasked` entries.
@@ -44,8 +103,15 @@ function allResolved(counts: RepeatCounts): AgendaRecord {
   return record;
 }
 
+// One row can now cover several field ids (ask-copy.md rule 8, #127), so
+// this flattens rather than assuming one-row-per-field — every id in
+// SUSPECT_1_LOT/PATIENT_IDENTIFIER/DESC_EVENT's family below is its own
+// fact (none declares an AskFact or sits in an exclusive companion
+// group), so for THIS file's fixtures the flattened list is still one
+// entry per field; the "the fact unit" describe block below covers the
+// collapsed case, where a row's fieldIds carries more than one id.
 function ids(record: AgendaRecord, counts: RepeatCounts): string[] {
-  return openFieldEntries(record, counts).map((e) => e.fieldId);
+  return openFieldEntries(record, counts).flatMap((e) => e.fieldIds);
 }
 
 describe("openFieldEntries", () => {
@@ -53,7 +119,7 @@ describe("openFieldEntries", () => {
     const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
     const record = applyAction(allResolved(counts), SUSPECT_1_LOT, { type: "mark_unknown" });
     const entries = openFieldEntries(record, counts);
-    expect(entries.map((e) => e.fieldId)).toEqual([SUSPECT_1_LOT]);
+    expect(entries.map((e) => e.fieldIds)).toEqual([[SUSPECT_1_LOT]]);
     expect(entries[0].reasonKind).toBe("unknown");
     expect(entries[0].reason).toBe("you didn't have it");
     // The authored display name, not the manifest label this used to
@@ -94,7 +160,7 @@ describe("openFieldEntries", () => {
     const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
     const record = applyAction(allResolved(counts), PATIENT_IDENTIFIER, { type: "reopen" });
     const entries = openFieldEntries(record, counts);
-    expect(entries.map((e) => e.fieldId)).toEqual([PATIENT_IDENTIFIER]);
+    expect(entries.map((e) => e.fieldIds)).toEqual([[PATIENT_IDENTIFIER]]);
     expect(entries[0].reasonKind).toBe("not-asked");
     expect(entries[0].reason).toBe("not asked yet");
   });
@@ -116,6 +182,303 @@ describe("openFieldEntries", () => {
     record = applyAction(record, SUSPECT_1_LOT, { type: "mark_unknown" });
     record = applyAction(record, PATIENT_IDENTIFIER, { type: "mark_unknown" });
     expect(ids(record, counts)).toEqual([PATIENT_IDENTIFIER, SUSPECT_1_LOT]);
+  });
+});
+
+// ask-copy.md rule 8's open-fields unit, added 2026-08-29 (#127): "the
+// open-fields unit is the fact, not the field." A multi-field fact or a
+// rule-3 exclusive companion group is now ONE row, whatever its member
+// count — proven here field-by-field rather than through a full gate
+// case, so a broken collapse fails at the exact fact it broke.
+describe("openFieldEntries — the fact unit (#127)", () => {
+  const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
+
+  it("a dismissed multi-select checkbox fact (PB-3) collapses to one row, not seven", () => {
+    const record = markAllUnknown(allResolved(counts), RACE_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(RACE_FIELDS);
+    expect(entries[0].label).toBe("race or ethnicity");
+    expect(entries[0].reasonKind).toBe("unknown");
+  });
+
+  // The affordance that must not vanish (#127's own worked example): a
+  // fact that merely RESOLVES from one member — PB-3's race/ethnicity —
+  // leaves its remaining members genuinely `unasked` and genuinely
+  // answerable, and the dialog's whole job is listing what a clinician
+  // can still usefully answer. A build that instead keyed this off the
+  // ASK's own "still blocking the walk?" question (unresolvedAskFieldIds
+  // treats a factResolvesFromOne fact as settled the instant one member
+  // answers) would silently drop this row — the finding that nearly
+  // shipped.
+  it("a factResolvesFromOne fact with one member answered still yields exactly one open row", () => {
+    const withOneRace = allResolved(counts); // every field answered, including RaceWhite
+    const record = reopenAll(withOneRace, RACE_FIELDS.filter((id) => id !== RACE_WHITE));
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(RACE_FIELDS.filter((id) => id !== RACE_WHITE));
+    expect(entries[0].fieldIds).toHaveLength(6);
+    expect(entries[0].label).toBe("race or ethnicity");
+    expect(entries[0].reasonKind).toBe("not-asked");
+    expect(entries[0].reason).toBe("not asked yet");
+  });
+
+  it("every multi-field fact collapses, not only the checkbox ones — a bulk-mapped ask too (RC-1)", () => {
+    const record = markAllUnknown(allResolved(counts), CONTACT_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(CONTACT_FIELDS);
+    // Nothing of the fact is on the record — the PLAIN standalone name,
+    // not "the rest of" (ask-copy.md rule 8/9, #125's record-following
+    // naming, reused here rather than re-derived).
+    expect(entries[0].label).toBe("your contact details");
+  });
+
+  // The referent bug #125 removed, reintroduced by passing the fact's
+  // whole fieldIds instead of the still-open subset: a half-held RC-1
+  // must read "the rest of your contact details", never "your contact
+  // details" (which claims nothing is on the record when part of it is).
+  it("names a partially-held bulk fact by what's still open, not the fact's whole field set", () => {
+    let record = applyAction(allResolved(counts), CONTACT_FIELDS[0], { type: "answer" }, "Smith");
+    record = markAllUnknown(record, CONTACT_FIELDS.slice(1));
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(CONTACT_FIELDS.slice(1));
+    expect(entries[0].fieldIds).not.toContain(CONTACT_FIELDS[0]);
+    expect(entries[0].label).toBe("the rest of your contact details");
+  });
+
+  it("a dismissed exclusive fact (sex) collapses to one row, not two", () => {
+    const record = markAllUnknown(allResolved(counts), [SEX_M, SEX_F]);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual([SEX_M, SEX_F]);
+    expect(entries[0].label).toBe("sex");
+    expect(entries[0].reasonKind).toBe("unknown");
+  });
+
+  it("a fact rule 7 completes (both exclusive members answered) contributes no row at all", () => {
+    // allResolved() already answers every reachable field, sex included
+    // — the ordinary "nothing left open" baseline every other test in
+    // this file starts from. Named explicitly here because #127 singles
+    // this case out: a completed fact must contribute nothing, whatever
+    // its members' field-level states look like individually.
+    const record = allResolved(counts);
+    expect(openFieldEntries(record, counts).filter((e) => e.fieldIds.includes(SEX_M))).toEqual([]);
+  });
+
+  it("a voicesEveryMember fact (outcome) collapses to one row, not seven", () => {
+    const record = markAllUnknown(allResolved(counts), OUTCOME_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(OUTCOME_FIELDS);
+    expect(entries[0].label).toBe("outcome");
+  });
+
+  // Rule 3's exclusive companion groups (age unit, weight unit) are not
+  // AskFacts — keying the collapse on ask.facts alone would miss them
+  // entirely, leaving a stated bare weight as two rows for the single
+  // authored clarification "Was that pounds or kilograms?"
+  it("the weight companion pair yields one row, not two", () => {
+    // A STATED bare weight: the value is answered (allResolved's own
+    // baseline), but neither unit is — the genuinely ambiguous case rule
+    // 3 leaves open rather than defaulting (unlike age).
+    const record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    expect(record[WEIGHT_VALUE].state).toBe("answered"); // the anchor this scenario depends on
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.label).toBe("Was that pounds or kilograms?");
+    expect(weightEntry!.reasonKind).toBe("not-asked");
+    // Confirms the pair doesn't ALSO leak through as two separate rows
+    // alongside the collapsed one.
+    expect(entries.filter((e) => e.fieldIds.includes(WEIGHT_LB) || e.fieldIds.includes(WEIGHT_KG))).toHaveLength(1);
+  });
+
+  // suspectProduct(2) reuses instance 1's authored fact names byte for
+  // byte ("therapy status"), so a confirmed second product with the same
+  // fact open would render two identical rows with nothing to tell them
+  // apart — carrying the instance marker the way display names already
+  // do ("product #2").
+  it("two suspect products yield two distinguishable rows for the same fact", () => {
+    const twoProducts: RepeatCounts = { "suspect-product": 2, "concomitant-medication": 1 };
+    const record = markAllUnknown(allResolved(twoProducts), [
+      P1_THERAPY_ONGOING_YES,
+      P1_THERAPY_ONGOING_NO,
+      P2_THERAPY_ONGOING_YES,
+      P2_THERAPY_ONGOING_NO,
+    ]);
+    const entries = openFieldEntries(record, twoProducts);
+    const therapyStatusRows = entries.filter(
+      (e) => e.fieldIds.includes(P1_THERAPY_ONGOING_YES) || e.fieldIds.includes(P2_THERAPY_ONGOING_YES),
+    );
+    expect(therapyStatusRows).toHaveLength(2);
+    const labels = therapyStatusRows.map((e) => e.label);
+    expect(labels).toContain("therapy status");
+    expect(labels).toContain("product #2 therapy status");
+    // Genuinely distinguishable, not a coincidental match on a shared
+    // substring.
+    expect(new Set(labels).size).toBe(2);
+  });
+
+  // A group's still-open members do NOT always share one state — a
+  // `mark_unknown` on one member never propagates to its siblings (rule
+  // 7's negative), so one can go `unknown` while the rest stay
+  // `unasked`. Rule 8's #127 rev 4: any still-open member `unknown`
+  // makes the row "you didn't have it", regardless of position. Two
+  // cases, deliberately mirrored (which member is the unknown one
+  // flips), because a positional tiebreak (`stillOpen[0]`, or its
+  // opposite `stillOpen[length - 1]`) passes ONE of these by accident
+  // and fails the other — reviewer pass: swapping to `stillOpen[0]` for
+  // `stillOpen[stillOpen.length - 1]` in the implementation left the
+  // full suite green before these existed.
+  it("a still-open member marked unknown wins over an unasked one that sorts first", () => {
+    // WeightLB (form order: first) stays unasked; WeightKG (second) is
+    // explicitly dismissed unknown.
+    let record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    record = applyAction(record, WEIGHT_KG, { type: "mark_unknown" });
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.reasonKind, "first member unasked, second unknown").toBe("unknown");
+    expect(weightEntry!.reason).toBe("you didn't have it");
+  });
+
+  it("a still-open member marked unknown wins over an unasked one that sorts last", () => {
+    // WeightLB (first) is explicitly dismissed unknown; WeightKG
+    // (second) stays unasked — the mirror of the case above.
+    let record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    record = applyAction(record, WEIGHT_LB, { type: "mark_unknown" });
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.reasonKind, "first member unknown, second unasked").toBe("unknown");
+    expect(weightEntry!.reason).toBe("you didn't have it");
+  });
+
+  it("stays 'not asked yet' when every still-open member genuinely is", () => {
+    // Neither member touched at all — the ordinary bare-weight case
+    // every other weight test in this file starts from.
+    const record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    const weightEntry = openFieldEntries(record, counts).find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry!.reasonKind).toBe("not-asked");
+  });
+});
+
+// The shared grouping this dialog and the chrome footer/Ready now BOTH
+// depend on (rule 8, #127 rev 3: "one mechanism, not a second copy that
+// can drift"). Tested directly against the manifest, not against any
+// caller's own bucketing — a bug here would otherwise be invisible to a
+// test whose own oracle also calls factGroups() (mutation-tested: an
+// undeduplicated factGroups() slipped straight past the fact-counting
+// reconciliation property in open-fields-gate-fixture.test.ts, because
+// that property's own oracle groups fields the same way).
+describe("factGroups", () => {
+  it("covers every manifest field exactly once, no field in two groups and none omitted", () => {
+    const flattened = factGroups().flat();
+    expect(flattened.length, "no duplicates").toBe(new Set(flattened).size);
+    expect(new Set(flattened)).toEqual(new Set(FORM_3500_FIELDS.map((f) => f.id)));
+  });
+
+  it("a multi-field fact is one group, not one group per member", () => {
+    const race = factGroups().find((g) => g.includes("Page1.SecA_Patient.RaceWhite"));
+    expect(race).toEqual([
+      "Page1.SecA_Patient.RaceAmInd",
+      "Page1.SecA_Patient.RaceAsian",
+      "Page1.SecA_Patient.RaceBlack",
+      "Page1.SecA_Patient.EthnicLatino",
+      "Page1.SecA_Patient.RaceMiddleEastern",
+      "Page1.SecA_Patient.RacePacific",
+      "Page1.SecA_Patient.RaceWhite",
+    ]);
+    // Not seven separate one-member groups.
+    expect(factGroups().filter((g) => g.includes("Page1.SecA_Patient.RaceWhite"))).toHaveLength(1);
+  });
+});
+
+// B1 (reviewer pass, #127 rev 4): a companion group with no authored
+// open-fields label throws — `companionGroupLabel`'s own defensive
+// check, the same "missing authored string is a build error" convention
+// displayName() and asksForTopic() already hold. That is the RIGHT
+// behavior for an inventory gap that reaches production, but it must
+// never BE the first time a gap is discovered: this CI-level check
+// walks every group ask-inventory.ts actually declares and proves none
+// of them throws, so a future companion group with no label fails here,
+// before merge, rather than as a runtime throw on a clinician's Sign
+// off tap (`Review.tsx`'s `handleSignOff()` calls `hasOpenFields()` in
+// an event handler with no error boundary — a thrown exception there is
+// a silently dead button for the rest of the session).
+describe("companion group labels — every group in the inventory has one (#127 B1)", () => {
+  it("companionGroupLabel does not throw for any group EXCLUSIVE_COMPANION_GROUPS declares", () => {
+    expect(EXCLUSIVE_COMPANION_GROUPS.length).toBeGreaterThan(0);
+    for (const group of EXCLUSIVE_COMPANION_GROUPS) {
+      const anchor = anchorOf(group[0]);
+      expect(anchor, `${group[0]} has no anchor`).toBeDefined();
+      expect(() => companionGroupLabel(anchor!), `group anchored on ${anchor}`).not.toThrow();
+    }
+  });
+
+  // The exact reproduction: a confirmed age (narrative or a follow-up
+  // turn both write AgeValue "answered") followed by a dismissed AgeYears
+  // — ordinary Read-back plus one "I don't have that"-shaped tap, nothing
+  // exotic. Before this fix, `openFieldEntries` (and therefore
+  // `hasOpenFields`, which Review's Sign off calls) threw "no authored
+  // open-fields label for the companion group anchored on
+  // Page1.SecA_Patient.AgeValue" the instant this state was reached,
+  // because the age group had no entry in COMPANION_GROUP_LABELS and the
+  // build's own comment wrongly assumed the state was unreachable.
+  it("does not throw when a confirmed age has one unit dismissed unknown — the B1 reproduction", () => {
+    const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
+    let record = applyAction(initAgenda(), "Page1.SecA_Patient.AgeValue", { type: "answer" }, "61");
+    record = applyAction(record, "Page1.SecA_Patient.AgeYears", { type: "mark_unknown" });
+    expect(() => openFieldEntries(record, counts)).not.toThrow();
+    expect(() => hasOpenFields(record, counts)).not.toThrow();
+
+    const entries = openFieldEntries(record, counts);
+    const ageEntry = entries.find((e) => e.fieldIds.includes("Page1.SecA_Patient.AgeYears"));
+    expect(ageEntry, "the age-unit row is listed, not silently dropped").toBeDefined();
+    expect(ageEntry!.fieldIds).toEqual([
+      "Page1.SecA_Patient.AgeYears",
+      "Page1.SecA_Patient.AgeMonths",
+      "Page1.SecA_Patient.AgeWeeks",
+      "Page1.SecA_Patient.AgeDays",
+    ]);
+    expect(ageEntry!.label).toBe("Was that years, months, weeks, or days?");
+    // AgeYears is unknown; the other three are merely unasked — rule 8's
+    // #127 rev 4 mixed-state rule says the row reads "you didn't have
+    // it" the instant ANY still-open member does.
+    expect(ageEntry!.reasonKind).toBe("unknown");
+    expect(ageEntry!.reason).toBe("you didn't have it");
+  });
+});
+
+describe("totalFactCount", () => {
+  it("equals factGroups().length minus the one auto group (ReportDate)", () => {
+    expect(totalFactCount()).toBe(factGroups().length - 1);
+  });
+
+  it("is the ceiling recordFieldCounts() can actually reach when every field is answered", () => {
+    // Every field in the manifest answered, auto field included — the
+    // stamped-record shape ReportChrome.tsx always hands recordFieldCounts().
+    let record = initAgenda();
+    for (const topic of TOPICS) {
+      for (const fieldId of topic.fieldIds) record = applyAction(record, fieldId, { type: "answer" }, "x");
+    }
+    // Proves totalFactCount() is the real denominator recordFieldCounts()
+    // buckets into, not just an arithmetic coincidence against
+    // factGroups().length — every non-auto group is answered, so
+    // `written` reaches exactly this ceiling and `unknown` reaches zero.
+    expect(recordFieldCounts(record)).toEqual({ written: totalFactCount(), unknown: 0 });
+  });
+});
+
+describe("openFieldsHeading — the unit noun (#127)", () => {
+  it("says 'item', never 'field'", () => {
+    expect(openFieldsHeading(1)).toBe("1 item is still open.");
+    expect(openFieldsHeading(5)).toBe("5 items are still open.");
   });
 });
 

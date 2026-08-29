@@ -12,7 +12,9 @@ import { describe, expect, it } from "vitest";
 import { initAgenda, type AgendaEntry, type AgendaRecord } from "./agenda";
 import {
   doseWithUnitAndFrequency,
+  facsimileEmptyCaption,
   facsimileValue,
+  FACSIMILE_EMPTY_STATE_STATUS,
   productIdentity,
   valueWithCheckedUnit,
 } from "./form-3500-facsimile";
@@ -296,5 +298,37 @@ describe("productIdentity", () => {
       "Page4.Prod1.Prod1ManuComp": { state: "answered", value: "Aurobindo Pharma" },
     });
     expect(productIdentity(record)).toEqual({ text: "Unknown", muted: true });
+  });
+});
+
+// Facsimile.tsx's empty-state copy, pinned (reviewer pass, #127 N5): both
+// strings previously lived only as JSX literals, invisible to any
+// copy-level check — a mutation sweep confirmed neither string nor the
+// header's own use of it was actually asserted anywhere in the suite.
+describe("FACSIMILE_EMPTY_STATE_STATUS and facsimileEmptyCaption", () => {
+  it("the compact header status is exactly 'none from you yet'", () => {
+    // ask-copy.md rule 8's #127 amendment: never "nothing written yet" —
+    // the stamped ReportDate always prints, so that would claim the
+    // paper is blank when it isn't.
+    expect(FACSIMILE_EMPTY_STATE_STATUS).toBe("none from you yet");
+  });
+
+  it("the fuller caption states the fact total, the status, and the reassurance, in that order", () => {
+    expect(facsimileEmptyCaption(141)).toBe(
+      "141 items, none from you yet. Everything here comes from what you say.",
+    );
+    // Singular/plural is not this function's job — "141 items" reads
+    // fine at 1 too ("1 items"), the same non-decision
+    // openFieldsHeading() and formatFieldCounts() made deliberately
+    // pluralization-aware for; recorded here rather than left to guess
+    // why this one doesn't match that pattern.
+    expect(facsimileEmptyCaption(0)).toBe("0 items, none from you yet. Everything here comes from what you say.");
+  });
+
+  it("the caption's status half is byte-identical to the header's own", () => {
+    // The same "none from you yet" substring both the header and the
+    // paragraph render — proven directly rather than trusted, so the two
+    // can never drift to different wording for the same state.
+    expect(facsimileEmptyCaption(5)).toContain(FACSIMILE_EMPTY_STATE_STATUS);
   });
 });

@@ -69,7 +69,7 @@ export function Ready({ session, onStartOver }: ReadyProps) {
             <dd className="ready__summary-value">{READY_COPY.formValue}</dd>
           </div>
           <div className="ready__summary-row">
-            <dt className="ready__summary-label">{READY_COPY.fieldsLabel}</dt>
+            <dt className="ready__summary-label">{READY_COPY.itemsLabel}</dt>
             <dd className="ready__summary-value">{formatReadyCounts(counts)}</dd>
           </div>
         </dl>

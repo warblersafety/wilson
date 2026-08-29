@@ -26,14 +26,28 @@ import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { CuratedRow } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
-import { isListableGap } from "./ask-inventory";
+import {
+  anchorOf,
+  dispositionOf,
+  exclusiveCompanionGroupContaining,
+  isListableGap,
+  standaloneFactNamesFor,
+} from "./ask-inventory";
 import { isTopicGatedOff } from "./gates";
-import { displayName } from "./display-names";
+import { displayName, productInstancePrefix } from "./display-names";
 
 export type OpenFieldReasonKind = "unknown" | "not-asked";
 
 export interface OpenFieldEntry {
-  fieldId: string;
+  // ask-copy.md rule 8's open-fields unit (#127): "the fact, not the
+  // field." One entry is one askable fact, or one rule-3 exclusive
+  // companion group — so this is every member STILL open, never the
+  // group's full field set. A plain field with no fact/group of its own
+  // carries exactly one id here, same as before the unit. Carrying the
+  // real ids (not just a count) is what lets a caller reopen the right
+  // Review row (rowForField below) and lets a test reconcile this
+  // surface's headline against the record's own per-field states.
+  fieldIds: string[];
   label: string;
   reasonKind: OpenFieldReasonKind;
   // The clinician-facing reason string, verbatim from screen 06.
@@ -67,8 +81,15 @@ export const OPEN_FIELDS_COPY = {
 
 // Derived from the count, never hardcoded — screen 06's own "Three fields
 // are still open." is written for its three-entry sample.
+//
+// "Item", not "field" — ask-copy.md rule 8's open-fields unit (added
+// 2026-08-29, #127): the count this heading renders is now askable
+// FACTS, and a row is a fact, which "field" no longer describes truthfully
+// (a dismissed OC-1 is one item, not seven). "Item" over "question" too:
+// one ask can carry several facts (PB-1 asks identifier, age and sex), so
+// "question" would overcount asks.
 export function openFieldsHeading(count: number): string {
-  return count === 1 ? "1 field is still open." : `${count} fields are still open.`;
+  return count === 1 ? "1 item is still open." : `${count} items are still open.`;
 }
 
 // Exported for the copy-level check, which has to be able to enumerate the
@@ -103,6 +124,144 @@ function reasonKindFor(state: AgendaRecord[string]["state"]): OpenFieldReasonKin
   return null;
 }
 
+// Rule 3's exclusive companion groups (age unit, weight unit) collapse to
+// one row too (rule 8, #127), but unlike an AskFact they carry no
+// authored name of their own — so the row's label is authored here,
+// keyed by the group's shared anchor (every member of a group anchors on
+// the same field, per ask-inventory.ts's COMPANION_ANCHORS). Both groups
+// are reachable: an earlier version of this comment claimed the age
+// group could not be, reasoning that rule 3's bare-number default
+// (bareAgeDefaultWrites) always resolves an unstated unit before it can
+// sit open beside a sibling — true only while every unit starts
+// `unasked`. bareAgeDefaultWrites stands down the moment ANY unit is
+// already settled, and derive.ts's alreadySettled() counts `unknown`
+// and `declined` as settled, not just `answered` — so a narrative that
+// answers the age and a follow-up turn that dismisses just AgeYears
+// (`mark_unknown`) leaves AgeMonths/Weeks/Days genuinely open with no
+// default written. That reached `Review`'s Sign off — an event handler
+// with no error boundary — as an uncaught throw (reviewer pass,
+// #127): a dead button, silently, for the rest of the session. A
+// future companion group with no entry here is still meant to be a
+// build error rather than invented copy — the same convention
+// displayName() and asksForTopic() already hold for a missing authored
+// string — but "every group in the inventory has an entry" is now also
+// asserted directly in open-fields.test.ts, so a gap fails CI before it
+// can reach a clinician as this one did.
+const COMPANION_GROUP_LABELS: Record<string, string> = {
+  // Rule 9's own authored clarification (PB-2), reused as the row label:
+  // "two rows for the one authored clarification 'Was that pounds or
+  // kilograms?' ... One question, one row."
+  "Page1.SecA_Patient.WeightValue": "Was that pounds or kilograms?",
+  // Rule 8's own #127 rev 4 addition — authored alongside weight's, not
+  // derived from it, because "years, months, weeks, or days" is not a
+  // yes/no pair the way lb/kg is.
+  "Page1.SecA_Patient.AgeValue": "Was that years, months, weeks, or days?",
+};
+
+// Exported so the test suite can assert this never throws for any group
+// the inventory actually declares — the CI-level half of the reviewer
+// pass's fix (#127 rev 4): a missing label is a defect in this
+// document, caught here before merge, not as a runtime throw on
+// Review's Sign off tap.
+export function companionGroupLabel(anchorId: string): string {
+  const label = COMPANION_GROUP_LABELS[anchorId];
+  if (label === undefined) {
+    throw new Error(`open-fields: no authored open-fields label for the companion group anchored on: ${anchorId}`);
+  }
+  return label;
+}
+
+// suspectProduct(2) reuses instance 1's authored fact names byte for
+// byte ("therapy status" is instance 1's string, verbatim) — the same
+// referent problem #125 fixed for display names, not yet fixed for fact
+// names. Qualifies exactly the way displayName() already does for every
+// instance-2 field: the same prefix, from the same table (rule 8, #127).
+function qualifyForInstance(topic: Topic, name: string): string {
+  if (topic.repeatGroup !== "suspect-product" || topic.repeatInstance === null) return name;
+  return `${productInstancePrefix(topic.repeatInstance)}${name}`;
+}
+
+// A multi-field AskFact or a rule-3 exclusive companion group — the two
+// shapes rule 8 (#127) collapses to one row. `undefined` for a field
+// that is its own fact: every field named by neither grouping, which
+// already reads as a noun phrase under its own displayName.
+//
+// Keying on `ask.facts` alone would miss the companion groups entirely
+// — they are not AskFacts (rule 8's own warning) — so this checks every
+// ask's facts first, falling through to the companion-group lookup.
+interface FieldGroup {
+  // The group's FULL member set — never what a row is named from (see
+  // `label` below), only what open membership is tested against.
+  fieldIds: string[];
+  // The row's name, computed from the STILL-OPEN subset only — passing
+  // the full set is the referent bug #125 removed: a half-held RC-1
+  // would read "your contact details" instead of "the rest of your
+  // contact details" (standaloneFactNamesFor's own record-following
+  // logic decides between the two).
+  label(stillOpenFieldIds: string[]): string;
+}
+
+function groupContaining(topic: Topic, fieldId: string): FieldGroup | undefined {
+  for (const ask of topic.asks) {
+    for (const fact of ask.facts ?? []) {
+      if (!fact.fieldIds.includes(fieldId)) continue;
+      return {
+        fieldIds: fact.fieldIds,
+        label: (open) => qualifyForInstance(topic, standaloneFactNamesFor(ask, open)[0]),
+      };
+    }
+  }
+  const companionGroup = exclusiveCompanionGroupContaining(fieldId);
+  if (companionGroup !== undefined) {
+    // Every member of a rule-3 exclusive companion group anchors on the
+    // same field (age/weight unit checkboxes all anchor on their shared
+    // value field), so any member's own anchor names the group.
+    const anchor = anchorOf(fieldId)!;
+    return { fieldIds: companionGroup, label: () => companionGroupLabel(anchor) };
+  }
+  return undefined;
+}
+
+// Every field's fact — its own multi-field AskFact, its rule-3 exclusive
+// companion group, or (for a field named by neither) itself alone —
+// walked once across the given topics. Exported so a surface that needs
+// to reason about facts rather than fields (the chrome footer, Ready)
+// reuses the SAME grouping this dialog collapses rows with, rather than
+// a second copy that could disagree about which fields belong together
+// (rule 8's #127 amendment, added with the build: "two surfaces deciding
+// it differently is how a footer ends up saying 'items' while still
+// counting fields"). Structural only — no record, no `unasked`/gating
+// filtering — because a group whose every member is untouched or
+// unreachable already counts nowhere in either caller's own bucketing,
+// the same way an individual `unasked` field always has.
+export function factGroups(topics: Topic[] = TOPICS): string[][] {
+  const groups: string[][] = [];
+  const handled = new Set<string>();
+  for (const topic of topics) {
+    for (const fieldId of topic.fieldIds) {
+      if (handled.has(fieldId)) continue;
+      const group = groupContaining(topic, fieldId);
+      const fieldIds = group?.fieldIds ?? [fieldId];
+      for (const id of fieldIds) handled.add(id);
+      groups.push(fieldIds);
+    }
+  }
+  return groups;
+}
+
+// The number of askable facts the manifest holds — every non-auto
+// group `factGroups()` returns, which is also the highest
+// `recordFieldCounts()`/`readyCounts()` can ever report as `written`
+// (every group lands in exactly one of written/unknown/declined/nowhere,
+// and this is that denominator minus nothing else). Rule 8's #127 rev 4:
+// "a total stated beside a fact count is a fact total" — the facsimile's
+// own item-count caption derives this rather than writing 227 (a FIELD
+// count) beside numbers that are already facts; the count changes when
+// the inventory does, so it is never a literal.
+export function totalFactCount(topics: Topic[] = TOPICS): number {
+  return factGroups(topics).filter((group) => group.some((id) => dispositionOf(id) !== "auto")).length;
+}
+
 export function openFieldEntries(
   record: AgendaRecord,
   repeatCounts: RepeatCounts,
@@ -119,6 +278,11 @@ export function openFieldEntries(
     // Rule 5: a gated-off topic is excluded from this dialog and from the
     // counts it drives. "Not part of this report" is not a gap.
     if (isTopicGatedOff(topic.id, record)) continue;
+    // One row can cover several of this topic's fieldIds (a multi-field
+    // fact, a companion group) — once the group's row is pushed, its
+    // later members must not walk into their own single-field branch
+    // below and duplicate it.
+    const handled = new Set<string>();
     for (const fieldId of topic.fieldIds) {
       const field = fieldsById.get(fieldId);
       if (!field) {
@@ -127,16 +291,62 @@ export function openFieldEntries(
       if (!Object.hasOwn(record, fieldId)) {
         throw new Error(`openFieldEntries: record missing field id: ${fieldId}`);
       }
+      if (handled.has(fieldId)) continue;
+
       // ask-copy.md's dispositions decide what counts as a gap at all
       // (ask-inventory.ts's isListableGap): an auto field, a lab
       // write-target row, and an ask whose condition does not hold are
       // never gaps, and a derive companion becomes one only once the fact
       // it hangs off is answered — a stated bare weight makes lb/kg a
-      // live question, an age nobody gave does not.
-      if (!isListableGap(fieldId, record)) continue;
-      const reasonKind = reasonKindFor(record[fieldId].state);
-      if (reasonKind === null) continue;
-      entries.push({ fieldId, label: displayName(fieldId), reasonKind, reason: REASON_TEXT[reasonKind] });
+      // live question, an age nobody gave does not. This is the SAME
+      // per-field predicate whether the field ends up its own row or
+      // folded into a group's — the unit change alters presentation, not
+      // which fields are open, which is exactly what keeps a
+      // factResolvesFromOne fact's untouched remainder listed rather
+      // than silently dropped (see the group branch below).
+      const group = groupContaining(topic, fieldId);
+      if (group === undefined) {
+        if (!isListableGap(fieldId, record)) continue;
+        const reasonKind = reasonKindFor(record[fieldId].state);
+        if (reasonKind === null) continue;
+        entries.push({ fieldIds: [fieldId], label: displayName(fieldId), reasonKind, reason: REASON_TEXT[reasonKind] });
+        continue;
+      }
+
+      for (const id of group.fieldIds) handled.add(id);
+      // Walked in topic.fieldIds' own (form) order, not group.fieldIds'
+      // — an AskFact's own order follows its ASK's spoken sequence
+      // (OC-1's copy names "...death, another serious medical event"
+      // near the end; the manifest's own Death checkbox sits first),
+      // and the dialog's stated convention is form order throughout, the
+      // same order every other derivation in this codebase walks in.
+      const groupMembers = new Set(group.fieldIds);
+      const stillOpen = topic.fieldIds.filter(
+        (id) => groupMembers.has(id) && isListableGap(id, record) && reasonKindFor(record[id].state) !== null,
+      );
+      // Nothing of the group is open: either rule 7 completed it (every
+      // member answered — an exclusive/voicesEveryMember fact's own
+      // atomic write) or every member is otherwise resolved/inapplicable.
+      // Contributes no row, same as a single completed field would.
+      if (stillOpen.length === 0) continue;
+      // The still-open subset does NOT always share one state — a
+      // `mark_unknown` on one member never propagates to its siblings
+      // (rule 7's negative), and narrative extraction can offer members
+      // individually, so one can go `unknown` while another stays
+      // `unasked` (rule 8's #127 rev 4, reviewer pass: an earlier
+      // version of this comment claimed otherwise and picked
+      // `stillOpen[0]`, which makes the row's wording an accident of
+      // manifest order — two records differing only in WHICH box was
+      // dismissed would read differently for no reason a clinician
+      // could see). Any still-open member `unknown` makes the row "you
+      // didn't have it"; otherwise it's "not asked yet".
+      const reasonKind = stillOpen.some((id) => record[id].state === "unknown") ? "unknown" : "not-asked";
+      entries.push({
+        fieldIds: stillOpen,
+        label: group.label(stillOpen),
+        reasonKind,
+        reason: REASON_TEXT[reasonKind],
+      });
     }
   }
   return entries;

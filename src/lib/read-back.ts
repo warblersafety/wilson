@@ -197,7 +197,12 @@ export const READ_BACK_COPY = {
   // component were invisible to ready.test.ts's bare-text guard, which only
   // sees JSX text — so "this file's copy is under the check" was true of
   // most of it and quietly not of these (reviewer pass, PR #82, finding 2).
-  emptyStateHeadline: "Transcript ready · 0 fields written",
+  // "Items", not "fields" — ask-copy.md rule 8's #127 amendment: this
+  // renders into the SAME report-footer__headline slot that becomes "N
+  // items written" one click later (ReportChrome.tsx's own
+  // formatFieldCounts), so the word has to match from the first render
+  // (reviewer pass, #127 N3).
+  emptyStateHeadline: "Transcript ready · 0 items written",
   emptyStateNote: "Nothing is written to the form until you approve the transcript.",
 } as const;
 
