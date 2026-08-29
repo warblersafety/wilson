@@ -47,9 +47,13 @@ export function OpenFieldsDialog({
 
       <ul className="open-fields__list">
         {entries.map((entry) => {
-          const row = rowForField(entry.fieldId, rows);
+          // Any one member names the row's Review destination — a fact's
+          // fields always share one topic (rule 8, #127), the same
+          // invariant rowForField's own single-field callers already
+          // relied on.
+          const row = rowForField(entry.fieldIds[0], rows);
           return (
-            <li key={entry.fieldId} className="open-fields__entry">
+            <li key={entry.fieldIds[0]} className="open-fields__entry">
               <span className="open-fields__label">{entry.label}</span>
               <span className={`open-fields__reason open-fields__reason--${entry.reasonKind}`}>{entry.reason}</span>
               {/* No row means no reopen path to offer — the entry is still

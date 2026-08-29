@@ -8,6 +8,7 @@ import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
   curatedRowState,
   curatedRows,
+  formatFieldCounts,
   patientIdentifier,
   recordFieldCounts,
   reportRailRows,
@@ -191,6 +192,35 @@ describe("recordFieldCounts", () => {
 
   it("a fresh (all-unasked) record counts zero of both", () => {
     expect(recordFieldCounts(initAgenda())).toEqual({ written: 0, unknown: 0 });
+  });
+
+  // ask-copy.md rule 4's auto field (added 2026-08-29, #127): ReportDate
+  // is wilson's own write, not the clinician's, so it must never inflate
+  // `written` — the bug that made a brand-new session open on "1 field
+  // written" the moment the footer started reading the STAMPED record
+  // (ReportChrome.tsx's own `previewed`, reviewer pass PR #107 nit a).
+  it("excludes the auto ReportDate field even once it is stamped", () => {
+    const record = initAgenda();
+    record["Page1.SecA_Patient.ReportDate"] = { state: "answered", value: "2026-08-29" };
+    expect(recordFieldCounts(record)).toEqual({ written: 0, unknown: 0 });
+  });
+
+  it("still counts every other answered field alongside an excluded, stamped ReportDate", () => {
+    const record = initAgenda();
+    record["Page1.SecA_Patient.ReportDate"] = { state: "answered", value: "2026-08-29" };
+    record["Page1.SecA_Patient.PatientIdentifier"] = { state: "answered", value: "x" };
+    expect(recordFieldCounts(record)).toEqual({ written: 1, unknown: 0 });
+  });
+});
+
+describe("formatFieldCounts", () => {
+  // ask-copy.md rule 8's unit noun (#127): "item", not "field" — this
+  // function still tallies manifest fields (recordFieldCounts's own
+  // unit is unchanged), only the rendered word is new.
+  it("says 'item', never 'field'", () => {
+    expect(formatFieldCounts({ written: 1, unknown: 0 })).toBe("1 item written");
+    expect(formatFieldCounts({ written: 3, unknown: 2 })).toBe("3 items written · 2 unknown");
+    expect(formatFieldCounts({ written: 0, unknown: 0 })).toBe("0 items written");
   });
 });
 

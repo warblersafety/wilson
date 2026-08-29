@@ -1004,6 +1004,17 @@ const EXCLUSIVE_GROUP_OF = new Map<string, string[]>(
   EXCLUSIVE_COMPANION_GROUPS.flatMap((group) => group.map((fieldId) => [fieldId, group] as const)),
 );
 
+// Exported for open-fields.ts's own fact-unit rule (ask-copy.md rule 8,
+// #127): "Rule 3's exclusive companion groups get one row too, and they
+// are not AskFacts, so a build keyed on ask.facts alone would miss
+// them." This is the same grouping isListableGap already uses below to
+// exclude a settled unit's siblings — exposed here rather than
+// re-derived, so the dialog's collapse and the gap check it collapses
+// can never disagree about which fields belong together.
+export function exclusiveCompanionGroupContaining(fieldId: string): string[] | undefined {
+  return EXCLUSIVE_GROUP_OF.get(fieldId);
+}
+
 const COMPANION_ANCHORS: Record<string, string> = {
   // A stated age or weight makes its unit a real, answerable gap.
   "Page1.SecA_Patient.AgeYears": "Page1.SecA_Patient.AgeValue",

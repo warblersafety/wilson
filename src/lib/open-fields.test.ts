@@ -14,6 +14,7 @@ import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
   hasOpenFields,
   openFieldEntries,
+  openFieldsHeading,
   rowForField,
   summarizeOpenFields,
 } from "./open-fields";
@@ -28,6 +29,59 @@ const CONCOMITANT_2 = "Page6.SecF_Other.Table1.Row2.Prod2";
 const CONCOMITANT_3 = "Page6.SecF_Other.Table1.Row3.Prod3";
 const PATIENT_IDENTIFIER = "Page1.SecA_Patient.PatientIdentifier";
 const DESC_EVENT = "Page2.SecB_Adverse.DescEvent";
+
+const SEX_M = "Page1.SecA_Patient.SexM";
+const SEX_F = "Page1.SecA_Patient.SexF";
+const RACE_FIELDS = [
+  "Page1.SecA_Patient.RaceAmInd",
+  "Page1.SecA_Patient.RaceAsian",
+  "Page1.SecA_Patient.RaceBlack",
+  "Page1.SecA_Patient.EthnicLatino",
+  "Page1.SecA_Patient.RaceMiddleEastern",
+  "Page1.SecA_Patient.RacePacific",
+  "Page1.SecA_Patient.RaceWhite",
+];
+const RACE_WHITE = "Page1.SecA_Patient.RaceWhite";
+const WEIGHT_VALUE = "Page1.SecA_Patient.WeightValue";
+const WEIGHT_LB = "Page1.SecA_Patient.WeightLB";
+const WEIGHT_KG = "Page1.SecA_Patient.WeightKG";
+// Form order (topics.ts's own event-outcome fieldIds), NOT the fact's
+// authored order in ask-inventory.ts (which follows OC-1's spoken
+// sequence — "...death, another serious medical event" — and puts Death
+// near the end): a row's fieldIds walk topic.fieldIds order, same as
+// every other derivation in this codebase, so entries stay in form order
+// even though the ask read them out differently.
+const OUTCOME_FIELDS = [
+  "Page1.SecA_Patient.Death",
+  "Page1.SecA_Patient.Hospital",
+  "Page1.SecA_Patient.LifeThreaten",
+  "Page1.SecA_Patient.Disability",
+  "Page1.SecA_Patient.ReqdInter",
+  "Page1.SecA_Patient.Congenital",
+  "Page1.SecA_Patient.OtherEvents",
+];
+const CONTACT_FIELDS = [
+  "Page7.SecG_Reporter.LastName",
+  "Page7.SecG_Reporter.FirstName",
+  "Page7.SecG_Reporter.Address",
+  "Page7.SecG_Reporter.City",
+  "Page7.SecG_Reporter.State",
+  "Page7.SecG_Reporter.ZipCode",
+  "Page7.SecG_Reporter.PhoneNum",
+  "Page7.SecG_Reporter.Email",
+];
+const P1_THERAPY_ONGOING_YES = "Page4.Prod1.Prod1TherapyOngoingYes";
+const P1_THERAPY_ONGOING_NO = "Page4.Prod1.Prod1TherapyOngoingNo";
+const P2_THERAPY_ONGOING_YES = "Page5.Prod2.Prod2TherapyOngoingYes";
+const P2_THERAPY_ONGOING_NO = "Page5.Prod2.Prod2TherapyOngoingNo";
+
+function markAllUnknown(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
+  return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, { type: "mark_unknown" }), record);
+}
+
+function reopenAll(record: AgendaRecord, fieldIds: string[]): AgendaRecord {
+  return fieldIds.reduce((rec, fieldId) => applyAction(rec, fieldId, { type: "reopen" }), record);
+}
 
 // Every reachable field resolved, so a test can then re-open exactly the
 // states it cares about instead of fighting 200-odd `unasked` entries.
@@ -44,8 +98,15 @@ function allResolved(counts: RepeatCounts): AgendaRecord {
   return record;
 }
 
+// One row can now cover several field ids (ask-copy.md rule 8, #127), so
+// this flattens rather than assuming one-row-per-field — every id in
+// SUSPECT_1_LOT/PATIENT_IDENTIFIER/DESC_EVENT's family below is its own
+// fact (none declares an AskFact or sits in an exclusive companion
+// group), so for THIS file's fixtures the flattened list is still one
+// entry per field; the "the fact unit" describe block below covers the
+// collapsed case, where a row's fieldIds carries more than one id.
 function ids(record: AgendaRecord, counts: RepeatCounts): string[] {
-  return openFieldEntries(record, counts).map((e) => e.fieldId);
+  return openFieldEntries(record, counts).flatMap((e) => e.fieldIds);
 }
 
 describe("openFieldEntries", () => {
@@ -53,7 +114,7 @@ describe("openFieldEntries", () => {
     const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
     const record = applyAction(allResolved(counts), SUSPECT_1_LOT, { type: "mark_unknown" });
     const entries = openFieldEntries(record, counts);
-    expect(entries.map((e) => e.fieldId)).toEqual([SUSPECT_1_LOT]);
+    expect(entries.map((e) => e.fieldIds)).toEqual([[SUSPECT_1_LOT]]);
     expect(entries[0].reasonKind).toBe("unknown");
     expect(entries[0].reason).toBe("you didn't have it");
     // The authored display name, not the manifest label this used to
@@ -94,7 +155,7 @@ describe("openFieldEntries", () => {
     const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
     const record = applyAction(allResolved(counts), PATIENT_IDENTIFIER, { type: "reopen" });
     const entries = openFieldEntries(record, counts);
-    expect(entries.map((e) => e.fieldId)).toEqual([PATIENT_IDENTIFIER]);
+    expect(entries.map((e) => e.fieldIds)).toEqual([[PATIENT_IDENTIFIER]]);
     expect(entries[0].reasonKind).toBe("not-asked");
     expect(entries[0].reason).toBe("not asked yet");
   });
@@ -116,6 +177,151 @@ describe("openFieldEntries", () => {
     record = applyAction(record, SUSPECT_1_LOT, { type: "mark_unknown" });
     record = applyAction(record, PATIENT_IDENTIFIER, { type: "mark_unknown" });
     expect(ids(record, counts)).toEqual([PATIENT_IDENTIFIER, SUSPECT_1_LOT]);
+  });
+});
+
+// ask-copy.md rule 8's open-fields unit, added 2026-08-29 (#127): "the
+// open-fields unit is the fact, not the field." A multi-field fact or a
+// rule-3 exclusive companion group is now ONE row, whatever its member
+// count — proven here field-by-field rather than through a full gate
+// case, so a broken collapse fails at the exact fact it broke.
+describe("openFieldEntries — the fact unit (#127)", () => {
+  const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
+
+  it("a dismissed multi-select checkbox fact (PB-3) collapses to one row, not seven", () => {
+    const record = markAllUnknown(allResolved(counts), RACE_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(RACE_FIELDS);
+    expect(entries[0].label).toBe("race or ethnicity");
+    expect(entries[0].reasonKind).toBe("unknown");
+  });
+
+  // The affordance that must not vanish (#127's own worked example): a
+  // fact that merely RESOLVES from one member — PB-3's race/ethnicity —
+  // leaves its remaining members genuinely `unasked` and genuinely
+  // answerable, and the dialog's whole job is listing what a clinician
+  // can still usefully answer. A build that instead keyed this off the
+  // ASK's own "still blocking the walk?" question (unresolvedAskFieldIds
+  // treats a factResolvesFromOne fact as settled the instant one member
+  // answers) would silently drop this row — the finding that nearly
+  // shipped.
+  it("a factResolvesFromOne fact with one member answered still yields exactly one open row", () => {
+    const withOneRace = allResolved(counts); // every field answered, including RaceWhite
+    const record = reopenAll(withOneRace, RACE_FIELDS.filter((id) => id !== RACE_WHITE));
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(RACE_FIELDS.filter((id) => id !== RACE_WHITE));
+    expect(entries[0].fieldIds).toHaveLength(6);
+    expect(entries[0].label).toBe("race or ethnicity");
+    expect(entries[0].reasonKind).toBe("not-asked");
+    expect(entries[0].reason).toBe("not asked yet");
+  });
+
+  it("every multi-field fact collapses, not only the checkbox ones — a bulk-mapped ask too (RC-1)", () => {
+    const record = markAllUnknown(allResolved(counts), CONTACT_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(CONTACT_FIELDS);
+    // Nothing of the fact is on the record — the PLAIN standalone name,
+    // not "the rest of" (ask-copy.md rule 8/9, #125's record-following
+    // naming, reused here rather than re-derived).
+    expect(entries[0].label).toBe("your contact details");
+  });
+
+  // The referent bug #125 removed, reintroduced by passing the fact's
+  // whole fieldIds instead of the still-open subset: a half-held RC-1
+  // must read "the rest of your contact details", never "your contact
+  // details" (which claims nothing is on the record when part of it is).
+  it("names a partially-held bulk fact by what's still open, not the fact's whole field set", () => {
+    let record = applyAction(allResolved(counts), CONTACT_FIELDS[0], { type: "answer" }, "Smith");
+    record = markAllUnknown(record, CONTACT_FIELDS.slice(1));
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(CONTACT_FIELDS.slice(1));
+    expect(entries[0].fieldIds).not.toContain(CONTACT_FIELDS[0]);
+    expect(entries[0].label).toBe("the rest of your contact details");
+  });
+
+  it("a dismissed exclusive fact (sex) collapses to one row, not two", () => {
+    const record = markAllUnknown(allResolved(counts), [SEX_M, SEX_F]);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual([SEX_M, SEX_F]);
+    expect(entries[0].label).toBe("sex");
+    expect(entries[0].reasonKind).toBe("unknown");
+  });
+
+  it("a fact rule 7 completes (both exclusive members answered) contributes no row at all", () => {
+    // allResolved() already answers every reachable field, sex included
+    // — the ordinary "nothing left open" baseline every other test in
+    // this file starts from. Named explicitly here because #127 singles
+    // this case out: a completed fact must contribute nothing, whatever
+    // its members' field-level states look like individually.
+    const record = allResolved(counts);
+    expect(openFieldEntries(record, counts).filter((e) => e.fieldIds.includes(SEX_M))).toEqual([]);
+  });
+
+  it("a voicesEveryMember fact (outcome) collapses to one row, not seven", () => {
+    const record = markAllUnknown(allResolved(counts), OUTCOME_FIELDS);
+    const entries = openFieldEntries(record, counts);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fieldIds).toEqual(OUTCOME_FIELDS);
+    expect(entries[0].label).toBe("outcome");
+  });
+
+  // Rule 3's exclusive companion groups (age unit, weight unit) are not
+  // AskFacts — keying the collapse on ask.facts alone would miss them
+  // entirely, leaving a stated bare weight as two rows for the single
+  // authored clarification "Was that pounds or kilograms?"
+  it("the weight companion pair yields one row, not two", () => {
+    // A STATED bare weight: the value is answered (allResolved's own
+    // baseline), but neither unit is — the genuinely ambiguous case rule
+    // 3 leaves open rather than defaulting (unlike age).
+    const record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    expect(record[WEIGHT_VALUE].state).toBe("answered"); // the anchor this scenario depends on
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.label).toBe("Was that pounds or kilograms?");
+    expect(weightEntry!.reasonKind).toBe("not-asked");
+    // Confirms the pair doesn't ALSO leak through as two separate rows
+    // alongside the collapsed one.
+    expect(entries.filter((e) => e.fieldIds.includes(WEIGHT_LB) || e.fieldIds.includes(WEIGHT_KG))).toHaveLength(1);
+  });
+
+  // suspectProduct(2) reuses instance 1's authored fact names byte for
+  // byte ("therapy status"), so a confirmed second product with the same
+  // fact open would render two identical rows with nothing to tell them
+  // apart — carrying the instance marker the way display names already
+  // do ("product #2").
+  it("two suspect products yield two distinguishable rows for the same fact", () => {
+    const twoProducts: RepeatCounts = { "suspect-product": 2, "concomitant-medication": 1 };
+    const record = markAllUnknown(allResolved(twoProducts), [
+      P1_THERAPY_ONGOING_YES,
+      P1_THERAPY_ONGOING_NO,
+      P2_THERAPY_ONGOING_YES,
+      P2_THERAPY_ONGOING_NO,
+    ]);
+    const entries = openFieldEntries(record, twoProducts);
+    const therapyStatusRows = entries.filter(
+      (e) => e.fieldIds.includes(P1_THERAPY_ONGOING_YES) || e.fieldIds.includes(P2_THERAPY_ONGOING_YES),
+    );
+    expect(therapyStatusRows).toHaveLength(2);
+    const labels = therapyStatusRows.map((e) => e.label);
+    expect(labels).toContain("therapy status");
+    expect(labels).toContain("product #2 therapy status");
+    // Genuinely distinguishable, not a coincidental match on a shared
+    // substring.
+    expect(new Set(labels).size).toBe(2);
+  });
+});
+
+describe("openFieldsHeading — the unit noun (#127)", () => {
+  it("says 'item', never 'field'", () => {
+    expect(openFieldsHeading(1)).toBe("1 item is still open.");
+    expect(openFieldsHeading(5)).toBe("5 items are still open.");
   });
 });
 

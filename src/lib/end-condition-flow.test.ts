@@ -180,7 +180,11 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
 
     // --- 6. Open fields: unknowns, including inside confirmed instance 2
     const entries = openFieldEntries(done.record, done.repeatCounts);
-    const openIds = entries.map((e) => e.fieldId);
+    // Flattened: one row can now cover several field ids (ask-copy.md
+    // rule 8, #127), so the field-level assertions below — and the
+    // exact-set comparison against expectedOpenIds further down — work
+    // over every individual field a row represents, not one per row.
+    const openIds = entries.flatMap((e) => e.fieldIds);
     expect(entries.length).toBeGreaterThan(0);
     // At "done" every ASK field is resolved — that is what done means —
     // so an `unknown` entry is a fact the clinician was asked for and
@@ -189,14 +193,16 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
     // write-target field, and never a companion with nothing answered
     // behind it.
     for (const entry of entries) {
-      const disposition = dispositionOf(entry.fieldId);
-      expect(["ask", "derive"], entry.fieldId).toContain(disposition);
-      if (disposition === "derive") {
-        const anchorId = anchorOf(entry.fieldId);
-        expect(anchorId, `${entry.fieldId} is listed with no anchor`).toBeDefined();
-        expect(done.record[anchorId!].state, entry.fieldId).toBe("answered");
+      for (const fieldId of entry.fieldIds) {
+        const disposition = dispositionOf(fieldId);
+        expect(["ask", "derive"], fieldId).toContain(disposition);
+        if (disposition === "derive") {
+          const anchorId = anchorOf(fieldId);
+          expect(anchorId, `${fieldId} is listed with no anchor`).toBeDefined();
+          expect(done.record[anchorId!].state, fieldId).toBe("answered");
+        }
+        if (entry.reasonKind === "unknown") expect(done.record[fieldId].state).toBe("unknown");
       }
-      if (entry.reasonKind === "unknown") expect(done.record[entry.fieldId].state).toBe("unknown");
     }
     expect(entries.some((e) => e.reasonKind === "unknown")).toBe(true);
     // The record-wide-unknowns branch that motivates open-fields.ts: a
@@ -244,7 +250,17 @@ describe("v1.1 end condition: the reference case through all six surfaces", () =
       // in open-fields or the counts"), and the date of death, whose ask
       // does not apply with no death recorded.
       .filter((id) => isListableGap(id, done.record));
-    expect(openIds).toEqual(expectedOpenIds);
+    // Unordered as of ask-copy.md rule 8 (#127): a collapsed row's
+    // fieldIds walk topic.fieldIds order (open-fields.ts), but a
+    // multi-field fact is not always CONTIGUOUS there — SP-6's ExpDate
+    // sits between two of "product type"'s own checkbox members
+    // (Prod1CosmProf, Prod1Brand) — so the group's one row necessarily
+    // pulls its members together ahead of (or behind) an interleaved
+    // sibling's own row, which the strict per-field order this used to
+    // assert can no longer hold across a collapse. The SET is still
+    // exact, which is what this assertion exists to prove: no field
+    // dropped, none invented.
+    expect([...openIds].sort()).toEqual([...expectedOpenIds].sort());
     // The nudge never gates.
     const summary = summarizeOpenFields(done.record, done.repeatCounts);
     expect(summary.entries.length).toBeGreaterThan(0);

@@ -25,6 +25,7 @@
 //     count toward the footer's record-wide totals, just not rolled up
 //     individually here.
 import type { AgendaRecord } from "./agenda";
+import { dispositionOf } from "./ask-inventory";
 import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { isTopicGatedOff } from "./gates";
@@ -207,10 +208,20 @@ export interface RecordCounts {
 // curatedRowState uses above, and design.md's own footer example ("18
 // fields written · 2 unknown") names only two buckets, not a third for
 // declined.
+//
+// Rule 4's auto field (`ReportDate`) is excluded, added 2026-08-29
+// (#127): it is wilson's own write at export, not the clinician's, and
+// this function is the reason a brand-new session opened on "1 field
+// written" the moment the facsimile started handing it the STAMPED
+// record (reviewer pass, PR #107, nit a) — a date the clinician never
+// gave, counted as if they had. Every other field the manifest carries
+// (write-target rows included) is counted exactly as before; only the
+// one auto id is new here.
 export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] = FORM_3500_FIELDS): RecordCounts {
   let written = 0;
   let unknown = 0;
   for (const field of fields) {
+    if (dispositionOf(field.id) === "auto") continue;
     const state = record[field.id]?.state ?? "unasked";
     if (state === "answered") written++;
     else if (state === "unknown" || state === "declined") unknown++;
@@ -223,8 +234,15 @@ export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] 
 // F4: they used to pluralize and zero-suppress differently while
 // agreeing on the numbers — "1 field written" in one place, "1 fields
 // written · 0 unknown" in the other, for the same record).
+//
+// "Item", not "field" — ask-copy.md rule 8's open-fields unit (#127):
+// the word, not the count. This function still tallies manifest FIELDS
+// (Review's own unit, which rule 8 leaves alone — "the form's own field
+// count remains true... at Review, which renders every field"); only the
+// noun changes, so the footer's progress line stops disagreeing with the
+// open-fields dialog beside it over what a "field" is.
 export function formatFieldCounts(counts: RecordCounts): string {
-  const written = `${counts.written} field${counts.written === 1 ? "" : "s"} written`;
+  const written = `${counts.written} item${counts.written === 1 ? "" : "s"} written`;
   return counts.unknown > 0 ? `${written} · ${counts.unknown} unknown` : written;
 }
 

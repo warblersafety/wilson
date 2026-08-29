@@ -12,6 +12,7 @@
 // over all of them at once (AC-3's "copy-level check" option) rather than
 // leaving it to a manual note a future edit could quietly drift past.
 import type { AgendaRecord } from "./agenda";
+import { dispositionOf } from "./ask-inventory";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import { PDF_COPY } from "./review";
 
@@ -32,9 +33,17 @@ export interface ReadyCounts {
 // unknown · 0 declined") sums to 44 of the form's 227 fields, so the
 // mockup's math already treats a never-reached field as nothing to
 // report, not as a fourth number.
+//
+// Rule 4's auto field (`ReportDate`) is excluded too, added 2026-08-29
+// (#127) — the same fix report-chrome.ts's sibling recordFieldCounts()
+// gets, for the same reason: this is called against the STAMPED record
+// (Ready.tsx counts the record the download actually carries), so
+// without the exclusion `answered` never reads zero even on a session
+// the clinician answered nothing in.
 export function readyCounts(record: AgendaRecord, fields: FormFieldSpec[] = FORM_3500_FIELDS): ReadyCounts {
   const counts: ReadyCounts = { answered: 0, unknown: 0, declined: 0 };
   for (const field of fields) {
+    if (dispositionOf(field.id) === "auto") continue;
     // Degrades to "unasked" on a missing entry rather than throwing — a
     // stale/mismatched record must not take this surface down mid-render,
     // the same defensive convention form-3500-facsimile.ts records.
@@ -79,7 +88,11 @@ export const READY_COPY = {
     "Form FDA 3500 is filled out as you signed off on it. wilson prepares the form — it never sends anything to FDA on your behalf.",
   formLabel: "Form",
   formValue: "FDA 3500 · voluntary report",
-  fieldsLabel: "Fields",
+  // "Items", not "Fields" — ask-copy.md rule 8 (#127): the row beside
+  // this label is a written/unknown/declined tally, and screen 07's own
+  // noun stopped matching the open-fields dialog beside it the moment
+  // that dialog started counting facts instead of fields.
+  itemsLabel: "Items",
   downloadCta: "Download the PDF",
   startOverCta: "Report another",
   // Near-verbatim from design.md, and deliberately scoped to wilson's own

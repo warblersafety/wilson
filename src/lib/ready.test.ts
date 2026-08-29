@@ -49,6 +49,17 @@ describe("readyCounts", () => {
     expect(() => readyCounts(record)).not.toThrow();
     expect(readyCounts(record).answered).toBe(0);
   });
+
+  // ask-copy.md rule 4's auto field (added 2026-08-29, #127): ReportDate
+  // is wilson's write, not the clinician's — Ready.tsx counts the
+  // STAMPED record (the one the download actually carries), so without
+  // this exclusion `answered` never reads zero even on a session the
+  // clinician answered nothing in.
+  it("excludes the auto ReportDate field even once it is stamped", () => {
+    const record = initAgenda();
+    record["Page1.SecA_Patient.ReportDate"] = { state: "answered", value: "2026-08-29" };
+    expect(readyCounts(record)).toEqual({ answered: 0, unknown: 0, declined: 0 });
+  });
 });
 
 describe("formatReadyCounts", () => {

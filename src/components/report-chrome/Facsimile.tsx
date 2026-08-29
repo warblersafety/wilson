@@ -175,6 +175,14 @@ interface FacsimileProps {
 }
 
 export function Facsimile({ record, counts }: FacsimileProps) {
+  // `counts` is computed from the STAMPED record (ReportChrome.tsx), so
+  // rule 4's auto ReportDate is on the paper below from the first render
+  // — excluded from `counts` itself since #127, but still printed. A
+  // "nothing written"/"nothing written yet" claim here would sit right
+  // above a paper already showing DATE OF REPORT, which is exactly the
+  // dishonesty ask-copy.md rule 8's #127 amendment reverses PR #107's nit
+  // a to fix: this caption describes what the CLINICIAN supplied, not
+  // whether the paper is blank (it isn't).
   const nothingWritten = counts.written === 0 && counts.unknown === 0;
 
   return (
@@ -182,7 +190,7 @@ export function Facsimile({ record, counts }: FacsimileProps) {
       <div className="report-facsimile__header">
         <span className="report-facsimile__title">Form FDA 3500</span>
         <span className="report-facsimile__status">
-          {nothingWritten ? "nothing written yet" : formatFieldCounts(counts)}
+          {nothingWritten ? "none from you yet" : formatFieldCounts(counts)}
         </span>
         <span className="report-facsimile__preview-label">Preview</span>
       </div>
@@ -190,7 +198,7 @@ export function Facsimile({ record, counts }: FacsimileProps) {
         <p className="report-facsimile__masthead">MedWatch</p>
         {nothingWritten && (
           <p className="report-facsimile__empty">
-            {FORM_3500_FIELDS.length} fields, nothing written yet. Everything here comes from what you say.
+            {FORM_3500_FIELDS.length} items, none from you yet. Everything here comes from what you say.
           </p>
         )}
         {SECTIONS.map(({ section, fields, checkboxGroups, textBlockFieldId, checkboxGroupsFirst }) => (

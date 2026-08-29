@@ -121,7 +121,7 @@ describe("what a closed gate does to the rest of the app", () => {
   });
 
   it("keeps its fields out of the open-fields dialog and its count", () => {
-    const listed = openFieldEntries(initAgenda(), ONE_EACH).map((e) => e.fieldId);
+    const listed = openFieldEntries(initAgenda(), ONE_EACH).flatMap((e) => e.fieldIds);
     const gatedFieldIds = TOPICS.filter((t) => isTopicGatedOff(t.id, initAgenda())).flatMap((t) => t.fieldIds);
     expect(gatedFieldIds.length).toBeGreaterThan(0);
     for (const id of gatedFieldIds) expect(listed, id).not.toContain(id);
@@ -129,7 +129,11 @@ describe("what a closed gate does to the rest of the app", () => {
 
   it("puts them back the moment the gate opens — rule 5's Timing clause", () => {
     const record = answer(initAgenda(), "Page1.SecA_Patient.Defects", "true");
-    const listed = openFieldEntries(record, ONE_EACH).map((e) => e.fieldId);
+    // PA-1's three product-availability boxes are one exclusive fact
+    // (ask-copy.md rule 8, #127) — all still open here (fresh gate,
+    // nothing answered), so they collapse to one dialog row; flattened
+    // to check the field itself surfaced, not that it owns its own row.
+    const listed = openFieldEntries(record, ONE_EACH).flatMap((e) => e.fieldIds);
     expect(listed).toContain("Page3.TestDataTable.EvalYes");
   });
 });
