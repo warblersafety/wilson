@@ -11,6 +11,7 @@ import { completeExclusiveFactWrites } from "./derive";
 import type { FieldAction } from "./field-state";
 import {
   conflictingExclusiveSibling,
+  correctionOfferSentence,
   describeDismissal,
   exclusiveFactRewrite,
   type CorrectionOffer,
@@ -222,6 +223,13 @@ export function resolveCollisionTap(
   if (tapped.type === "answer" && tapped.value === "true" && exclusiveFactContaining(tapped.fieldId) !== undefined) {
     const conflict = conflictingExclusiveSibling(record, tapped.fieldId);
     if (conflict !== undefined) {
+      // `collision.fieldId` and `tapped.fieldId` are the same field by
+      // construction — classifyFollowUpActions' byField grouping never
+      // puts an action into a FieldCollision under any fieldId but its
+      // own — so naming the offer by `collision.fieldId` below while
+      // building its `writes` from `tapped` names and writes the same
+      // member. A divergence would have the offer's sentence name one
+      // field while `writes` sets a different one true.
       const entry = record[collision.fieldId];
       return {
         record,
@@ -241,6 +249,52 @@ export function resolveCollisionTap(
     return { record: applyProposedActions(record, [tapped, ...completeExclusiveFactWrites(record, [tapped])]) };
   }
   return { record: applyProposedActions(record, [tapped]) };
+}
+
+// AskForm.tsx's handleAcceptCollision, extracted (reviewer pass on PR
+// #167): mutation-tested and found untested at the seam that actually
+// matters — dropping the correctionOffers append, or dropping the
+// replyPrefix, each left the whole suite green, because both used to be
+// composed inline in a "use client" component this repo has no test
+// harness for (chip-grammar.test.ts's own file header: "no React, no
+// DOM"). Those two lines are what make a conflicting tap usable at all:
+// without the append, the clinician sees "Replace it?" with no chip to
+// answer it (the offer is thrown away, not just unshown); without the
+// prefix, an unexplained "Replace sex" chip with no on-screen sentence
+// saying what it replaces (stepForSession() never calls
+// describeFollowUpSweep() itself). Precedent for pulling UI composition
+// down into this file where it CAN be pinned: remainingCorrectionOffers/
+// remainingCollisions above, extracted after PR #142 for the identical
+// reason.
+//
+// Takes the pieces AskForm.tsx already has on hand (current.session.record,
+// current.correctionOffers) rather than a whole TalkStep, matching every
+// other function in this file — chip-grammar.ts has never needed to
+// import talk.ts's TalkStep type, and a function that only reads two of
+// its fields shouldn't be the one to start.
+export function collisionTapResult(
+  record: AgendaRecord,
+  correctionOffers: CorrectionOffer[] | undefined,
+  collision: FieldCollision,
+  index: number,
+): { record: AgendaRecord; correctionOffers: CorrectionOffer[] | undefined; replyPrefix: string | undefined } {
+  const resolved = resolveCollisionTap(record, collision, index);
+  return {
+    record: resolved.record,
+    // Appended, never replacing: classifyFollowUpActions() puts a field
+    // in at most one of collisions/correctionOffers per turn, and
+    // `collision.fieldId` just came out of the collision channel, so it
+    // cannot already be carrying an offer of the other kind here.
+    correctionOffers: resolved.correctionOffer
+      ? [...(correctionOffers ?? []), resolved.correctionOffer]
+      : correctionOffers,
+    // undefined (not "") on the no-conflict branch — stepForSession()'s
+    // own contract for replyPrefix (direct-step.ts) treats an absent
+    // prefix and an empty one differently only in that the former skips
+    // the leading space, but undefined is also the honest value: there
+    // is nothing to prefix when the tap wrote straight through.
+    replyPrefix: resolved.correctionOffer ? correctionOfferSentence(resolved.correctionOffer) : undefined,
+  };
 }
 
 // Issue #44 AC: "server/extraction failures surface as friendly copy with

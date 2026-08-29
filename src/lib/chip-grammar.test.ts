@@ -10,6 +10,7 @@ import { applyProposedActions } from "./talk";
 import { initRepeatCounts, nextStep, TOPICS, type NextStep, type Topic } from "./topics";
 import {
   applyActionToFields,
+  collisionTapResult,
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
@@ -545,5 +546,156 @@ describe("resolveCollisionTap (#154)", () => {
     // #155's boundary: SexF is untouched, not completed false — this
     // unit's atomic completion is scoped to answer "true" only.
     expect(result.record[SEX_F]).toEqual({ state: "unasked" });
+  });
+});
+
+// Reviewer pass on PR #167 (SHOULD-FIX): AskForm.tsx's handleAcceptCollision
+// used to compose the correctionOffers append and the replyPrefix inline,
+// where this repo's lack of a component test harness meant neither was
+// pinned — mutation testing found dropping EITHER one left the whole
+// suite green. collisionTapResult() pulls that composition down to where
+// it can be tested directly, the same reason remainingCorrectionOffers/
+// remainingCollisions above were extracted after PR #142. Each mutation
+// was hand-applied to collisionTapResult() and confirmed to fail one of
+// the tests below, then reverted — a one-time check, not something this
+// file re-runs; see the PR description for the actual red-run output.
+describe("collisionTapResult (#154 reviewer pass — SHOULD-FIX)", () => {
+  const SEX_M = "Page1.SecA_Patient.SexM";
+  const SEX_F = "Page1.SecA_Patient.SexF";
+
+  function offer(fieldId: string): CorrectionOffer {
+    return {
+      fieldId,
+      action: { fieldId, type: "answer", value: `value for ${fieldId}` },
+      currentState: "answered",
+      currentValue: `old value for ${fieldId}`,
+    };
+  }
+
+  // Catches a dropped correctionOffers append: if collisionTapResult()
+  // silently discarded resolveCollisionTap()'s offer instead of adding it,
+  // this would still find the pre-existing offer and stop there.
+  it("appends a conflicting tap's new offer to the carried-forward list, never replacing it", () => {
+    const record: AgendaRecord = {
+      ...initAgenda(),
+      [SEX_M]: { state: "answered", value: "true" },
+      [SEX_F]: { state: "answered", value: "false" },
+    };
+    const collision: FieldCollision = {
+      fieldId: SEX_F,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_F, type: "answer", value: "true" },
+        { fieldId: SEX_F, type: "mark_unknown" },
+      ],
+    };
+    const existing = [offer("Page4.Prod1.Prod1LotNum")];
+
+    const result = collisionTapResult(record, existing, collision, 0);
+
+    expect(result.correctionOffers).toHaveLength(2);
+    expect(result.correctionOffers).toEqual([
+      existing[0],
+      expect.objectContaining({ fieldId: SEX_F, exclusiveFact: expect.objectContaining({ name: "sex" }) }),
+    ]);
+  });
+
+  // Catches the same drop when there was nothing to carry forward — the
+  // "always return the input untouched" mutation would return `undefined`
+  // here instead of a fresh one-element array.
+  it("starts a fresh array when there were no correction offers yet", () => {
+    const record: AgendaRecord = {
+      ...initAgenda(),
+      [SEX_M]: { state: "answered", value: "true" },
+      [SEX_F]: { state: "answered", value: "false" },
+    };
+    const collision: FieldCollision = {
+      fieldId: SEX_F,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_F, type: "answer", value: "true" },
+        { fieldId: SEX_F, type: "mark_unknown" },
+      ],
+    };
+
+    const result = collisionTapResult(record, undefined, collision, 0);
+
+    expect(result.correctionOffers).toHaveLength(1);
+    expect(result.correctionOffers![0].fieldId).toBe(SEX_F);
+  });
+
+  // Catches a dropped replyPrefix: if collisionTapResult() always
+  // returned undefined here, the clinician would see the new "Replace
+  // sex" chip (proven above) with no on-screen sentence saying what it
+  // replaces — stepForSession() never calls describeFollowUpSweep()
+  // itself, so this is the only place that sentence can come from.
+  // `toBe`, not `toContain` — the same precedent followup-sweep.test.ts's
+  // rule-8 tests set: a containment check is exactly what lets a wrong
+  // string pass.
+  it("states the conflicting offer's sentence as replyPrefix, byte for byte", () => {
+    const record: AgendaRecord = {
+      ...initAgenda(),
+      [SEX_M]: { state: "answered", value: "true" },
+      [SEX_F]: { state: "answered", value: "false" },
+    };
+    const collision: FieldCollision = {
+      fieldId: SEX_F,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_F, type: "answer", value: "true" },
+        { fieldId: SEX_F, type: "mark_unknown" },
+      ],
+    };
+
+    const result = collisionTapResult(record, undefined, collision, 0);
+
+    expect(result.replyPrefix).toBe("You said female for sex — it's recorded as male. Replace it?");
+  });
+
+  // The complementary case, guarding the mirror-image bug (not the two
+  // mutations above, which only touch the conflict branch): a tap that
+  // writes straight through must carry the correctionOffers list forward
+  // completely untouched — same reference, not a new equal array — and
+  // manufacture no replyPrefix, since nothing needs explaining that
+  // current.reply doesn't already cover.
+  it("on a clean atomic write, carries correctionOffers forward unchanged and states no replyPrefix", () => {
+    const record = initAgenda();
+    const collision: FieldCollision = {
+      fieldId: SEX_M,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_M, type: "answer", value: "true" },
+        { fieldId: SEX_M, type: "mark_unknown" },
+      ],
+    };
+    const existing = [offer("Page4.Prod1.Prod1LotNum")];
+
+    const result = collisionTapResult(record, existing, collision, 0);
+
+    expect(result.record[SEX_M]).toEqual({ state: "answered", value: "true" });
+    expect(result.record[SEX_F]).toEqual({ state: "answered", value: "false" });
+    expect(result.correctionOffers).toBe(existing);
+    expect(result.replyPrefix).toBeUndefined();
+  });
+
+  // ...and the same for a non-exclusive field's collision, and for the
+  // undefined-input case — no offer ever manufactured out of nothing.
+  it("on a non-exclusive field's collision, states no replyPrefix and leaves correctionOffers as given", () => {
+    const record = initAgenda();
+    const LOT = "Page4.Prod1.Prod1LotNum";
+    const collision: FieldCollision = {
+      fieldId: LOT,
+      values: ["8834", "8835"],
+      actions: [
+        { fieldId: LOT, type: "answer", value: "8834" },
+        { fieldId: LOT, type: "answer", value: "8835" },
+      ],
+    };
+
+    const result = collisionTapResult(record, undefined, collision, 1);
+
+    expect(result.record[LOT]).toEqual({ state: "answered", value: "8835" });
+    expect(result.correctionOffers).toBeUndefined();
+    expect(result.replyPrefix).toBeUndefined();
   });
 });

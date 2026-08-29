@@ -386,22 +386,22 @@ deterministic unit test in the implementing unit's frozen criteria:
   refusal; no silent drop of a volunteered correction either).
   **One-hot groups are the exception, and are handled at fact
   granularity (added 2026-08-28, #126; `docs/ask-copy.md` rule 7 is
-  authoritative, including the one gap it records — #155).** A
-  validator-grounded `"true"` write to an `exclusive` group, through
-  the sweep, a Read-back confirm, or a tapped collision chip, is one
-  atomic write of the whole fact, so three things follow. It
-  supersedes prior `unknown`/`declined` member states rather than
-  offering a correction against them — the invariant just stated
-  protects *stated values*, and those two record an absence of one. A
-  conflict with an already `answered` exclusive fact is still an
-  offer, but a single one named by the fact ("You said female for sex
-  — it's recorded as male. Replace it?"), never a per-member offer;
-  accepting rewrites the group atomically, which is what stops a
-  report ending with both sex boxes checked — on the paths rule 7
-  scopes. And naming the fact's value in the visible reply ("Also
-  noted — therapy status: ongoing.") satisfies the naming rule above
-  for the whole write — the sibling `"false"`s are that same fact's
-  representation, not separate writes owed separate naming.
+  authoritative).** A validator-grounded `"true"` write to an
+  `exclusive` group, through the sweep, a Read-back confirm, or a
+  tapped collision chip, is one atomic write of the whole fact, so
+  three things follow. It supersedes prior `unknown`/`declined`
+  member states rather than offering a correction against them — the
+  invariant just stated protects *stated values*, and those two
+  record an absence of one. A conflict with an already `answered`
+  exclusive fact is still an offer, but a single one named by the
+  fact ("You said female for sex — it's recorded as male. Replace
+  it?"), never a per-member offer; accepting rewrites the group
+  atomically, which is what stops a report ending with both sex boxes
+  checked — on the sweep and a tapped collision chip. And naming the
+  fact's value in the visible reply ("Also noted — therapy status:
+  ongoing.") satisfies the naming rule above for the whole write — the
+  sibling `"false"`s are that same fact's representation, not
+  separate writes owed separate naming.
 - **The citation pool is the current turn only, enforced in the
   validator (a turn-index constraint), never just the prompt.** The
   opening narrative is confirmed once, at Read-back, and is never

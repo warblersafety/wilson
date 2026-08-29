@@ -19,16 +19,16 @@ import { Chip } from "@/components/Chip";
 import { displayNameFor } from "@/lib/display-names";
 import {
   applyActionToFields,
+  collisionTapResult,
   DISMISS_CHIPS,
   dismissAcknowledgment,
   dismissableFieldIds,
   friendlyFailureMessage,
   remainingCollisions,
   remainingCorrectionOffers,
-  resolveCollisionTap,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import { correctionOfferSentence, type CorrectionOffer, type FieldCollision } from "@/lib/followup-sweep";
+import type { CorrectionOffer, FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -211,22 +211,31 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
   // its own.
   //
   // Issue #154: "the normal path" is chip-grammar.ts's
-  // resolveCollisionTap(), not a raw applyProposedActions() of the
+  // collisionTapResult() — not a raw applyProposedActions() of the
   // tapped action alone — a tap on a one-hot (`exclusive`) member used to
   // bypass classifyFollowUpActions() entirely and so never got that
   // member's atomic-write/conflict-check treatment, which is how a tap
-  // could leave both sex boxes checked on an FDA-bound form.
-  // resolveCollisionTap() may therefore come back with the record
-  // UNCHANGED plus a correctionOffer instead of a write — surfaced below
-  // as an appended "Replace {fact}" chip, its sentence made visible via
-  // replyPrefix since stepForSession() never calls
-  // describeFollowUpSweep() itself.
+  // could leave both sex boxes checked on an FDA-bound form. The record
+  // it returns may therefore be UNCHANGED with an appended correction
+  // offer instead of a write, and a replyPrefix stating that offer's
+  // sentence (stepForSession() never calls describeFollowUpSweep()
+  // itself, so without the prefix a "Replace {fact}" chip would appear
+  // with nothing on screen explaining it). Reviewer pass on PR #167
+  // (SHOULD-FIX): this composition — the append, the prefix — used to
+  // live inline here, where this repo's lack of a component test
+  // harness meant neither was pinned; both are chip-grammar.test.ts's
+  // collisionTapResult() tests now, mutation-verified.
   async function handleAcceptCollision(collision: FieldCollision, index: number) {
     setError(null);
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
-      const { record, correctionOffer } = resolveCollisionTap(current.session.record, collision, index);
+      const { record, correctionOffers, replyPrefix } = collisionTapResult(
+        current.session.record,
+        current.correctionOffers,
+        collision,
+        index,
+      );
       const nextSession: TalkSession = {
         ...current.session,
         record,
@@ -246,14 +255,7 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           { role: "clinician", text: widgetTurnText(collision.values[index]), source: "widget" },
         ],
       };
-      const nextStepResult = await stepForSession(nextSession, {
-        appendReply: true,
-        // Issue #154: without this, a conflicting tap would leave a
-        // "Replace {fact}" chip on screen with nothing explaining what
-        // it's for — stepForSession() only recomputes the next question,
-        // it never calls describeFollowUpSweep() itself.
-        replyPrefix: correctionOffer ? correctionOfferSentence(correctionOffer) : undefined,
-      });
+      const nextStepResult = await stepForSession(nextSession, { appendReply: true, replyPrefix });
       onSubmitted({
         ...nextStepResult,
         collisions: remainingCollisions(current.collisions, collision.fieldId),
@@ -264,17 +266,10 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         // `answered` at the wrong value, which the walk then never
         // re-asks about (it isn't `unasked`). A same-turn correction
         // offer names a different field than the collision just
-        // resolved, so it carries forward untouched, mirroring
-        // handleAcceptCorrection above.
-        //
-        // Issue #154: a conflicting tap ADDS its own new offer here too
-        // — appended, never replacing. classifyFollowUpActions() puts a
-        // field in at most one of collisions/correctionOffers per turn,
-        // and this field just came out of the collision channel, so it
-        // cannot already be carrying an offer of the other kind.
-        correctionOffers: correctionOffer
-          ? [...(current.correctionOffers ?? []), correctionOffer]
-          : current.correctionOffers,
+        // resolved, so it carries forward untouched — collisionTapResult()
+        // above already does the append-or-carry-forward decision, so
+        // this is simply what it returned.
+        correctionOffers,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));
