@@ -318,6 +318,78 @@ design conversation first.
      it`. (The dialog lists `unknown` and unasked fields only —
      design.md surface 5 and `open-fields.ts` exclude `declined`, so
      no declined row copy exists.)
+   **The open-fields unit is the fact, not the field — added
+   2026-08-29 (#127).** The dialog and every chrome count that
+   reconciles with it (the footer and Ready's
+   written/unknown/declined line) answer one question: how many
+   things can this clinician still usefully answer? That question's
+   unit is the askable fact, not the form field. On merged `dev`
+   `2e4d1b4` the dialog counts fields: one dismissed OC-1 becomes
+   seven rows, one WH-2 four, one PB-3 seven, and the one-hot sex
+   pair two — C4's sign-off surface opens on eleven such rows and
+   headlines "105 fields are still open" over a walk the clinician
+   answered to the end. That is #101's rejected shape re-entering
+   through multi-member checkbox groups (gate run #1, entries 5 and
+   10; #101 excluded derive companions without answered anchors, and
+   a multi-member group is not a companion, so nothing excluded it).
+   The unit rule:
+   - A multi-field fact appears as ONE row under its fact name and
+     counts once, whatever its member count: a dismissed OC-1 is
+     "outcome — you didn't have it", never seven rows. The row's
+     reason follows the ask's resolution ("not asked yet" / "you
+     didn't have it"); member detail stays at Review, which renders
+     every field. **Every multi-field fact, not only the checkbox
+     ones** — the bulk-mapped text facts rule 9 already treats as one
+     (RC-1, DV-1, SP-9) are the same failure in the same dialog: C4
+     lists "rest of the device details" as nine rows, "rest of your
+     contact details" as eight, "rest of the purchase details" as
+     eight. Collapsing checkbox facts alone would leave C4 headlining
+     66 — smaller than 105 and the same shape Steve rejected. The
+     name to use is rule 9's own: `standaloneName` /
+     `plainStandaloneName` where the fact declares them
+     (`factNamesFor()` already picks between the two by whether any of
+     the fact is on the record), so an untouched RC-1 reads "your
+     contact details", not "the rest of" something with no referent.
+     Note the fact name is the authored one, not the display-name
+     prefix its members happen to share: PB-3's fact is "race or
+     ethnicity" while its member labels read "race/ethnicity: White".
+   - One-hot alternatives are one fact (rule 3): one row when open
+     ("sex — you didn't have it"), never a row per box. This governs
+     the still-OPEN case, and that is the common one — rule 7's own
+     negative means a dismiss completes nothing, so a dismissed PB-1
+     leaves both sex members `unknown` and produces two rows today.
+     The case where the fact is answered by entailment already leaves
+     the dialog whole (#126, and the clause below), so this clause no
+     longer carries that job.
+   - A fact rule 7 marks answered is not open and contributes
+     nothing, whatever its members' states look like field-by-field.
+     Since #126 that covers more ground than the field-level reading
+     suggests: an exclusive fact is marked answered by an in-ask
+     answer, by a Read-back confirmation of a narrative proposal, and
+     by a rule-8 volunteered write alike — entailment carries on the
+     clinician's words, not on which path carried them.
+   - Companions keep rule 3's anchor test (#101) unchanged; lab rows
+     keep rule 5's write-target exclusion; gated topics keep rule
+     5's exclusion.
+   - Auto fields (rule 4) sit outside every chrome count: they are
+     wilson's writes, not the clinician's answers. Two consequences,
+     both intended: Start no longer opens on "1 field written" for
+     the auto-stamped report date, and the fixture below stops
+     disagreeing with a real gate run — `initTalkSession()` does not
+     stamp that date and the browser does, which is today the whole
+     of the 1-field `written` gap between the two harnesses.
+   The three surfaces stay mutually consistent by counting the same
+   facts in the same states — the reconciliation gate run #1
+   verified must survive the unit change — and the six gate cases'
+   headline numbers are pinned by fixture so a regression is visible
+   in CI rather than at the next gate run. The pinned numbers are
+   post-change and must be shown to RECONCILE: each case's drop from
+   its pre-change headline equals the members-minus-facts arithmetic
+   this rule predicts for that case's own open groups, not merely a
+   smaller plausible number.
+   Not decided here: reopen granularity (#79) and the rest of the
+   round-2 design conversation — this rule decides display and
+   count units only.
 9. **Partial answers and clarifications.** An ask whose answer left
    some of its facts open is re-asked through one authored frame
    composed from display names — several still open: `Got it. Still
