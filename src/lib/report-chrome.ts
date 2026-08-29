@@ -26,7 +26,8 @@
 //     individually here.
 import type { AgendaRecord } from "./agenda";
 import { dispositionOf } from "./ask-inventory";
-import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
+import type { FormSection } from "./form-3500-fields";
+import { factGroups } from "./open-fields";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { isTopicGatedOff } from "./gates";
 
@@ -209,22 +210,38 @@ export interface RecordCounts {
 // fields written · 2 unknown") names only two buckets, not a third for
 // declined.
 //
+// Counts FACTS, not fields — ask-copy.md rule 8's #127 amendment,
+// definition added with the build (rev 3) after the build's own first
+// pass shipped this iterating fields under a relabeled noun, which is
+// the exact "footer says items while still counting fields" failure
+// that definition exists to name. Grouped via factGroups() — the SAME
+// walk the open-fields dialog collapses rows with — so this can never
+// disagree with the dialog about which fields belong together. Per
+// fact: written if any member is answered, unknown otherwise if any
+// member is unknown OR declined (this function's own two-bucket
+// merge, unchanged) — so a fact can be written and still show as open
+// on the dialog at once (a half-held RC-1 is both); see the amendment
+// for why that is the honest shape, not a bug.
+//
 // Rule 4's auto field (`ReportDate`) is excluded, added 2026-08-29
 // (#127): it is wilson's own write at export, not the clinician's, and
 // this function is the reason a brand-new session opened on "1 field
 // written" the moment the facsimile started handing it the STAMPED
 // record (reviewer pass, PR #107, nit a) — a date the clinician never
-// gave, counted as if they had. Every other field the manifest carries
-// (write-target rows included) is counted exactly as before; only the
-// one auto id is new here.
-export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] = FORM_3500_FIELDS): RecordCounts {
+// gave, counted as if they had. ReportDate is never part of a
+// multi-field fact (WH-2 carries it as a companion, not a fact member),
+// so it is always its own singleton group — filtered per-group rather
+// than assuming that, in case a future fact ever did carry an auto
+// member.
+export function recordFieldCounts(record: AgendaRecord, topics: Topic[] = TOPICS): RecordCounts {
   let written = 0;
   let unknown = 0;
-  for (const field of fields) {
-    if (dispositionOf(field.id) === "auto") continue;
-    const state = record[field.id]?.state ?? "unasked";
-    if (state === "answered") written++;
-    else if (state === "unknown" || state === "declined") unknown++;
+  for (const group of factGroups(topics)) {
+    const members = group.filter((id) => dispositionOf(id) !== "auto");
+    if (members.length === 0) continue;
+    const states = members.map((id) => record[id]?.state ?? "unasked");
+    if (states.some((s) => s === "answered")) written++;
+    else if (states.some((s) => s === "unknown" || s === "declined")) unknown++;
   }
   return { written, unknown };
 }

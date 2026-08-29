@@ -13,7 +13,8 @@
 // leaving it to a manual note a future edit could quietly drift past.
 import type { AgendaRecord } from "./agenda";
 import { dispositionOf } from "./ask-inventory";
-import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
+import { factGroups } from "./open-fields";
+import { TOPICS, type Topic } from "./topics";
 import { PDF_COPY } from "./review";
 
 export interface ReadyCounts {
@@ -34,23 +35,41 @@ export interface ReadyCounts {
 // mockup's math already treats a never-reached field as nothing to
 // report, not as a fourth number.
 //
+// Counts FACTS, not fields — ask-copy.md rule 8's #127 amendment
+// (definition added with the build, rev 3): "written" is any member
+// answered; "unknown" is no member answered and at least one unknown;
+// "declined" is no member answered and at least one declined — checked
+// in that order, so a fact with no answered member but BOTH an unknown
+// and a declined one (not reached by any of the five gate cases, and
+// not obviously reachable at all given a dismiss chip applies one
+// action to a whole still-open set at once) lands in `unknown`, the
+// bucket this passage states first. A fact can therefore be `answered`
+// AND still open on the dialog — a half-held RC-1 is both — which is
+// why this count is no longer the arithmetic complement of
+// openFieldEntries()'s own; see the amendment for the reasoning.
+// Grouped via factGroups(), the same walk the dialog collapses rows
+// with, so the two can never disagree about which fields are one fact.
+//
 // Rule 4's auto field (`ReportDate`) is excluded too, added 2026-08-29
 // (#127) — the same fix report-chrome.ts's sibling recordFieldCounts()
 // gets, for the same reason: this is called against the STAMPED record
 // (Ready.tsx counts the record the download actually carries), so
 // without the exclusion `answered` never reads zero even on a session
-// the clinician answered nothing in.
-export function readyCounts(record: AgendaRecord, fields: FormFieldSpec[] = FORM_3500_FIELDS): ReadyCounts {
+// the clinician answered nothing in. ReportDate is never part of a
+// multi-field fact, so it is always its own singleton group — filtered
+// per-group rather than assumed.
+export function readyCounts(record: AgendaRecord, topics: Topic[] = TOPICS): ReadyCounts {
   const counts: ReadyCounts = { answered: 0, unknown: 0, declined: 0 };
-  for (const field of fields) {
-    if (dispositionOf(field.id) === "auto") continue;
+  for (const group of factGroups(topics)) {
+    const members = group.filter((id) => dispositionOf(id) !== "auto");
+    if (members.length === 0) continue;
     // Degrades to "unasked" on a missing entry rather than throwing — a
     // stale/mismatched record must not take this surface down mid-render,
     // the same defensive convention form-3500-facsimile.ts records.
-    const state = record[field.id]?.state ?? "unasked";
-    if (state === "answered") counts.answered++;
-    else if (state === "unknown") counts.unknown++;
-    else if (state === "declined") counts.declined++;
+    const states = members.map((id) => record[id]?.state ?? "unasked");
+    if (states.some((s) => s === "answered")) counts.answered++;
+    else if (states.some((s) => s === "unknown")) counts.unknown++;
+    else if (states.some((s) => s === "declined")) counts.declined++;
   }
   return counts;
 }

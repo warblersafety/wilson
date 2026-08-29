@@ -197,6 +197,33 @@ function groupContaining(topic: Topic, fieldId: string): FieldGroup | undefined 
   return undefined;
 }
 
+// Every field's fact — its own multi-field AskFact, its rule-3 exclusive
+// companion group, or (for a field named by neither) itself alone —
+// walked once across the given topics. Exported so a surface that needs
+// to reason about facts rather than fields (the chrome footer, Ready)
+// reuses the SAME grouping this dialog collapses rows with, rather than
+// a second copy that could disagree about which fields belong together
+// (rule 8's #127 amendment, added with the build: "two surfaces deciding
+// it differently is how a footer ends up saying 'items' while still
+// counting fields"). Structural only — no record, no `unasked`/gating
+// filtering — because a group whose every member is untouched or
+// unreachable already counts nowhere in either caller's own bucketing,
+// the same way an individual `unasked` field always has.
+export function factGroups(topics: Topic[] = TOPICS): string[][] {
+  const groups: string[][] = [];
+  const handled = new Set<string>();
+  for (const topic of topics) {
+    for (const fieldId of topic.fieldIds) {
+      if (handled.has(fieldId)) continue;
+      const group = groupContaining(topic, fieldId);
+      const fieldIds = group?.fieldIds ?? [fieldId];
+      for (const id of fieldIds) handled.add(id);
+      groups.push(fieldIds);
+    }
+  }
+  return groups;
+}
+
 export function openFieldEntries(
   record: AgendaRecord,
   repeatCounts: RepeatCounts,

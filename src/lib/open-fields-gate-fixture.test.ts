@@ -31,20 +31,27 @@
 //
 // **AC-3** — the dialog, the chrome footer and Ready reconcile — is
 // proven in the same describe block below, over the same five end-of-
-// walk records: every field the dialog lists `unknown` is exactly the
-// set the footer's and Ready's own `unknown` bucket count, so a field
-// cannot go missing from one surface while still showing on another.
+// walk records. Rev 3 of the amendment (surfaced by this build) settles
+// what that means for a fact whose members differ: NOT that the dialog's
+// open count is the arithmetic complement of the footer's/Ready's
+// buckets — a fact can be written and still open at once (a half-held
+// RC-1 is both) — but that all three surfaces read the same facts
+// through the same states. Proven against an independent bucketing
+// oracle, not by cross-checking the three production functions against
+// each other.
 import { describe, expect, it } from "vitest";
 import { GATE_CASES, scriptFor, type GateCase } from "../../fixtures/gate/cases";
 import { seedFromNarrative, simulateCase } from "./gate-simulate";
 import { ALL_FIELD_TYPES, validateCandidates } from "./extraction-validator";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { initTalkSession, type TalkSession } from "./talk";
-import { nextStep } from "./topics";
-import { openFieldEntries } from "./open-fields";
+import { nextStep, TOPICS } from "./topics";
+import { factGroups, openFieldEntries } from "./open-fields";
 import { recordFieldCounts } from "./report-chrome";
 import { readyCounts } from "./ready";
 import { stampReportDate } from "./report-date";
+import { dispositionOf } from "./ask-inventory";
+import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 
 // Duplicated from gate-cases.test.ts's own module-private seedFor(),
 // deliberately — topics.ts's own recorded policy (open-fields.ts's file
@@ -162,39 +169,91 @@ describe("AC-4: the open-fields headline reconciles across the unit change (#127
   );
 });
 
+// An independent re-implementation of the amendment's own bucket rule
+// (docs/ask-copy.md rule 8, #127 rev 3) — deliberately NOT calling into
+// readyCounts()/recordFieldCounts(), so a bug in either of those
+// functions shows up as a mismatch against this oracle rather than a
+// tautological restatement of whatever they happen to compute. Mirrors
+// the amendment's own bullet order (written, then unknown, then
+// declined): the amendment does not name a tie-break for a group with
+// no answered member but BOTH an unknown and a declined one (not
+// reached by any of the five cases, and not obviously reachable at all
+// — a dismiss chip applies one action to a whole still-open set at
+// once), so this reads its bullets in the order written and resolves
+// that case to `unknown`.
+function oracleBucket(states: Array<AgendaRecord[string]["state"]>): "written" | "unknown" | "declined" | "nowhere" {
+  if (states.some((s) => s === "answered")) return "written";
+  if (states.some((s) => s === "unknown")) return "unknown";
+  if (states.some((s) => s === "declined")) return "declined";
+  return "nowhere";
+}
+
+// The oracle's own bucket sums for a record — auto fields excluded per
+// group exactly as recordFieldCounts()/readyCounts() exclude them, so
+// the comparison isn't polluted by a disagreement this file isn't
+// testing.
+function oracleCounts(record: AgendaRecord) {
+  const counts = { written: 0, unknown: 0, declined: 0 };
+  for (const group of factGroups()) {
+    const members = group.filter((id) => dispositionOf(id) !== "auto");
+    if (members.length === 0) continue;
+    const bucket = oracleBucket(members.map((id) => record[id]?.state ?? "unasked"));
+    if (bucket !== "nowhere") counts[bucket]++;
+  }
+  return counts;
+}
+
 // AC-3: the dialog, the chrome footer and Ready reconcile — proven as a
 // property over the five cases, not asserted for one example and
-// generalized by hand. "Reconcile" is scoped deliberately to the
-// `unknown` bucket: it is the one state a field can only reach by being
-// individually asked and dismissed (never "silently unasked" the way
-// `not-asked`/unreached fields are, so it carries no reachability
-// ambiguity to sort out first), and it is exactly the bucket the footer
-// and Ready both name in their own written/unknown(/declined) lines —
-// the property this rule's own reconciliation paragraph is about. Every
-// field the dialog lists with reason "you didn't have it" is exactly the
-// set the footer's and Ready's own `unknown` bucket count: no field is
-// visible as an open gap on one surface while invisible on the other.
+// generalized by hand. Rev 3 of the amendment (surfaced by this build)
+// settles what "reconcile" means for a fact whose members differ: NOT
+// that the dialog's open count is the arithmetic complement of the three
+// buckets — a fact can be written and still open at once, so it isn't —
+// but that all three surfaces read the same facts through the same
+// states. Proven here by checking Ready's and the footer's own bucket
+// sums against a bucketing oracle that reads the record directly (never
+// calling the functions under test), for every fact in the manifest, not
+// only the ones a hand-picked example would touch.
 describe("AC-3: the dialog, the chrome footer and Ready reconcile (#127)", () => {
   const TODAY = new Date("2026-08-29");
 
   it.each(PINNABLE_CASES.map((c) => [c.id, c] as const))("%s", async (id, c) => {
     const { record, entries } = await endOfWalk(c);
     const stamped = stampReportDate(record, TODAY);
-
-    // The dialog's own `unknown`-reason rows, flattened to the fields
-    // they represent — the set both chrome surfaces must agree with.
-    const dialogUnknownFieldIds = entries.filter((e) => e.reasonKind === "unknown").flatMap((e) => e.fieldIds);
+    const expected = oracleCounts(stamped);
 
     const ready = readyCounts(stamped);
-    expect(ready.unknown, `${id} Ready's unknown bucket`).toBe(dialogUnknownFieldIds.length);
+    expect(ready, `${id} Ready reads the same facts through the same states`).toEqual({
+      answered: expected.written,
+      unknown: expected.unknown,
+      declined: expected.declined,
+    });
 
     // The footer merges `declined` into the same bucket as `unknown`
     // (report-chrome.ts's own documented two-way split, unchanged by
-    // this unit) — so its own `unknown` count is the dialog's unknown
-    // rows PLUS however many fields Ready counts as declined, never a
-    // number invented independently of Ready's own split.
+    // this unit) — checked against the SAME oracle sums, not against
+    // Ready's own output, so a shared bug in both functions can't hide
+    // behind the two agreeing with each other.
     const footer = recordFieldCounts(stamped);
-    expect(footer.unknown, `${id} footer's unknown bucket`).toBe(dialogUnknownFieldIds.length + ready.declined);
+    expect(footer, `${id} footer reads the same facts through the same states`).toEqual({
+      written: expected.written,
+      unknown: expected.unknown + expected.declined,
+    });
+
+    // Declined stays invisible to the dialog at fact granularity too —
+    // unchanged by this unit, re-asserted here because it is the one
+    // bucket this rule does NOT allow to double as a dialog row (rule 8's
+    // own "declined... clinician-established states this dialog
+    // respects and never nudges").
+    const dialogFieldIds = new Set(entries.flatMap((e) => e.fieldIds));
+    for (const group of factGroups()) {
+      const members = group.filter((id) => dispositionOf(id) !== "auto");
+      if (members.length === 0) continue;
+      if (oracleBucket(members.map((fid) => stamped[fid]?.state ?? "unasked")) !== "declined") continue;
+      for (const fieldId of members) {
+        expect(dialogFieldIds.has(fieldId), `${id} ${fieldId} declined but listed on the dialog`).toBe(false);
+      }
+    }
 
     // And the auto exclusion actually holds for both: a stamped
     // ReportDate contributes to neither bucket in either surface, so
@@ -205,5 +264,52 @@ describe("AC-3: the dialog, the chrome footer and Ready reconcile (#127)", () =>
     // happened not to notice.
     expect(readyCounts(record), `${id} unstamped vs stamped Ready`).toEqual(ready);
     expect(recordFieldCounts(record), `${id} unstamped vs stamped footer`).toEqual(footer);
+  });
+
+  // The consequence the amendment names explicitly, made concrete: a
+  // partly-filled bulk fact (RC-1, one field held, the rest genuinely
+  // still open) is BOTH written (Ready/the footer) AND still listed as
+  // open (the dialog) — at once, for the exact same fact, in the exact
+  // same record. Neither surface is wrong; this is the shape rev 3
+  // exists to describe.
+  it("a partially-filled bulk fact counts as written AND lists as open, at once", () => {
+    const LAST_NAME = "Page7.SecG_Reporter.LastName";
+    const OTHER_CONTACT_FIELDS = [
+      "Page7.SecG_Reporter.FirstName",
+      "Page7.SecG_Reporter.Address",
+      "Page7.SecG_Reporter.City",
+      "Page7.SecG_Reporter.State",
+      "Page7.SecG_Reporter.ZipCode",
+      "Page7.SecG_Reporter.PhoneNum",
+      "Page7.SecG_Reporter.Email",
+    ];
+    let record = initAgenda();
+    // Every OTHER reachable field resolved first (every topic, every
+    // instance — readyCounts()/recordFieldCounts() have never filtered
+    // by reachability, unchanged by this unit), so this record's counts
+    // are driven entirely by the one fact under test.
+    for (const topic of TOPICS) {
+      for (const fieldId of topic.fieldIds) record = applyAction(record, fieldId, { type: "answer" }, "x");
+    }
+    record = applyAction(record, LAST_NAME, { type: "answer" }, "Ostrowski");
+    for (const fieldId of OTHER_CONTACT_FIELDS) record = applyAction(record, fieldId, { type: "mark_unknown" });
+
+    const entries = openFieldEntries(record, {});
+    const openRow = entries.find((e) => e.fieldIds.includes(OTHER_CONTACT_FIELDS[0]));
+    expect(openRow, "the dialog lists the still-open remainder").toBeDefined();
+    expect(openRow!.fieldIds).toEqual(OTHER_CONTACT_FIELDS);
+    expect(openRow!.reasonKind).toBe("unknown");
+    expect(openRow!.label).toBe("the rest of your contact details");
+
+    const stamped = stampReportDate(record, TODAY);
+    // Every OTHER fact is fully answered (the setup loop above), so
+    // every non-auto group should read as written — including RC-1's,
+    // which is the only one that would NOT if the bug this test guards
+    // against were present. `nonAutoGroupCount` excludes ReportDate's
+    // own singleton group, the one group neither chrome function counts
+    // at all.
+    const nonAutoGroupCount = factGroups().filter((g) => g.some((fieldId) => dispositionOf(fieldId) !== "auto")).length;
+    expect(readyCounts(stamped).answered, "RC-1 counts as written in Ready").toBe(nonAutoGroupCount);
+    expect(recordFieldCounts(stamped).written, "RC-1 counts as written in the footer").toBe(nonAutoGroupCount);
   });
 });

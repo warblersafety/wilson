@@ -12,6 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
+  factGroups,
   hasOpenFields,
   openFieldEntries,
   openFieldsHeading,
@@ -19,6 +20,7 @@ import {
   summarizeOpenFields,
 } from "./open-fields";
 import { curatedRows } from "./report-chrome";
+import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts } from "./topics";
 
 const SUSPECT_1_LOT = "Page4.Prod1.Prod1LotNum";
@@ -315,6 +317,37 @@ describe("openFieldEntries — the fact unit (#127)", () => {
     // Genuinely distinguishable, not a coincidental match on a shared
     // substring.
     expect(new Set(labels).size).toBe(2);
+  });
+});
+
+// The shared grouping this dialog and the chrome footer/Ready now BOTH
+// depend on (rule 8, #127 rev 3: "one mechanism, not a second copy that
+// can drift"). Tested directly against the manifest, not against any
+// caller's own bucketing — a bug here would otherwise be invisible to a
+// test whose own oracle also calls factGroups() (mutation-tested: an
+// undeduplicated factGroups() slipped straight past the fact-counting
+// reconciliation property in open-fields-gate-fixture.test.ts, because
+// that property's own oracle groups fields the same way).
+describe("factGroups", () => {
+  it("covers every manifest field exactly once, no field in two groups and none omitted", () => {
+    const flattened = factGroups().flat();
+    expect(flattened.length, "no duplicates").toBe(new Set(flattened).size);
+    expect(new Set(flattened)).toEqual(new Set(FORM_3500_FIELDS.map((f) => f.id)));
+  });
+
+  it("a multi-field fact is one group, not one group per member", () => {
+    const race = factGroups().find((g) => g.includes("Page1.SecA_Patient.RaceWhite"));
+    expect(race).toEqual([
+      "Page1.SecA_Patient.RaceAmInd",
+      "Page1.SecA_Patient.RaceAsian",
+      "Page1.SecA_Patient.RaceBlack",
+      "Page1.SecA_Patient.EthnicLatino",
+      "Page1.SecA_Patient.RaceMiddleEastern",
+      "Page1.SecA_Patient.RacePacific",
+      "Page1.SecA_Patient.RaceWhite",
+    ]);
+    // Not seven separate one-member groups.
+    expect(factGroups().filter((g) => g.includes("Page1.SecA_Patient.RaceWhite"))).toHaveLength(1);
   });
 });
 
