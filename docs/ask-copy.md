@@ -440,6 +440,32 @@ design conversation first.
      you yet` — the stamped date is wilson's, and the caption stops
      claiming the paper is blank when it is not.
 
+   **What a fact's state IS, for counting — added with the build
+   half, closing a gap this passage left open.** "The same facts in
+   the same states" is not self-evident for a fact whose members
+   differ: a half-filled RC-1 has three fields answered and six
+   never asked. Stated once here rather than re-decided per surface,
+   because two surfaces deciding it differently is how a footer ends
+   up saying "items" while still counting fields:
+   - **written** — at least one member answered. The clinician gave
+     something, and a fact they have partly filled is a fact they
+     have written, whatever remains.
+   - **unknown** — no member answered, and at least one `unknown`.
+     They were asked and did not have it.
+   - **declined** — no member answered, and at least one `declined`.
+   - counted nowhere otherwise, exactly as an `unasked` field is
+     today.
+   A fact can therefore be **written and still open** — the partly
+   filled RC-1 is both, and both statements are true: they have
+   given contact details, and there is more they could give. That is
+   the honest shape, and it means the dialog's count is NOT the
+   arithmetic complement of the three buckets. The reconciliation
+   this rule owes is that all three surfaces read the same facts
+   through the same states — not that one is derivable from the
+   others by subtraction. The field-granularity arithmetic gate run
+   #1 observed was an artifact of every fact being exactly one
+   field, and this passage should not have promised to preserve it.
+
    The three surfaces stay mutually consistent by counting the same
    facts in the same states — the reconciliation gate run #1
    verified must survive the unit change — and the gate cases'
