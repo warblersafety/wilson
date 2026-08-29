@@ -388,17 +388,17 @@ deterministic unit test in the implementing unit's frozen criteria:
   granularity (added 2026-08-28, #126; `docs/ask-copy.md` rule 7 is
   authoritative, including the one gap it records — #155).** A
   validator-grounded `"true"` write to an `exclusive` group, through
-  the sweep or a Read-back confirm, is one atomic write of the whole
-  fact, so three things follow. It supersedes prior
-  `unknown`/`declined` member states rather than offering a correction
-  against them — the invariant just stated protects *stated values*,
-  and those two record an absence of one. A conflict with an already
-  `answered` exclusive fact is still an offer, but a single one named
-  by the fact ("You said female for sex — it's recorded as male.
-  Replace it?"), never a per-member offer; accepting rewrites the group
-  atomically, which is what stops a report ending with both sex boxes
-  checked — on the paths rule 7 scopes, the collision chip not yet
-  among them. And naming the fact's value in the visible reply ("Also
+  the sweep, a Read-back confirm, or a tapped collision chip, is one
+  atomic write of the whole fact, so three things follow. It
+  supersedes prior `unknown`/`declined` member states rather than
+  offering a correction against them — the invariant just stated
+  protects *stated values*, and those two record an absence of one. A
+  conflict with an already `answered` exclusive fact is still an
+  offer, but a single one named by the fact ("You said female for sex
+  — it's recorded as male. Replace it?"), never a per-member offer;
+  accepting rewrites the group atomically, which is what stops a
+  report ending with both sex boxes checked — on the paths rule 7
+  scopes. And naming the fact's value in the visible reply ("Also
   noted — therapy status: ongoing.") satisfies the naming rule above
   for the whole write — the sibling `"false"`s are that same fact's
   representation, not separate writes owed separate naming.
