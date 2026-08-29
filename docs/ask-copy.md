@@ -466,6 +466,41 @@ design conversation first.
    #1 observed was an artifact of every fact being exactly one
    field, and this passage should not have promised to preserve it.
 
+   **Three details the build proved this rule owed, added with the
+   reviewer pass.**
+   - **Every companion group carries an authored row label, and a
+     missing one is a CI failure, not a runtime throw.** Rule 9
+     authors weight's ("Was that pounds or kilograms?"); age's is
+     **"Was that years, months, weeks, or days?"**. Rule 3's bare-age
+     default does NOT make the age row unreachable, as this rule
+     first assumed: the default stands down whenever any unit is
+     already `unknown` or `declined`, so an age with a dismissed unit
+     leaves the group open with no label. That assumption reached the
+     build as a `throw` on a path `Review`'s Sign off calls in an
+     event handler — no error boundary, no message, a dead button.
+     A missing label is a defect in this document, so the check that
+     every companion group in the inventory has one belongs in the
+     test suite, where it fails before merge rather than under a
+     clinician.
+   - **A group's row reason, when its still-open members disagree.**
+     They can: a `mark_unknown` on one member does not propagate
+     (rule 7's negative), and narrative extraction offers members
+     individually. **Any still-open member `unknown` ⇒ "you didn't
+     have it"; otherwise "not asked yet".** Stated because the
+     alternative is whichever member sorts first, which makes the
+     row's words depend on manifest order — two records differing
+     only in WHICH box was dismissed would read differently for no
+     reason a clinician could see.
+   - **A total stated beside a fact count is a fact total.** The
+     facsimile's empty caption says how many items exist, so it
+     counts the same groups the chrome counters do — not the form's
+     227 fields, which is the number this rule exists to stop
+     showing as an item count. Derived, never written as a literal:
+     the count changes when the inventory does. The form's own field
+     count stays true and stays sayable where it describes the PAPER
+     ("the full 227-field form is generated at Review"), which is
+     Review's domain, not this one.
+
    The three surfaces stay mutually consistent by counting the same
    facts in the same states — the reconciliation gate run #1
    verified must survive the unit change — and the gate cases'
