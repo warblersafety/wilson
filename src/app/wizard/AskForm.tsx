@@ -25,9 +25,10 @@ import {
   friendlyFailureMessage,
   remainingCollisions,
   remainingCorrectionOffers,
+  resolveCollisionTap,
   widgetTurnText,
 } from "@/lib/chip-grammar";
-import type { CorrectionOffer, FieldCollision } from "@/lib/followup-sweep";
+import { correctionOfferSentence, type CorrectionOffer, type FieldCollision } from "@/lib/followup-sweep";
 import { applyProposedActions, type TalkSession, type TalkStep } from "@/lib/talk";
 import { stepForSession } from "./direct-step";
 
@@ -198,24 +199,37 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
 
   // One-tap collision resolution (Issue #124 AC-1/AC-2), the same shape as
   // handleAcceptCorrection above: a deterministic write through the
-  // normal path (applyProposedActions), recorded in the transcript, one
-  // tap. `index` selects which of `collision.values`/`collision.actions`
-  // was tapped — chip labels ARE the values themselves (mirroring
-  // Read-back's own collision radios and the correction-offer chip's
-  // field label), so the tap already tells us which one without asking
-  // the clinician to disambiguate a second time. remainingCollisions()
-  // carries the turn's other, still-unresolved collisions forward,
-  // mirroring remainingCorrectionOffers() just above and for the same
-  // reason (reviewer pass on PR #64): stepForSession()'s fresh step has
-  // none of its own.
+  // normal path, recorded in the transcript, one tap. `index` selects
+  // which of `collision.values`/`collision.actions` was tapped — chip
+  // labels ARE the values themselves (mirroring Read-back's own
+  // collision radios and the correction-offer chip's field label), so
+  // the tap already tells us which one without asking the clinician to
+  // disambiguate a second time. remainingCollisions() carries the turn's
+  // other, still-unresolved collisions forward, mirroring
+  // remainingCorrectionOffers() just above and for the same reason
+  // (reviewer pass on PR #64): stepForSession()'s fresh step has none of
+  // its own.
+  //
+  // Issue #154: "the normal path" is chip-grammar.ts's
+  // resolveCollisionTap(), not a raw applyProposedActions() of the
+  // tapped action alone — a tap on a one-hot (`exclusive`) member used to
+  // bypass classifyFollowUpActions() entirely and so never got that
+  // member's atomic-write/conflict-check treatment, which is how a tap
+  // could leave both sex boxes checked on an FDA-bound form.
+  // resolveCollisionTap() may therefore come back with the record
+  // UNCHANGED plus a correctionOffer instead of a write — surfaced below
+  // as an appended "Replace {fact}" chip, its sentence made visible via
+  // replyPrefix since stepForSession() never calls
+  // describeFollowUpSweep() itself.
   async function handleAcceptCollision(collision: FieldCollision, index: number) {
     setError(null);
     setIsDismissing(true);
     onPendingChange?.(true);
     try {
+      const { record, correctionOffer } = resolveCollisionTap(current.session.record, collision, index);
       const nextSession: TalkSession = {
         ...current.session,
-        record: applyProposedActions(current.session.record, [collision.actions[index]]),
+        record,
         transcript: [
           ...current.session.transcript,
           // Issue #123 (dev merged in after this handler was first
@@ -226,11 +240,20 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
           // it again into the clinician's own tap would be the same
           // recitation #123 removed from handleDismiss/
           // handleAcceptCorrection above. The tapped value is the whole
-          // answer.
+          // answer whether it writes straight through or — #154 — comes
+          // back as a conflict instead: either way it's what the
+          // clinician tapped, so the turn quotes it the same.
           { role: "clinician", text: widgetTurnText(collision.values[index]), source: "widget" },
         ],
       };
-      const nextStepResult = await stepForSession(nextSession, { appendReply: true });
+      const nextStepResult = await stepForSession(nextSession, {
+        appendReply: true,
+        // Issue #154: without this, a conflicting tap would leave a
+        // "Replace {fact}" chip on screen with nothing explaining what
+        // it's for — stepForSession() only recomputes the next question,
+        // it never calls describeFollowUpSweep() itself.
+        replyPrefix: correctionOffer ? correctionOfferSentence(correctionOffer) : undefined,
+      });
       onSubmitted({
         ...nextStepResult,
         collisions: remainingCollisions(current.collisions, collision.fieldId),
@@ -243,7 +266,15 @@ export function AskForm({ current, onSubmitted, onPendingChange }: AskFormProps)
         // offer names a different field than the collision just
         // resolved, so it carries forward untouched, mirroring
         // handleAcceptCorrection above.
-        correctionOffers: current.correctionOffers,
+        //
+        // Issue #154: a conflicting tap ADDS its own new offer here too
+        // — appended, never replacing. classifyFollowUpActions() puts a
+        // field in at most one of collisions/correctionOffers per turn,
+        // and this field just came out of the collision channel, so it
+        // cannot already be carrying an offer of the other kind.
+        correctionOffers: correctionOffer
+          ? [...(current.correctionOffers ?? []), correctionOffer]
+          : current.correctionOffers,
       });
     } catch (err) {
       setError(friendlyFailureMessage(err instanceof Error ? err.message : "unknown"));

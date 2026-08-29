@@ -6,9 +6,17 @@
 // multi-slot repeat groups, and the "question — answer" transcript
 // formatting a chip tap needs.
 import { applyAction, type AgendaRecord } from "./agenda";
-import { standaloneFactNamesFor } from "./ask-inventory";
+import { exclusiveFactContaining, standaloneFactNamesFor } from "./ask-inventory";
+import { completeExclusiveFactWrites } from "./derive";
 import type { FieldAction } from "./field-state";
-import { describeDismissal, type CorrectionOffer, type FieldCollision } from "./followup-sweep";
+import {
+  conflictingExclusiveSibling,
+  describeDismissal,
+  exclusiveFactRewrite,
+  type CorrectionOffer,
+  type FieldCollision,
+} from "./followup-sweep";
+import { applyProposedActions } from "./talk";
 import { repeatGroupCapacity, TOPICS, type NextStep, type RepeatGroup, type Topic } from "./topics";
 
 export interface RepeatDecisionOptions {
@@ -170,6 +178,69 @@ export function remainingCollisions(
 ): FieldCollision[] | undefined {
   const rest = (collisions ?? []).filter((collision) => collision.fieldId !== resolvedFieldId);
   return rest.length > 0 ? rest : undefined;
+}
+
+// Issue #154 (urgent): a tap on a collision chip used to reach
+// applyProposedActions() with its raw action alone, no matter what field
+// it targeted — classifyFollowUpActions() (followup-sweep.ts) splits a
+// turn's candidates into collisions BEFORE the exclusive-fact branch that
+// gives every OTHER grounded "true" write its atomic-completion/
+// conflict-check treatment, so a one-hot (`exclusive`) member with 2+
+// candidates in one turn never reached it — a tap could leave BOTH sex
+// boxes checked on an FDA-bound form. This is the tap path's own version
+// of that same treatment, sharing followup-sweep.ts's
+// conflictingExclusiveSibling() (the exact same function
+// classifyFollowUpActions calls, one mechanism, not two) so a tap faces
+// the identical conflict check every other grounded action faces: an
+// AMBIGUOUS statement resolved by a tap must never be MORE authoritative
+// than a clear one, and a clear one already only earns a correction
+// offer here, never a silent write.
+//
+// - A real conflict: the record comes back UNCHANGED, plus the same
+//   fact-granularity CorrectionOffer classifyFollowUpActions() would
+//   have produced for this write. AskForm.tsx surfaces it as the
+//   existing "Replace {fact}" chip, whose accept path
+//   (handleAcceptCorrection) already applies exclusiveFact.writes
+//   atomically and is already tested — this unit invents no new copy.
+// - A one-hot member, no conflict: written atomically in one call — the
+//   tapped action plus its completion (derive.ts's
+//   completeExclusiveFactWrites, the SAME function the extract and
+//   narrative paths already use) — so no intermediate record state ever
+//   has the tapped member true with an unresolved sibling.
+// - Anything else — not `answer "true"`, or not an exclusive member at
+//   all — is today's behavior, unchanged: the tapped action applies
+//   alone. A `mark_unknown`/`answer "false"` tap on a one-hot member
+//   deliberately stays on this path: rule 7's amendment covers "the
+//   named member true" only, and widening a tap's other shapes to the
+//   same treatment is issue #155, still open, not this unit's scope.
+export function resolveCollisionTap(
+  record: AgendaRecord,
+  collision: FieldCollision,
+  index: number,
+): { record: AgendaRecord; correctionOffer?: CorrectionOffer } {
+  const tapped = collision.actions[index];
+  if (tapped.type === "answer" && tapped.value === "true" && exclusiveFactContaining(tapped.fieldId) !== undefined) {
+    const conflict = conflictingExclusiveSibling(record, tapped.fieldId);
+    if (conflict !== undefined) {
+      const entry = record[collision.fieldId];
+      return {
+        record,
+        correctionOffer: {
+          fieldId: collision.fieldId,
+          action: tapped,
+          currentState: entry.state,
+          currentValue: entry.value,
+          exclusiveFact: {
+            name: conflict.fact.name,
+            currentFieldId: conflict.currentFieldId,
+            writes: exclusiveFactRewrite(conflict.fact, tapped),
+          },
+        },
+      };
+    }
+    return { record: applyProposedActions(record, [tapped, ...completeExclusiveFactWrites(record, [tapped])]) };
+  }
+  return { record: applyProposedActions(record, [tapped]) };
 }
 
 // Issue #44 AC: "server/extraction failures surface as friendly copy with

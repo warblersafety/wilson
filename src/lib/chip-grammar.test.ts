@@ -2,9 +2,11 @@
 // DOM. UI components (RepeatDecision.tsx, AskForm.tsx) stay thin
 // wrappers, same convention as the rest of src/app/wizard.
 import { describe, expect, it } from "vitest";
-import { initAgenda } from "./agenda";
+import { initAgenda, type AgendaRecord } from "./agenda";
+import { exclusiveFactContaining, type AskFact } from "./ask-inventory";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import type { CorrectionOffer, FieldCollision } from "./followup-sweep";
+import { applyProposedActions } from "./talk";
 import { initRepeatCounts, nextStep, TOPICS, type NextStep, type Topic } from "./topics";
 import {
   applyActionToFields,
@@ -14,6 +16,7 @@ import {
   remainingCollisions,
   remainingCorrectionOffers,
   repeatDecisionOptions,
+  resolveCollisionTap,
   widgetTurnText,
 } from "./chip-grammar";
 import { syntheticTopic } from "./synthetic-topic";
@@ -399,5 +402,148 @@ describe("dismissAcknowledgment", () => {
     // Exactly the still-open facts — age and sex — nothing more.
     expect(fieldIds).toEqual(pb1.askFieldIds.slice(1));
     expect(dismissAcknowledgment(step, "mark_unknown")).toBe("Marked age and sex as not on hand.");
+  });
+});
+
+// Issue #154 (urgent): a collision chip tap on a one-hot (`exclusive`)
+// member used to reach applyProposedActions() with its raw tapped action
+// alone — classifyFollowUpActions() (followup-sweep.ts) splits a turn's
+// candidates into collisions BEFORE the exclusive-fact branch that gives
+// every OTHER grounded "true" write its atomic-completion/conflict-check
+// treatment, so a one-hot member with 2+ candidates in one turn never
+// reached it. Two concrete repros this pins: a tap that CONFLICTS with an
+// already-answered sibling used to write both sex boxes true; a tap on a
+// fresh record used to leave the untapped sibling `unasked` (the phantom
+// sibling, #126's original defect verbatim, reachable again through the
+// collision door). Real manifest ids throughout (Page1.SecA_Patient.SexM/
+// SexF are ask-inventory.ts's real PB-1 "sex" exclusive fact) — no
+// hand-rolled stand-in for the fact inventory, since the machinery under
+// test (exclusiveFactContaining, conflictingExclusiveSibling) is keyed
+// off the real, module-level AUTHORED_ASKS and cannot be parameterized
+// with a synthetic one.
+describe("resolveCollisionTap (#154)", () => {
+  const SEX_M = "Page1.SecA_Patient.SexM";
+  const SEX_F = "Page1.SecA_Patient.SexF";
+  const sexFact: AskFact = exclusiveFactContaining(SEX_M)!;
+
+  // The invariant AC-4 actually pins: a COUNT over the fact's own
+  // fieldIds, not two separate per-field assertions that could both be
+  // satisfied by an unrelated bug (e.g. both members false).
+  function trueMemberCount(record: AgendaRecord, fact: AskFact): number {
+    return fact.fieldIds.filter((id) => record[id]?.state === "answered" && record[id]?.value === "true").length;
+  }
+
+  it("AC-4 conflict case: a tap conflicting with an already-answered sibling is caught, not silently applied", () => {
+    // record: SexM answered "true", SexF answered "false" — sex resolved
+    // as male, exactly the brief's first repro.
+    const record: AgendaRecord = {
+      ...initAgenda(),
+      [SEX_M]: { state: "answered", value: "true" },
+      [SEX_F]: { state: "answered", value: "false" },
+    };
+    // Two grounded candidates for SexF this turn: "true" and mark_unknown.
+    const collision: FieldCollision = {
+      fieldId: SEX_F,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_F, type: "answer", value: "true" },
+        { fieldId: SEX_F, type: "mark_unknown" },
+      ],
+    };
+
+    const result = resolveCollisionTap(record, collision, 0); // tap "true"
+
+    // Never applied: the record comes back the SAME reference, not an
+    // equal copy — the strongest form of "unchanged" this codebase pins
+    // elsewhere (direct-step.ts's own hydration-safety contract).
+    expect(result.record).toBe(record);
+    expect(result.record[SEX_F].value).not.toBe("true");
+    expect(trueMemberCount(result.record, sexFact)).toBe(1);
+
+    expect(result.correctionOffer).toBeDefined();
+    expect(result.correctionOffer!.exclusiveFact).toBeDefined();
+    expect(result.correctionOffer!.exclusiveFact!.name).toBe("sex");
+    expect(result.correctionOffer!.exclusiveFact!.currentFieldId).toBe(SEX_M);
+
+    // The clinician's actual path to a female-recorded sex: tap the
+    // "Replace sex" chip this offer becomes, which applies
+    // exclusiveFact.writes atomically (AskForm.tsx's
+    // handleAcceptCorrection, already tested since #126) — exactly one
+    // true member, SexF, never both.
+    const corrected = applyProposedActions(record, result.correctionOffer!.exclusiveFact!.writes);
+    expect(trueMemberCount(corrected, sexFact)).toBe(1);
+    expect(corrected[SEX_F]).toEqual({ state: "answered", value: "true" });
+  });
+
+  it("AC-4 fresh-record case: a clean one-hot tap writes the whole fact atomically, not just its own field", () => {
+    // SexM/SexF both `unasked` — #126's original defect verbatim,
+    // reached this time through a collision tap rather than an in-ask
+    // answer.
+    const record = initAgenda();
+    // Two grounded candidates for SexM this turn: "true" and "unknown".
+    const collision: FieldCollision = {
+      fieldId: SEX_M,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_M, type: "answer", value: "true" },
+        { fieldId: SEX_M, type: "mark_unknown" },
+      ],
+    };
+
+    const result = resolveCollisionTap(record, collision, 0); // tap "true"
+
+    expect(result.correctionOffer).toBeUndefined();
+    expect(result.record[SEX_M]).toEqual({ state: "answered", value: "true" });
+    // The phantom-sibling defect: SexF must be WRITTEN false, not left
+    // `unasked` beside an answered SexM.
+    expect(result.record[SEX_F]).toEqual({ state: "answered", value: "false" });
+    expect(trueMemberCount(result.record, sexFact)).toBe(1);
+  });
+
+  it("a non-exclusive field's collision tap is unchanged: applies the tapped action alone", () => {
+    const record = initAgenda();
+    // A plain text field with no exclusive fact of its own (SP-2's lot
+    // number — followup-sweep.test.ts's own LOT fixture).
+    const LOT = "Page4.Prod1.Prod1LotNum";
+    expect(exclusiveFactContaining(LOT)).toBeUndefined();
+    const collision: FieldCollision = {
+      fieldId: LOT,
+      values: ["8834", "8835"],
+      actions: [
+        { fieldId: LOT, type: "answer", value: "8834" },
+        { fieldId: LOT, type: "answer", value: "8835" },
+      ],
+    };
+
+    const result = resolveCollisionTap(record, collision, 1); // tap "8835"
+
+    expect(result.correctionOffer).toBeUndefined();
+    expect(result.record[LOT]).toEqual({ state: "answered", value: "8835" });
+  });
+
+  // Issue #155 (still open, deliberately out of #154's scope): rule 7's
+  // amendment covers "the named member true" only, so a tap that resolves
+  // to anything else on a one-hot member — mark_unknown, decline, or
+  // "false" — stays on the ordinary field-level path. Pinned here so a
+  // future widening to this shape is a deliberate edit to this test, not
+  // a silent side effect of some unrelated change.
+  it("a mark_unknown tap on a one-hot member still takes the field-level path (#155's boundary)", () => {
+    const record = initAgenda();
+    const collision: FieldCollision = {
+      fieldId: SEX_M,
+      values: ["true", "unknown"],
+      actions: [
+        { fieldId: SEX_M, type: "answer", value: "true" },
+        { fieldId: SEX_M, type: "mark_unknown" },
+      ],
+    };
+
+    const result = resolveCollisionTap(record, collision, 1); // tap "unknown"
+
+    expect(result.correctionOffer).toBeUndefined();
+    expect(result.record[SEX_M]).toEqual({ state: "unknown", value: undefined });
+    // #155's boundary: SexF is untouched, not completed false — this
+    // unit's atomic completion is scoped to answer "true" only.
+    expect(result.record[SEX_F]).toEqual({ state: "unasked" });
   });
 });
