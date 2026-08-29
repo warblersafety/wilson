@@ -195,29 +195,29 @@ design conversation first.
      ongoing, health professional, the Abated and Reappear trios,
      and their kin; the per-fact declaration is authoritative), the
      entailment carries on the clinician's own words, not on a list
-     being read: "58-year-old man" settles the sex question
-     wherever it is said. Completion applies to a
-     validator-grounded `"true"` write on any of three paths — the
-     ask's own turn, a Read-back confirmation of a narrative
-     proposal, or a rule-8 volunteered write (announced and
-     correctable, as rule 8 provides). Two boundaries are stated
-     here rather than assumed, both narrower than this rule wants
-     and both filed as defects against it: an action that is not
-     `answer "true"` — `"false"`, `unknown`, `declined` — is out of
-     scope and still takes the field-level path (#155), and a
-     tapped collision chip writes its member without reaching the
-     sweep at all, so it completes nothing (#154). Recorded because
-     a contract that overstates its own reach is how the next unit
-     inherits a bug. A Read-back
-     confirmation is the clinician answering, not machinery
-     guessing — proposals being confirmable before anything writes
-     is the whole reason Read-back exists — so the "unheard"
-     reasoning does not reach it. Before this amendment the in-ask
-     bound applied blanket: a narrative-confirmed `SexM` completed
-     nothing, the record held a male patient with `SexF: unknown`,
-     the open-fields dialog read "sex: female — you didn't have
-     it", and the walk re-asked a fact Read-back had just confirmed
-     (gate run #1, C3 — entries 2 and 5).
+     being read: "58-year-old man" settles the sex question wherever it
+     is said. Completion applies to a validator-grounded `"true"` write
+     on any of four paths — the ask's own turn, a Read-back confirmation
+     of a narrative proposal, a rule-8 volunteered write (announced and
+     correctable, as rule 8 provides), or a tapped collision chip that
+     clears the same conflict check (#154). Boundaries are named here,
+     not counted — a hand-maintained tally is exactly what has gone stale
+     on this rule already: an action that is not `answer "true"` —
+     `"false"`, `unknown`, `declined` — is out of scope and still takes
+     the field-level path (#155), a tapped collision chip included; and
+     a single turn proposing `"true"` for two DIFFERENT members of the
+     same exclusive fact writes both — collision detection is keyed on
+     field id, not fact, so two distinct fields never collide with each
+     other (#169). Recorded because a contract that overstates its own
+     reach is how the next unit inherits a bug. A Read-back confirmation
+     is the clinician answering, not machinery guessing — proposals being
+     confirmable before anything writes is the whole reason Read-back
+     exists — so the "unheard" reasoning does not reach it. Before this
+     amendment the in-ask bound applied blanket: a narrative-confirmed
+     `SexM` completed nothing, the record held a male patient with
+     `SexF: unknown`, the open-fields dialog read "sex: female — you
+     didn't have it", and the walk re-asked a fact Read-back had just
+     confirmed (gate run #1, C3 — entries 2 and 5).
 
      **A write to an exclusive group is a write of the whole fact,
      atomic (amended 2026-08-28, #126).** Rule 3 already holds that a
@@ -241,15 +241,19 @@ design conversation first.
      **A conflicting later statement is a correction of the fact, at
      fact granularity.** Where a grounded statement conflicts with an
      exclusive fact already answered, the sweep offers one correction
-     named by the fact — "You said female for sex — it's recorded as
-     male. Replace it?" — and accepting it rewrites the group
-     atomically. A member-level offer is never the right shape for a
-     one-hot member: a per-field offer on `SexF`, accepted against
-     an answered `SexM`, is exactly how a report ends with both sex
-     boxes checked on an FDA-bound form. The sweep's own offer path
-     honours that. Two live paths do not yet — a tapped collision
-     chip (#154) and a non-`answer "true"` action (#155) — and they
-     are gaps against this rule, not exceptions to it.
+     named by the fact — "You said female for sex — it's recorded as male.
+     Replace it?" — and accepting it rewrites the group atomically. A
+     member-level offer is never the right shape for a one-hot member: a
+     per-field offer on `SexF`, accepted against an answered `SexM`, is
+     exactly how a report ends with both sex boxes checked on an
+     FDA-bound form. The sweep's own offer path honours that, and since
+     #154 so does a tapped collision chip's own resolution:
+     chip-grammar.ts's resolveCollisionTap() shares the sweep's own
+     conflict check (conflictingExclusiveSibling()) rather than a second
+     copy of it, so a conflicting tap surfaces the identical "Replace
+     {fact}" offer, never a raw write — outside the boundaries named
+     above (#155, #169), which remain gaps against this rule, not
+     exceptions to it.
 
      **Naming the fact names the whole write.** design.md requires
      every out-of-ask write to be named in that turn's visible reply.
