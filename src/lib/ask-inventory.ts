@@ -990,7 +990,17 @@ function concomitantAnchors(): Record<string, string> {
 // answered the question is settled, so its siblings stop being gaps. A
 // concomitant medication's start and stop dates are deliberately NOT a
 // group: they are two facts, and answering one leaves the other open.
-const EXCLUSIVE_COMPANION_GROUPS: string[][] = [
+//
+// Exported (added with the reviewer pass, #127 rev 4) so open-fields.ts's
+// own test suite can enumerate every group in the inventory and assert
+// each one has an authored open-fields row label — the check rule 8's
+// amendment requires live in CI, catching a future group with no label
+// before merge rather than as a runtime throw a clinician's Sign off tap
+// hits. This is the exact gap that shipped: the age group's label was
+// missing and the assumption that made it "unreachable" was wrong
+// (bareAgeDefaultWrites stands down whenever a unit is already
+// unknown/declined, not only when one is answered).
+export const EXCLUSIVE_COMPANION_GROUPS: string[][] = [
   [
     "Page1.SecA_Patient.AgeYears",
     "Page1.SecA_Patient.AgeMonths",

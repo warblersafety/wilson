@@ -252,12 +252,15 @@ export function recordFieldCounts(record: AgendaRecord, topics: Topic[] = TOPICS
 // agreeing on the numbers — "1 field written" in one place, "1 fields
 // written · 0 unknown" in the other, for the same record).
 //
-// "Item", not "field" — ask-copy.md rule 8's open-fields unit (#127):
-// the word, not the count. This function still tallies manifest FIELDS
-// (Review's own unit, which rule 8 leaves alone — "the form's own field
-// count remains true... at Review, which renders every field"); only the
-// noun changes, so the footer's progress line stops disagreeing with the
-// open-fields dialog beside it over what a "field" is.
+// "Item", not "field" — ask-copy.md rule 8's open-fields unit (#127).
+// Formats whatever `counts` holds; as of rev 3 that is a FACT count
+// (recordFieldCounts() above now buckets by factGroups(), not by
+// manifest field), so the word and the number finally agree — an
+// earlier version of this comment said the opposite ("this function
+// still tallies manifest fields... only the noun changes"), true when
+// written and false the moment recordFieldCounts() changed underneath
+// it (reviewer pass, #127 N6). Review's own field count is untouched by
+// any of this — it lives at Review, not here.
 export function formatFieldCounts(counts: RecordCounts): string {
   const written = `${counts.written} item${counts.written === 1 ? "" : "s"} written`;
   return counts.unknown > 0 ? `${written} · ${counts.unknown} unknown` : written;

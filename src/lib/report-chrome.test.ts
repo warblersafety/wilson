@@ -214,9 +214,11 @@ describe("recordFieldCounts", () => {
 });
 
 describe("formatFieldCounts", () => {
-  // ask-copy.md rule 8's unit noun (#127): "item", not "field" — this
-  // function still tallies manifest fields (recordFieldCounts's own
-  // unit is unchanged), only the rendered word is new.
+  // ask-copy.md rule 8's unit noun (#127): "item", not "field" — and as
+  // of rev 3, the word matches the count: recordFieldCounts() buckets by
+  // fact (factGroups()), not by manifest field, so this is formatting a
+  // fact count (reviewer pass, #127 N6 — an earlier version of this
+  // comment claimed the opposite).
   it("says 'item', never 'field'", () => {
     expect(formatFieldCounts({ written: 1, unknown: 0 })).toBe("1 item written");
     expect(formatFieldCounts({ written: 3, unknown: 2 })).toBe("3 items written · 2 unknown");

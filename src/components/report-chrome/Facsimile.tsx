@@ -27,12 +27,15 @@ import {
   AGE_UNIT_LABELS,
   displayFor,
   doseWithUnitAndFrequency,
+  facsimileEmptyCaption,
+  FACSIMILE_EMPTY_STATE_STATUS,
   productIdentity,
   valueWithCheckedUnit,
   WEIGHT_UNIT_LABELS,
   type RenderedFacsimileValue,
 } from "@/lib/form-3500-facsimile";
 import { FORM_3500_FIELDS, FORM_3500_SECTIONS, type FormSection } from "@/lib/form-3500-fields";
+import { totalFactCount } from "@/lib/open-fields";
 import { formatFieldCounts, type RecordCounts } from "@/lib/report-chrome";
 
 interface CheckboxOption {
@@ -190,17 +193,13 @@ export function Facsimile({ record, counts }: FacsimileProps) {
       <div className="report-facsimile__header">
         <span className="report-facsimile__title">Form FDA 3500</span>
         <span className="report-facsimile__status">
-          {nothingWritten ? "none from you yet" : formatFieldCounts(counts)}
+          {nothingWritten ? FACSIMILE_EMPTY_STATE_STATUS : formatFieldCounts(counts)}
         </span>
         <span className="report-facsimile__preview-label">Preview</span>
       </div>
       <div className="report-facsimile__paper">
         <p className="report-facsimile__masthead">MedWatch</p>
-        {nothingWritten && (
-          <p className="report-facsimile__empty">
-            {FORM_3500_FIELDS.length} items, none from you yet. Everything here comes from what you say.
-          </p>
-        )}
+        {nothingWritten && <p className="report-facsimile__empty">{facsimileEmptyCaption(totalFactCount())}</p>}
         {SECTIONS.map(({ section, fields, checkboxGroups, textBlockFieldId, checkboxGroupsFirst }) => (
           <div key={section} className="report-facsimile__section">
             <h3 className="report-facsimile__section-title">

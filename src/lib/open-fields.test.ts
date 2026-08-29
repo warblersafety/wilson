@@ -12,14 +12,17 @@
 import { describe, expect, it } from "vitest";
 import { applyAction, initAgenda, type AgendaRecord } from "./agenda";
 import {
+  companionGroupLabel,
   factGroups,
   hasOpenFields,
   openFieldEntries,
   openFieldsHeading,
   rowForField,
   summarizeOpenFields,
+  totalFactCount,
 } from "./open-fields";
-import { curatedRows } from "./report-chrome";
+import { curatedRows, recordFieldCounts } from "./report-chrome";
+import { anchorOf, EXCLUSIVE_COMPANION_GROUPS } from "./ask-inventory";
 import { FORM_3500_FIELDS } from "./form-3500-fields";
 import { TOPICS, type RepeatCounts } from "./topics";
 
@@ -318,6 +321,51 @@ describe("openFieldEntries — the fact unit (#127)", () => {
     // substring.
     expect(new Set(labels).size).toBe(2);
   });
+
+  // A group's still-open members do NOT always share one state — a
+  // `mark_unknown` on one member never propagates to its siblings (rule
+  // 7's negative), so one can go `unknown` while the rest stay
+  // `unasked`. Rule 8's #127 rev 4: any still-open member `unknown`
+  // makes the row "you didn't have it", regardless of position. Two
+  // cases, deliberately mirrored (which member is the unknown one
+  // flips), because a positional tiebreak (`stillOpen[0]`, or its
+  // opposite `stillOpen[length - 1]`) passes ONE of these by accident
+  // and fails the other — reviewer pass: swapping to `stillOpen[0]` for
+  // `stillOpen[stillOpen.length - 1]` in the implementation left the
+  // full suite green before these existed.
+  it("a still-open member marked unknown wins over an unasked one that sorts first", () => {
+    // WeightLB (form order: first) stays unasked; WeightKG (second) is
+    // explicitly dismissed unknown.
+    let record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    record = applyAction(record, WEIGHT_KG, { type: "mark_unknown" });
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.reasonKind, "first member unasked, second unknown").toBe("unknown");
+    expect(weightEntry!.reason).toBe("you didn't have it");
+  });
+
+  it("a still-open member marked unknown wins over an unasked one that sorts last", () => {
+    // WeightLB (first) is explicitly dismissed unknown; WeightKG
+    // (second) stays unasked — the mirror of the case above.
+    let record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    record = applyAction(record, WEIGHT_LB, { type: "mark_unknown" });
+    const entries = openFieldEntries(record, counts);
+    const weightEntry = entries.find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry).toBeDefined();
+    expect(weightEntry!.fieldIds).toEqual([WEIGHT_LB, WEIGHT_KG]);
+    expect(weightEntry!.reasonKind, "first member unknown, second unasked").toBe("unknown");
+    expect(weightEntry!.reason).toBe("you didn't have it");
+  });
+
+  it("stays 'not asked yet' when every still-open member genuinely is", () => {
+    // Neither member touched at all — the ordinary bare-weight case
+    // every other weight test in this file starts from.
+    const record = reopenAll(allResolved(counts), [WEIGHT_LB, WEIGHT_KG]);
+    const weightEntry = openFieldEntries(record, counts).find((e) => e.fieldIds.includes(WEIGHT_LB));
+    expect(weightEntry!.reasonKind).toBe("not-asked");
+  });
 });
 
 // The shared grouping this dialog and the chrome footer/Ready now BOTH
@@ -348,6 +396,82 @@ describe("factGroups", () => {
     ]);
     // Not seven separate one-member groups.
     expect(factGroups().filter((g) => g.includes("Page1.SecA_Patient.RaceWhite"))).toHaveLength(1);
+  });
+});
+
+// B1 (reviewer pass, #127 rev 4): a companion group with no authored
+// open-fields label throws — `companionGroupLabel`'s own defensive
+// check, the same "missing authored string is a build error" convention
+// displayName() and asksForTopic() already hold. That is the RIGHT
+// behavior for an inventory gap that reaches production, but it must
+// never BE the first time a gap is discovered: this CI-level check
+// walks every group ask-inventory.ts actually declares and proves none
+// of them throws, so a future companion group with no label fails here,
+// before merge, rather than as a runtime throw on a clinician's Sign
+// off tap (`Review.tsx`'s `handleSignOff()` calls `hasOpenFields()` in
+// an event handler with no error boundary — a thrown exception there is
+// a silently dead button for the rest of the session).
+describe("companion group labels — every group in the inventory has one (#127 B1)", () => {
+  it("companionGroupLabel does not throw for any group EXCLUSIVE_COMPANION_GROUPS declares", () => {
+    expect(EXCLUSIVE_COMPANION_GROUPS.length).toBeGreaterThan(0);
+    for (const group of EXCLUSIVE_COMPANION_GROUPS) {
+      const anchor = anchorOf(group[0]);
+      expect(anchor, `${group[0]} has no anchor`).toBeDefined();
+      expect(() => companionGroupLabel(anchor!), `group anchored on ${anchor}`).not.toThrow();
+    }
+  });
+
+  // The exact reproduction: a confirmed age (narrative or a follow-up
+  // turn both write AgeValue "answered") followed by a dismissed AgeYears
+  // — ordinary Read-back plus one "I don't have that"-shaped tap, nothing
+  // exotic. Before this fix, `openFieldEntries` (and therefore
+  // `hasOpenFields`, which Review's Sign off calls) threw "no authored
+  // open-fields label for the companion group anchored on
+  // Page1.SecA_Patient.AgeValue" the instant this state was reached,
+  // because the age group had no entry in COMPANION_GROUP_LABELS and the
+  // build's own comment wrongly assumed the state was unreachable.
+  it("does not throw when a confirmed age has one unit dismissed unknown — the B1 reproduction", () => {
+    const counts: RepeatCounts = { "suspect-product": 1, "concomitant-medication": 1 };
+    let record = applyAction(initAgenda(), "Page1.SecA_Patient.AgeValue", { type: "answer" }, "61");
+    record = applyAction(record, "Page1.SecA_Patient.AgeYears", { type: "mark_unknown" });
+    expect(() => openFieldEntries(record, counts)).not.toThrow();
+    expect(() => hasOpenFields(record, counts)).not.toThrow();
+
+    const entries = openFieldEntries(record, counts);
+    const ageEntry = entries.find((e) => e.fieldIds.includes("Page1.SecA_Patient.AgeYears"));
+    expect(ageEntry, "the age-unit row is listed, not silently dropped").toBeDefined();
+    expect(ageEntry!.fieldIds).toEqual([
+      "Page1.SecA_Patient.AgeYears",
+      "Page1.SecA_Patient.AgeMonths",
+      "Page1.SecA_Patient.AgeWeeks",
+      "Page1.SecA_Patient.AgeDays",
+    ]);
+    expect(ageEntry!.label).toBe("Was that years, months, weeks, or days?");
+    // AgeYears is unknown; the other three are merely unasked — rule 8's
+    // #127 rev 4 mixed-state rule says the row reads "you didn't have
+    // it" the instant ANY still-open member does.
+    expect(ageEntry!.reasonKind).toBe("unknown");
+    expect(ageEntry!.reason).toBe("you didn't have it");
+  });
+});
+
+describe("totalFactCount", () => {
+  it("equals factGroups().length minus the one auto group (ReportDate)", () => {
+    expect(totalFactCount()).toBe(factGroups().length - 1);
+  });
+
+  it("is the ceiling recordFieldCounts() can actually reach when every field is answered", () => {
+    // Every field in the manifest answered, auto field included — the
+    // stamped-record shape ReportChrome.tsx always hands recordFieldCounts().
+    let record = initAgenda();
+    for (const topic of TOPICS) {
+      for (const fieldId of topic.fieldIds) record = applyAction(record, fieldId, { type: "answer" }, "x");
+    }
+    // Proves totalFactCount() is the real denominator recordFieldCounts()
+    // buckets into, not just an arithmetic coincidence against
+    // factGroups().length — every non-auto group is answered, so
+    // `written` reaches exactly this ceiling and `unknown` reaches zero.
+    expect(recordFieldCounts(record)).toEqual({ written: totalFactCount(), unknown: 0 });
   });
 });
 

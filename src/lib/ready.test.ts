@@ -133,6 +133,15 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
     expect(READY_COPY.heading).toBe("Report ready.");
   });
 
+  it("labels the summary row 'Items', not 'Fields' (#127 N5)", () => {
+    // ask-copy.md rule 8's #127 amendment: screen 07's own noun stops
+    // matching the open-fields dialog beside it the moment the dialog
+    // counts facts instead of fields. Unpinned before this test — a
+    // mutation sweep confirmed the string could change with the whole
+    // suite still green.
+    expect(READY_COPY.itemsLabel).toBe("Items");
+  });
+
   it("the failure heading never repeats the ready claim", () => {
     // AC-1 (Issue #128) belongs to readySurfaceView below, but the
     // constant itself carries the same rule: whatever replaces "Report

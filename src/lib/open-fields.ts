@@ -26,7 +26,13 @@ import type { AgendaRecord } from "./agenda";
 import { FORM_3500_FIELDS, type FormFieldSpec } from "./form-3500-fields";
 import type { CuratedRow } from "./report-chrome";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
-import { anchorOf, exclusiveCompanionGroupContaining, isListableGap, standaloneFactNamesFor } from "./ask-inventory";
+import {
+  anchorOf,
+  dispositionOf,
+  exclusiveCompanionGroupContaining,
+  isListableGap,
+  standaloneFactNamesFor,
+} from "./ask-inventory";
 import { isTopicGatedOff } from "./gates";
 import { displayName, productInstancePrefix } from "./display-names";
 
@@ -122,23 +128,42 @@ function reasonKindFor(state: AgendaRecord[string]["state"]): OpenFieldReasonKin
 // one row too (rule 8, #127), but unlike an AskFact they carry no
 // authored name of their own — so the row's label is authored here,
 // keyed by the group's shared anchor (every member of a group anchors on
-// the same field, per ask-inventory.ts's COMPANION_ANCHORS). Only the
-// weight group is reachable today: the age group's bare-number default
-// (rule 3 — "a bare age defaults to years") means an unstated unit
-// always resolves (derive.ts's bareAgeDefaultWrites) before it can
-// become a second, simultaneously-open sibling, so a standing age
-// clarification would be dead, untested copy. A future companion group
-// with no entry here is a build error rather than invented copy — the
-// same convention displayName() and asksForTopic() already hold for a
-// missing authored string.
+// the same field, per ask-inventory.ts's COMPANION_ANCHORS). Both groups
+// are reachable: an earlier version of this comment claimed the age
+// group could not be, reasoning that rule 3's bare-number default
+// (bareAgeDefaultWrites) always resolves an unstated unit before it can
+// sit open beside a sibling — true only while every unit starts
+// `unasked`. bareAgeDefaultWrites stands down the moment ANY unit is
+// already settled, and derive.ts's alreadySettled() counts `unknown`
+// and `declined` as settled, not just `answered` — so a narrative that
+// answers the age and a follow-up turn that dismisses just AgeYears
+// (`mark_unknown`) leaves AgeMonths/Weeks/Days genuinely open with no
+// default written. That reached `Review`'s Sign off — an event handler
+// with no error boundary — as an uncaught throw (reviewer pass,
+// #127): a dead button, silently, for the rest of the session. A
+// future companion group with no entry here is still meant to be a
+// build error rather than invented copy — the same convention
+// displayName() and asksForTopic() already hold for a missing authored
+// string — but "every group in the inventory has an entry" is now also
+// asserted directly in open-fields.test.ts, so a gap fails CI before it
+// can reach a clinician as this one did.
 const COMPANION_GROUP_LABELS: Record<string, string> = {
   // Rule 9's own authored clarification (PB-2), reused as the row label:
   // "two rows for the one authored clarification 'Was that pounds or
   // kilograms?' ... One question, one row."
   "Page1.SecA_Patient.WeightValue": "Was that pounds or kilograms?",
+  // Rule 8's own #127 rev 4 addition — authored alongside weight's, not
+  // derived from it, because "years, months, weeks, or days" is not a
+  // yes/no pair the way lb/kg is.
+  "Page1.SecA_Patient.AgeValue": "Was that years, months, weeks, or days?",
 };
 
-function companionGroupLabel(anchorId: string): string {
+// Exported so the test suite can assert this never throws for any group
+// the inventory actually declares — the CI-level half of the reviewer
+// pass's fix (#127 rev 4): a missing label is a defect in this
+// document, caught here before merge, not as a runtime throw on
+// Review's Sign off tap.
+export function companionGroupLabel(anchorId: string): string {
   const label = COMPANION_GROUP_LABELS[anchorId];
   if (label === undefined) {
     throw new Error(`open-fields: no authored open-fields label for the companion group anchored on: ${anchorId}`);
@@ -224,6 +249,19 @@ export function factGroups(topics: Topic[] = TOPICS): string[][] {
   return groups;
 }
 
+// The number of askable facts the manifest holds — every non-auto
+// group `factGroups()` returns, which is also the highest
+// `recordFieldCounts()`/`readyCounts()` can ever report as `written`
+// (every group lands in exactly one of written/unknown/declined/nowhere,
+// and this is that denominator minus nothing else). Rule 8's #127 rev 4:
+// "a total stated beside a fact count is a fact total" — the facsimile's
+// own item-count caption derives this rather than writing 227 (a FIELD
+// count) beside numbers that are already facts; the count changes when
+// the inventory does, so it is never a literal.
+export function totalFactCount(topics: Topic[] = TOPICS): number {
+  return factGroups(topics).filter((group) => group.some((id) => dispositionOf(id) !== "auto")).length;
+}
+
 export function openFieldEntries(
   record: AgendaRecord,
   repeatCounts: RepeatCounts,
@@ -291,14 +329,18 @@ export function openFieldEntries(
       // atomic write) or every member is otherwise resolved/inapplicable.
       // Contributes no row, same as a single completed field would.
       if (stillOpen.length === 0) continue;
-      // A group's members are written by the SAME turn — a completing
-      // write answers every member together, a dismiss marks every
-      // askFieldId unknown together (dismissableFieldIds is the step's
-      // own unresolved set), and a factResolvesFromOne fact's untouched
-      // remainder is uniformly `unasked` — so the still-open subset
-      // shares one state by construction, so the first member's state
-      // speaks for the row.
-      const reasonKind = reasonKindFor(record[stillOpen[0]].state)!;
+      // The still-open subset does NOT always share one state — a
+      // `mark_unknown` on one member never propagates to its siblings
+      // (rule 7's negative), and narrative extraction can offer members
+      // individually, so one can go `unknown` while another stays
+      // `unasked` (rule 8's #127 rev 4, reviewer pass: an earlier
+      // version of this comment claimed otherwise and picked
+      // `stillOpen[0]`, which makes the row's wording an accident of
+      // manifest order — two records differing only in WHICH box was
+      // dismissed would read differently for no reason a clinician
+      // could see). Any still-open member `unknown` makes the row "you
+      // didn't have it"; otherwise it's "not asked yet".
+      const reasonKind = stillOpen.some((id) => record[id].state === "unknown") ? "unknown" : "not-asked";
       entries.push({
         fieldIds: stillOpen,
         label: group.label(stillOpen),
