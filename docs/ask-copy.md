@@ -195,29 +195,29 @@ design conversation first.
      ongoing, health professional, the Abated and Reappear trios,
      and their kin; the per-fact declaration is authoritative), the
      entailment carries on the clinician's own words, not on a list
-     being read: "58-year-old man" settles the sex question
-     wherever it is said. Completion applies to a
-     validator-grounded `"true"` write on any of three paths — the
-     ask's own turn, a Read-back confirmation of a narrative
-     proposal, or a rule-8 volunteered write (announced and
-     correctable, as rule 8 provides). Two boundaries are stated
-     here rather than assumed, both narrower than this rule wants
-     and both filed as defects against it: an action that is not
-     `answer "true"` — `"false"`, `unknown`, `declined` — is out of
-     scope and still takes the field-level path (#155), and a
-     tapped collision chip writes its member without reaching the
-     sweep at all, so it completes nothing (#154). Recorded because
-     a contract that overstates its own reach is how the next unit
-     inherits a bug. A Read-back
-     confirmation is the clinician answering, not machinery
-     guessing — proposals being confirmable before anything writes
-     is the whole reason Read-back exists — so the "unheard"
-     reasoning does not reach it. Before this amendment the in-ask
-     bound applied blanket: a narrative-confirmed `SexM` completed
-     nothing, the record held a male patient with `SexF: unknown`,
-     the open-fields dialog read "sex: female — you didn't have
-     it", and the walk re-asked a fact Read-back had just confirmed
-     (gate run #1, C3 — entries 2 and 5).
+     being read: "58-year-old man" settles the sex question wherever it
+     is said. Completion applies to a validator-grounded `"true"` write
+     on any of four paths — the ask's own turn, a Read-back confirmation
+     of a narrative proposal, a rule-8 volunteered write (announced and
+     correctable, as rule 8 provides), or a tapped collision chip that
+     clears the same conflict check (#154). Boundaries are named here,
+     not counted — a hand-maintained tally is exactly what has gone stale
+     on this rule already: an action that is not `answer "true"` —
+     `"false"`, `unknown`, `declined` — is out of scope and still takes
+     the field-level path (#155), a tapped collision chip included; and
+     a single turn proposing `"true"` for two DIFFERENT members of the
+     same exclusive fact writes both — collision detection is keyed on
+     field id, not fact, so two distinct fields never collide with each
+     other (#169). Recorded because a contract that overstates its own
+     reach is how the next unit inherits a bug. A Read-back confirmation
+     is the clinician answering, not machinery guessing — proposals being
+     confirmable before anything writes is the whole reason Read-back
+     exists — so the "unheard" reasoning does not reach it. Before this
+     amendment the in-ask bound applied blanket: a narrative-confirmed
+     `SexM` completed nothing, the record held a male patient with
+     `SexF: unknown`, the open-fields dialog read "sex: female — you
+     didn't have it", and the walk re-asked a fact Read-back had just
+     confirmed (gate run #1, C3 — entries 2 and 5).
 
      **A write to an exclusive group is a write of the whole fact,
      atomic (amended 2026-08-28, #126).** Rule 3 already holds that a
@@ -241,15 +241,19 @@ design conversation first.
      **A conflicting later statement is a correction of the fact, at
      fact granularity.** Where a grounded statement conflicts with an
      exclusive fact already answered, the sweep offers one correction
-     named by the fact — "You said female for sex — it's recorded as
-     male. Replace it?" — and accepting it rewrites the group
-     atomically. A member-level offer is never the right shape for a
-     one-hot member: a per-field offer on `SexF`, accepted against
-     an answered `SexM`, is exactly how a report ends with both sex
-     boxes checked on an FDA-bound form. The sweep's own offer path
-     honours that. Two live paths do not yet — a tapped collision
-     chip (#154) and a non-`answer "true"` action (#155) — and they
-     are gaps against this rule, not exceptions to it.
+     named by the fact — "You said female for sex — it's recorded as male.
+     Replace it?" — and accepting it rewrites the group atomically. A
+     member-level offer is never the right shape for a one-hot member: a
+     per-field offer on `SexF`, accepted against an answered `SexM`, is
+     exactly how a report ends with both sex boxes checked on an
+     FDA-bound form. The sweep's own offer path honours that, and since
+     #154 so does a tapped collision chip's own resolution:
+     chip-grammar.ts's resolveCollisionTap() shares the sweep's own
+     conflict check (conflictingExclusiveSibling()) rather than a second
+     copy of it, so a conflicting tap surfaces the identical "Replace
+     {fact}" offer, never a raw write — outside the boundaries named
+     above (#155, #169), which remain gaps against this rule, not
+     exceptions to it.
 
      **Naming the fact names the whole write.** design.md requires
      every out-of-ask write to be named in that turn's visible reply.
@@ -267,7 +271,11 @@ design conversation first.
    about `EthnicLatino` and writing it `"false"` would be wrong, not
    merely unheard. Such a fact is answered by ONE member instead: the
    clinician answered the question, the walk moves on, and the remaining
-   boxes stay open and answerable at Review. Each fact declares which
+   boxes stay open and answerable — listed on the open-fields dialog as
+   the fact's own still-open row, and at Review field by field (rule 8's
+   open-fields unit, #127; this clause said "at Review" alone before, which
+   disagreed with `src/lib/ask-inventory.ts` and with the dialog's own
+   purpose). Each fact declares which
    case it is (`exclusive` / `voicesEveryMember` in
    `src/lib/ask-inventory.ts`), so a new checkbox group cannot inherit
    completion by accident.
@@ -314,6 +322,200 @@ design conversation first.
      it`. (The dialog lists `unknown` and unasked fields only —
      design.md surface 5 and `open-fields.ts` exclude `declined`, so
      no declined row copy exists.)
+   **The open-fields unit is the fact, not the field — added
+   2026-08-29 (#127).** The dialog and every chrome count that
+   reconciles with it (the footer and Ready's
+   written/unknown/declined line) answer one question: how many
+   things can this clinician still usefully answer? That question's
+   unit is the askable fact, not the form field. On merged `dev`
+   `2e4d1b4` the dialog counts fields: one dismissed OC-1 becomes
+   seven rows, one WH-2 four, one PB-3 seven, and the one-hot sex
+   pair two. C4's sign-off surface headlines "105 fields are still
+   open" over a walk the clinician answered to the end, and its
+   first screenful is nine multi-member rows — sex ×2, race/
+   ethnicity ×7 — interleaved with four single-field ones. That is
+   #101's rejected shape re-entering through multi-member facts
+   (gate run #1, entries 5 and 10; #101 excluded derive companions
+   without answered anchors, and a multi-member fact is not a
+   companion, so nothing excluded it).
+
+   **The unit noun is authored, not left to the build.** All three
+   surfaces say "fields" today, and all three would be false the
+   moment they count facts: C4 would headline a number in the low
+   forties over a form with 105 genuinely unfilled fields. Rule 1
+   applies here as everywhere — the strings change with the unit:
+   - Open-fields heading: `{n} items are still open.` / `1 item is
+     still open.`
+   - Chrome footer and Ready: `{n} items written · {n} unknown ·
+     {n} declined`, and screen 07's "Fields" label becomes "Items".
+   "Item" rather than "question" or "field": a row is a fact, which
+   is neither — one ask can carry several facts (PB-1 asks
+   identifier, age and sex), so "question" would overcount asks,
+   and "field" is the noun this rule exists to stop using. It is
+   also what the dialog visibly is: a list of items to answer. The
+   form's own field count remains true and remains reachable at
+   Review, which renders every field.
+
+   The unit rule:
+   - A multi-field fact appears as ONE row under its fact name and
+     counts once, whatever its member count: a dismissed OC-1 is
+     "outcome — you didn't have it", never seven rows. The row's
+     reason follows the ask's resolution ("not asked yet" / "you
+     didn't have it"); member detail stays at Review. **Every
+     multi-field fact, not only the checkbox ones** — the
+     bulk-mapped text facts rule 9 already treats as one (RC-1,
+     DV-1, SP-9) are the same failure in the same dialog: C4 lists
+     "the device details" as nine rows, "your contact details" as
+     eight, "the purchase details" as eight. Collapsing checkbox
+     facts alone would leave C4 headlining 66 — smaller than 105
+     and the same shape Steve rejected.
+   - **The name is the fact's, qualified by its instance.** Use
+     `standaloneName` / `plainStandaloneName` where the fact
+     declares them, via `standaloneFactNamesFor()` — and pass it
+     the STILL-OPEN subset of the fact's fields, never the whole
+     `fieldIds`. Its discriminator is whether the set it is handed
+     covers the fact entirely, not what the record holds, so
+     passing `fact.fieldIds` would make a half-held RC-1 read "your
+     contact details" — the referent bug #125 removed. Repeat
+     instances share one authored string: `suspectProduct(2)`'s
+     "therapy status" is byte-identical to instance 1's, so a
+     confirmed second product would render "therapy status — not
+     asked yet" twice with nothing to tell the products apart. A
+     row for a repeat instance carries that instance's marker, the
+     way display names already do ("product #2"). Note the fact
+     name is the authored one, not the display-name prefix its
+     members happen to share: PB-3's fact is "race or ethnicity"
+     while its member labels read "race/ethnicity: White".
+   - One-hot alternatives are one fact (rule 3): one row when open
+     ("sex — you didn't have it"), never a row per box. This
+     governs the still-OPEN case, and that is the common one —
+     rule 7's own negative means a dismiss completes nothing, so a
+     dismissed PB-1 leaves both sex members `unknown` and produces
+     two rows today. The case where the fact is answered by
+     entailment already leaves the dialog whole (#126), so this
+     clause no longer carries that job.
+   - **A fact that rule 7 COMPLETES — `exclusive` or
+     `voicesEveryMember` — is not open and contributes nothing**,
+     whatever its members' states look like field-by-field. Since
+     #126 that covers more ground than the field-level reading
+     suggests: an exclusive fact is completed by an in-ask answer,
+     a Read-back confirmation, and a rule-8 volunteered write
+     alike. **Scoped to completing facts deliberately.** A fact
+     that merely RESOLVES from one member (`factResolvesFromOne` —
+     PB-3, SP-6) leaves its remaining members genuinely `unasked`
+     and genuinely answerable, so it stays listed: answering
+     "White" moves the walk on, and the other six boxes are still
+     things this clinician can usefully answer, which is this
+     rule's own test. They appear as the fact's one row, still
+     open, not as six. This settles a disagreement that predates
+     this rule: rule 7 above says such boxes stay answerable "at
+     Review", while `ask-inventory.ts` says "from the open-fields
+     dialog". **The dialog is correct and rule 7's clause is
+     amended to say so** — a box the clinician can answer belongs
+     on the surface that exists to list what they can still answer.
+   - **Rule 3's exclusive companion groups get one row too**, and
+     they are not `AskFact`s, so a build keyed on `ask.facts` alone
+     would miss them. A stated bare weight leaves `WeightLB` and
+     `WeightKG` both listable — two rows for the single authored
+     clarification "Was that pounds or kilograms?" (rule 9). One
+     question, one row, named for the question it asks. Companions
+     otherwise keep rule 3's anchor test (#101) unchanged; lab rows
+     keep rule 5's write-target exclusion; gated topics keep rule
+     5's exclusion.
+   - Auto fields (rule 4) sit outside every chrome count: they are
+     wilson's writes, not the clinician's answers, and Start
+     opening on "1 item written" for a date the clinician never
+     gave is the same overcount at the other end of the walk. Two
+     consequences, both intended and both named rather than
+     discovered later. First, `ReportDate` is already excluded from
+     the DIALOG (`isListableGap` is false for the `auto`
+     disposition), so this changes the chrome counts only — it
+     moves no headline number, and it is not what makes the
+     fixture and a gate run agree. Second, it reverses PR #107's
+     nit a: the facsimile is handed the STAMPED record, so with
+     auto excluded a fresh session reads `written === 0` and the
+     caption would say "nothing written yet" above a paper already
+     printing DATE OF REPORT. The caption describes what the
+     CLINICIAN has supplied, so it says so: `227 items, none from
+     you yet` — the stamped date is wilson's, and the caption stops
+     claiming the paper is blank when it is not.
+
+   **What a fact's state IS, for counting — added with the build
+   half, closing a gap this passage left open.** "The same facts in
+   the same states" is not self-evident for a fact whose members
+   differ: a half-filled RC-1 has three fields answered and six
+   never asked. Stated once here rather than re-decided per surface,
+   because two surfaces deciding it differently is how a footer ends
+   up saying "items" while still counting fields:
+   - **written** — at least one member answered. The clinician gave
+     something, and a fact they have partly filled is a fact they
+     have written, whatever remains.
+   - **unknown** — no member answered, and at least one `unknown`.
+     They were asked and did not have it.
+   - **declined** — no member answered, and at least one `declined`.
+   - counted nowhere otherwise, exactly as an `unasked` field is
+     today.
+   A fact can therefore be **written and still open** — the partly
+   filled RC-1 is both, and both statements are true: they have
+   given contact details, and there is more they could give. That is
+   the honest shape, and it means the dialog's count is NOT the
+   arithmetic complement of the three buckets. The reconciliation
+   this rule owes is that all three surfaces read the same facts
+   through the same states — not that one is derivable from the
+   others by subtraction. The field-granularity arithmetic gate run
+   #1 observed was an artifact of every fact being exactly one
+   field, and this passage should not have promised to preserve it.
+
+   **Three details the build proved this rule owed, added with the
+   reviewer pass.**
+   - **Every companion group carries an authored row label, and a
+     missing one is a CI failure, not a runtime throw.** Rule 9
+     authors weight's ("Was that pounds or kilograms?"); age's is
+     **"Was that years, months, weeks, or days?"**. Rule 3's bare-age
+     default does NOT make the age row unreachable, as this rule
+     first assumed: the default stands down whenever any unit is
+     already `unknown` or `declined`, so an age with a dismissed unit
+     leaves the group open with no label. That assumption reached the
+     build as a `throw` on a path `Review`'s Sign off calls in an
+     event handler — no error boundary, no message, a dead button.
+     A missing label is a defect in this document, so the check that
+     every companion group in the inventory has one belongs in the
+     test suite, where it fails before merge rather than under a
+     clinician.
+   - **A group's row reason, when its still-open members disagree.**
+     They can: a `mark_unknown` on one member does not propagate
+     (rule 7's negative), and narrative extraction offers members
+     individually. **Any still-open member `unknown` ⇒ "you didn't
+     have it"; otherwise "not asked yet".** Stated because the
+     alternative is whichever member sorts first, which makes the
+     row's words depend on manifest order — two records differing
+     only in WHICH box was dismissed would read differently for no
+     reason a clinician could see.
+   - **A total stated beside a fact count is a fact total.** The
+     facsimile's empty caption says how many items exist, so it
+     counts the same groups the chrome counters do — not the form's
+     227 fields, which is the number this rule exists to stop
+     showing as an item count. Derived, never written as a literal:
+     the count changes when the inventory does. The form's own field
+     count stays true and stays sayable where it describes the PAPER
+     ("the full 227-field form is generated at Review"), which is
+     Review's domain, not this one.
+
+   The three surfaces stay mutually consistent by counting the same
+   facts in the same states — the reconciliation gate run #1
+   verified must survive the unit change — and the gate cases'
+   headline numbers are pinned by fixture so a regression is
+   visible in CI rather than at the next gate run. C6 is not
+   pinnable as the harness stands (`gate-cases.test.ts` filters it
+   out of `WALK_CASES`; `simulateCase` stops at `start-over`), so
+   the fixture pins the five it can drive and says five. The pinned
+   numbers are post-change and must be shown to RECONCILE: each
+   case's drop from its pre-change headline equals the
+   members-minus-facts arithmetic this rule predicts for that
+   case's own open facts, not merely a smaller plausible number.
+   Not decided here: reopen granularity (#79) and the rest of the
+   round-2 design conversation — this rule decides display and
+   count units only.
 9. **Partial answers and clarifications.** An ask whose answer left
    some of its facts open is re-asked through one authored frame
    composed from display names — several still open: `Got it. Still

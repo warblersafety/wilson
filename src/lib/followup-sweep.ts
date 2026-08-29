@@ -47,8 +47,32 @@ export interface CorrectionOffer {
 // a full, unconditional REPLACEMENT of every member's value, because a
 // conflict-against-answered means every sibling is already resolved one
 // way and the whole group is being rewritten, not completed.
-function exclusiveFactRewrite(fact: AskFact, action: ProposedAction): ProposedAction[] {
+export function exclusiveFactRewrite(fact: AskFact, action: ProposedAction): ProposedAction[] {
   return fact.fieldIds.map((fieldId) => (fieldId === action.fieldId ? action : { fieldId, type: "answer", value: "false" }));
+}
+
+// The sibling currently holding this exclusive fact's "true" value when
+// it is a DIFFERENT member than `fieldId` — i.e. a real conflict.
+// undefined when there is no conflict (no fact, nothing answered true, or
+// the same member re-confirming itself).
+//
+// Shared by classifyFollowUpActions below (a grounded action from the
+// extract path's own turn) and chip-grammar.ts's resolveCollisionTap (a
+// tapped collision chip, #154) — the exact same function, one mechanism,
+// not two, so a tap faces the identical conflict check every other
+// grounded "true" write faces rather than a second, hand-rolled copy of
+// it that could drift from this one.
+export function conflictingExclusiveSibling(
+  record: AgendaRecord,
+  fieldId: string,
+): { fact: AskFact; currentFieldId: string } | undefined {
+  const fact = exclusiveFactContaining(fieldId);
+  if (fact === undefined) return undefined;
+  const currentTrueFieldId = fact.fieldIds.find(
+    (id) => record[id]?.state === "answered" && record[id]?.value === "true",
+  );
+  if (currentTrueFieldId === undefined || currentTrueFieldId === fieldId) return undefined;
+  return { fact, currentFieldId: currentTrueFieldId };
 }
 
 // A field this turn proposed more than one candidate for. Carries the
@@ -178,27 +202,28 @@ export function classifyFollowUpActions(
     if (action.type === "answer" && action.value === "true") {
       const exclusiveFact = exclusiveFactContaining(action.fieldId);
       if (exclusiveFact !== undefined) {
-        const currentTrueFieldId = exclusiveFact.fieldIds.find(
-          (id) => record[id]?.state === "answered" && record[id]?.value === "true",
-        );
         // A DIFFERENT member already holds the fact's "true" value: a
         // real conflict, offered at fact granularity — never as a
         // member-level offer, which is exactly the shape that lets a
         // report end up with two boxes checked. Re-confirming the SAME
-        // member that is already true (currentTrueFieldId === the
-        // action's own field) is not a conflict — nothing to replace —
-        // and falls through to the write below like any other case
-        // where the fact isn't already answered against this member.
-        if (currentTrueFieldId !== undefined && currentTrueFieldId !== action.fieldId) {
+        // member that is already true, or nothing yet true at all, is
+        // not a conflict — conflictingExclusiveSibling() returns
+        // undefined for both — and falls through to the write below
+        // like any other case where the fact isn't already answered
+        // against this member. Shared with chip-grammar.ts's
+        // resolveCollisionTap (#154): the exact same function, one
+        // mechanism, not two.
+        const conflict = conflictingExclusiveSibling(record, action.fieldId);
+        if (conflict !== undefined) {
           correctionOffers.push({
             fieldId: action.fieldId,
             action,
             currentState: entry.state,
             currentValue: entry.value,
             exclusiveFact: {
-              name: exclusiveFact.name,
-              currentFieldId: currentTrueFieldId,
-              writes: exclusiveFactRewrite(exclusiveFact, action),
+              name: conflict.fact.name,
+              currentFieldId: conflict.currentFieldId,
+              writes: exclusiveFactRewrite(conflict.fact, action),
             },
           });
           continue;
@@ -284,7 +309,17 @@ function exclusiveFactCorrectionOfferSentence(offer: CorrectionOffer): string {
   return `You said ${newValue} for ${info.name} — it's recorded as ${oldValue}. Replace it?`;
 }
 
-function correctionOfferSentence(offer: CorrectionOffer, fields: FormFieldSpec[]): string {
+// Exported (Issue #154) so a collision tap that resolves into a
+// fact-granularity conflict (chip-grammar.ts's resolveCollisionTap) can
+// quote the SAME sentence into stepForSession's replyPrefix — the same
+// "quote the same authored line at tap time" reason #124 exported
+// collisionSentence for, just below. Defaulted the same way
+// describeFollowUpSweep() defaults its own `fields` param: every caller
+// reachable from a tap always hits the exclusiveFact branch, which never
+// reads `fields` at all, so forcing such a caller to import
+// FORM_3500_FIELDS just to hand it back unused would be ceremony with no
+// payoff.
+export function correctionOfferSentence(offer: CorrectionOffer, fields: FormFieldSpec[] = FORM_3500_FIELDS): string {
   if (offer.exclusiveFact !== undefined) return exclusiveFactCorrectionOfferSentence(offer);
   const phrase = fieldOrId(offer.fieldId, fields);
   return `You said ${describeOfferedChange(offer)} for ${phrase} — it's ${describeCurrentState(offer)}. Replace it?`;

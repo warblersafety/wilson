@@ -49,6 +49,17 @@ describe("readyCounts", () => {
     expect(() => readyCounts(record)).not.toThrow();
     expect(readyCounts(record).answered).toBe(0);
   });
+
+  // ask-copy.md rule 4's auto field (added 2026-08-29, #127): ReportDate
+  // is wilson's write, not the clinician's — Ready.tsx counts the
+  // STAMPED record (the one the download actually carries), so without
+  // this exclusion `answered` never reads zero even on a session the
+  // clinician answered nothing in.
+  it("excludes the auto ReportDate field even once it is stamped", () => {
+    const record = initAgenda();
+    record["Page1.SecA_Patient.ReportDate"] = { state: "answered", value: "2026-08-29" };
+    expect(readyCounts(record)).toEqual({ answered: 0, unknown: 0, declined: 0 });
+  });
 });
 
 describe("formatReadyCounts", () => {
@@ -120,6 +131,15 @@ describe("copy — the no-submission-claims rule, asserted mechanically", () => 
 
   it("heads the surface with readiness, not a filing", () => {
     expect(READY_COPY.heading).toBe("Report ready.");
+  });
+
+  it("labels the summary row 'Items', not 'Fields' (#127 N5)", () => {
+    // ask-copy.md rule 8's #127 amendment: screen 07's own noun stops
+    // matching the open-fields dialog beside it the moment the dialog
+    // counts facts instead of fields. Unpinned before this test — a
+    // mutation sweep confirmed the string could change with the whole
+    // suite still green.
+    expect(READY_COPY.itemsLabel).toBe("Items");
   });
 
   it("the failure heading never repeats the ready claim", () => {

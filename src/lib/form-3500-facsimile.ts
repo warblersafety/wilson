@@ -146,3 +146,29 @@ export function productIdentity(record: AgendaRecord): RenderedFacsimileValue {
   const withStrength = joinNonEmpty([name.text, strengthPart]);
   return { text: joinNonEmpty([withStrength, manufacturer ? `— ${manufacturer}` : null]), muted: false };
 }
+
+// Facsimile.tsx's own empty-state copy — shown before the clinician has
+// supplied anything (Facsimile.tsx's own `nothingWritten`, computed once
+// counts.written/counts.unknown are both zero). Pulled into lib and
+// pinned by form-3500-facsimile.test.ts (added with the reviewer pass,
+// #127 N5): both strings previously lived only as JSX literals in the
+// component, invisible to any copy-level check, and a mutation sweep
+// confirmed neither was actually asserted anywhere.
+//
+// ask-copy.md rule 8's #127 amendment: the caption describes what the
+// CLINICIAN supplied, never claims the paper itself is blank — a stamped
+// ReportDate always prints, so "nothing written yet" would sit above a
+// paper that isn't. "none from you yet" is the honest replacement, used
+// both bare (the compact header status) and inside the fuller caption.
+export const FACSIMILE_EMPTY_STATE_STATUS = "none from you yet";
+const FACSIMILE_EMPTY_STATE_SUFFIX = "Everything here comes from what you say.";
+
+// The fuller empty-state paragraph, built from the current fact total —
+// rule 8's #127 rev 4: "a total stated beside a fact count is a fact
+// total," so this takes the count as a parameter (open-fields.ts's
+// totalFactCount()) rather than importing it and re-deriving it here,
+// keeping this function pure and this file free of a new dependency on
+// open-fields.ts.
+export function facsimileEmptyCaption(totalFacts: number): string {
+  return `${totalFacts} items, ${FACSIMILE_EMPTY_STATE_STATUS}. ${FACSIMILE_EMPTY_STATE_SUFFIX}`;
+}

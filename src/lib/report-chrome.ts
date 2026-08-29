@@ -25,7 +25,9 @@
 //     count toward the footer's record-wide totals, just not rolled up
 //     individually here.
 import type { AgendaRecord } from "./agenda";
-import { FORM_3500_FIELDS, type FormFieldSpec, type FormSection } from "./form-3500-fields";
+import { dispositionOf } from "./ask-inventory";
+import type { FormSection } from "./form-3500-fields";
+import { factGroups } from "./open-fields";
 import { TOPICS, type RepeatCounts, type Topic } from "./topics";
 import { isTopicGatedOff } from "./gates";
 
@@ -207,13 +209,39 @@ export interface RecordCounts {
 // curatedRowState uses above, and design.md's own footer example ("18
 // fields written · 2 unknown") names only two buckets, not a third for
 // declined.
-export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] = FORM_3500_FIELDS): RecordCounts {
+//
+// Counts FACTS, not fields — ask-copy.md rule 8's #127 amendment,
+// definition added with the build (rev 3) after the build's own first
+// pass shipped this iterating fields under a relabeled noun, which is
+// the exact "footer says items while still counting fields" failure
+// that definition exists to name. Grouped via factGroups() — the SAME
+// walk the open-fields dialog collapses rows with — so this can never
+// disagree with the dialog about which fields belong together. Per
+// fact: written if any member is answered, unknown otherwise if any
+// member is unknown OR declined (this function's own two-bucket
+// merge, unchanged) — so a fact can be written and still show as open
+// on the dialog at once (a half-held RC-1 is both); see the amendment
+// for why that is the honest shape, not a bug.
+//
+// Rule 4's auto field (`ReportDate`) is excluded, added 2026-08-29
+// (#127): it is wilson's own write at export, not the clinician's, and
+// this function is the reason a brand-new session opened on "1 field
+// written" the moment the facsimile started handing it the STAMPED
+// record (reviewer pass, PR #107, nit a) — a date the clinician never
+// gave, counted as if they had. ReportDate is never part of a
+// multi-field fact (WH-2 carries it as a companion, not a fact member),
+// so it is always its own singleton group — filtered per-group rather
+// than assuming that, in case a future fact ever did carry an auto
+// member.
+export function recordFieldCounts(record: AgendaRecord, topics: Topic[] = TOPICS): RecordCounts {
   let written = 0;
   let unknown = 0;
-  for (const field of fields) {
-    const state = record[field.id]?.state ?? "unasked";
-    if (state === "answered") written++;
-    else if (state === "unknown" || state === "declined") unknown++;
+  for (const group of factGroups(topics)) {
+    const members = group.filter((id) => dispositionOf(id) !== "auto");
+    if (members.length === 0) continue;
+    const states = members.map((id) => record[id]?.state ?? "unasked");
+    if (states.some((s) => s === "answered")) written++;
+    else if (states.some((s) => s === "unknown" || s === "declined")) unknown++;
   }
   return { written, unknown };
 }
@@ -223,8 +251,18 @@ export function recordFieldCounts(record: AgendaRecord, fields: FormFieldSpec[] 
 // F4: they used to pluralize and zero-suppress differently while
 // agreeing on the numbers — "1 field written" in one place, "1 fields
 // written · 0 unknown" in the other, for the same record).
+//
+// "Item", not "field" — ask-copy.md rule 8's open-fields unit (#127).
+// Formats whatever `counts` holds; as of rev 3 that is a FACT count
+// (recordFieldCounts() above now buckets by factGroups(), not by
+// manifest field), so the word and the number finally agree — an
+// earlier version of this comment said the opposite ("this function
+// still tallies manifest fields... only the noun changes"), true when
+// written and false the moment recordFieldCounts() changed underneath
+// it (reviewer pass, #127 N6). Review's own field count is untouched by
+// any of this — it lives at Review, not here.
 export function formatFieldCounts(counts: RecordCounts): string {
-  const written = `${counts.written} field${counts.written === 1 ? "" : "s"} written`;
+  const written = `${counts.written} item${counts.written === 1 ? "" : "s"} written`;
   return counts.unknown > 0 ? `${written} · ${counts.unknown} unknown` : written;
 }
 
